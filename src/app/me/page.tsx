@@ -1,11 +1,12 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { User, Phone, Mail, Shield, LogOut, ChevronRight, KeyRound, Camera } from "lucide-react";
+import { User, Phone, Mail, Shield, LogOut, ChevronRight } from "lucide-react";
 import SignOutButton from "@/components/logout";
 import { auth } from "@/server/lib/auth";
 import { prisma } from "@/server/lib/db";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
+import { AvatarUpload } from "./components/avatar-upload";
+import { ProfileEditDialog } from "./components/profile-edit-dialog";
+import { ChangePasswordDialog } from "./components/change-password-dialog";
 
 export default async function MePage() {
   const session = await auth.api.getSession({
@@ -36,12 +37,7 @@ export default async function MePage() {
       {/* 用户信息卡片 */}
       <div className="group relative overflow-hidden rounded-xl border bg-card transition-all hover:shadow-md animate-slide-up">
         <div className="flex items-center gap-5 p-6">
-          <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary/10 text-3xl font-bold text-primary ring-4 ring-background">
-            {user.name?.[0] || user.username?.[0] || "U"}
-            <button className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-background hover:bg-primary/90 transition-colors">
-              <Camera className="h-3 w-3" />
-            </button>
-          </div>
+          <AvatarUpload user={user} />
           <div className="flex-1 space-y-1">
             <h2 className="text-xl font-semibold">{user.name || user.username || "用户"}</h2>
             <p className="text-sm text-muted-foreground">{fullUser?.phoneNumber || user.email}</p>
@@ -51,9 +47,7 @@ export default async function MePage() {
                </span>
              </div>
           </div>
-          <Button variant="outline" size="sm">
-            编辑
-          </Button>
+          <ProfileEditDialog user={user} />
         </div>
       </div>
 
@@ -111,17 +105,7 @@ export default async function MePage() {
           <h3 className="text-sm font-medium text-muted-foreground">安全设置</h3>
         </div>
         <div className="divide-y divide-border/50">
-          <button
-            type="button"
-            className="flex w-full items-center justify-between px-4 py-3.5 text-left hover:bg-accent/50 transition-colors"
-            disabled
-          >
-            <div className="flex items-center gap-3">
-              <KeyRound className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">修改密码</span>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </button>
+          <ChangePasswordDialog />
           
           {user.role === "admin" && (
              <button
