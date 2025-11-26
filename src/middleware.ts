@@ -1,0 +1,76 @@
+import { betterFetch } from "@better-fetch/fetch";
+import type { Session, User } from "better-auth/types";
+import { NextResponse, type NextRequest } from "next/server";
+
+type SessionResponse = {
+  session: Session;
+  user: User;
+};
+
+export default async function authMiddleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // 如果是 API 路由或静态资源，跳过中间件
+  if (
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/static") ||
+    pathname.match(/\.(ico|png|jpg|jpeg|svg|webp|gif|css|js|woff|woff2|ttf|eot)$/)
+  ) {
+    return NextResponse.next();
+  }
+
+  // 获取当前 session
+  const { data: session, error } = await betterFetch<SessionResponse>("/api/auth/get-session", {
+    baseURL: request.nextUrl.origin,
+    headers: {
+      cookie: request.headers.get("cookie") || "",
+    },
+  });
+
+  // Debug logging
+  console.log("[Middleware]", {
+    pathname,
+    hasSession: !!session?.user,
+    userId: session?.user?.id,
+    error: error?.message,
+  });
+
+  // 需要保护的路由列表
+  const protectedRoutes = ["/dashboard", "/me"];
+  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
+
+  // 公开路由（已登录用户不应访问）
+  const authRoutes = ["/sign-in", "/sign-up"];
+  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
+
+  // 如果访问受保护路由但未登录，重定向到登录页
+  if (isProtectedRoute && !session?.user) {
+    console.log("[Middleware] Redirecting to sign-in (no session)");
+    const redirectUrl = new URL("/sign-in", request.url);
+    redirectUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // 如果已登录访问登录/注册页，重定向到首页
+  if (isAuthRoute && session?.user) {
+    const redirectTo = request.nextUrl.searchParams.get("redirect") || "/dashboard";
+    console.log("[Middleware] Redirecting to", redirectTo, "(has session)");
+    return NextResponse.redirect(new URL(redirectTo, request.url));
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+  ],
+};
