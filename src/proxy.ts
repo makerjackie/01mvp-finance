@@ -28,14 +28,6 @@ export default async function proxy(request: NextRequest) {
     },
   });
 
-  // Debug logging
-  console.log("[Middleware]", {
-    pathname,
-    hasSession: !!session?.user,
-    userId: session?.user?.id,
-    error: error?.message,
-  });
-
   // 需要保护的路由列表
   const protectedRoutes = ["/dashboard", "/me"];
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
@@ -46,7 +38,6 @@ export default async function proxy(request: NextRequest) {
 
   // 如果访问受保护路由但未登录，重定向到登录页
   if (isProtectedRoute && !session?.user) {
-    console.log("[Middleware] Redirecting to sign-in (no session)");
     const redirectUrl = new URL("/sign-in", request.url);
     redirectUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(redirectUrl);
@@ -55,7 +46,6 @@ export default async function proxy(request: NextRequest) {
   // 如果已登录访问登录/注册页，重定向到首页
   if (isAuthRoute && session?.user) {
     const redirectTo = request.nextUrl.searchParams.get("redirect") || "/dashboard";
-    console.log("[Middleware] Redirecting to", redirectTo, "(has session)");
     return NextResponse.redirect(new URL(redirectTo, request.url));
   }
 

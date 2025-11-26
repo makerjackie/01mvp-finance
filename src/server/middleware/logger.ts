@@ -115,7 +115,7 @@ export function requestLogger() {
       logger.error(logData);
     } else if (status >= 400) {
       logger.warn(logData);
-    } else {
+    } else if (isDev) {
       logger.info(logData);
     }
   };
