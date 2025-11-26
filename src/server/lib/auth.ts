@@ -4,11 +4,35 @@ import { admin, organization, twoFactor, username, phoneNumber } from "better-au
 import { prisma } from "./db";
 import { sendSms } from "./sms";
 
+const parseOrigin = (value?: string | null) => {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+};
+
+const authOrigin =
+  parseOrigin(process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_API_URL) ||
+  "http://localhost:3000";
+
+const trustedOrigins = Array.from(
+  new Set(
+    [
+      ...((process.env.TRUSTED_ORIGINS || process.env.BETTER_AUTH_TRUSTED_ORIGINS || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)),
+      authOrigin,
+      "http://localhost:3000",
+    ].filter(Boolean),
+  ),
+);
+
 export const auth = betterAuth({
-  baseURL: process.env.NEXT_PUBLIC_API_URL
-    ? `${process.env.NEXT_PUBLIC_API_URL}/api/auth`
-    : "http://localhost:3000/api/auth",
-  trustedOrigins: ["http://localhost:3000"],
+  baseURL: `${authOrigin}/api/auth`,
+  trustedOrigins,
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
