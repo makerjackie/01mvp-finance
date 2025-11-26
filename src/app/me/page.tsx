@@ -1,9 +1,11 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { User, Phone, Mail, Shield, LogOut, ChevronRight } from "lucide-react";
+import { User, Phone, Mail, Shield, LogOut, ChevronRight, KeyRound, Camera } from "lucide-react";
 import SignOutButton from "@/components/logout";
 import { auth } from "@/server/lib/auth";
 import { prisma } from "@/server/lib/db";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export default async function MePage() {
   const session = await auth.api.getSession({
@@ -25,128 +27,128 @@ export default async function MePage() {
   });
 
   return (
-    <div className="mx-auto min-h-screen max-w-2xl space-y-4 px-4 py-6">
+    <div className="mx-auto min-h-[calc(100vh-4rem)] max-w-2xl space-y-6 px-4 py-10">
+      <div className="mb-6 animate-fade-in">
+        <h1 className="text-2xl font-bold tracking-tight">个人中心</h1>
+        <p className="text-muted-foreground text-sm">管理您的个人资料和账户安全</p>
+      </div>
+
       {/* 用户信息卡片 */}
-      <div className="card overflow-hidden">
-        <div className="flex items-center gap-4 p-6">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary">
+      <div className="group relative overflow-hidden rounded-xl border bg-card transition-all hover:shadow-md animate-slide-up">
+        <div className="flex items-center gap-5 p-6">
+          <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary/10 text-3xl font-bold text-primary ring-4 ring-background">
             {user.name?.[0] || user.username?.[0] || "U"}
+            <button className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-background hover:bg-primary/90 transition-colors">
+              <Camera className="h-3 w-3" />
+            </button>
           </div>
-          <div className="flex-1">
-            <h1 className="text-lg font-semibold">{user.name || user.username || "用户"}</h1>
+          <div className="flex-1 space-y-1">
+            <h2 className="text-xl font-semibold">{user.name || user.username || "用户"}</h2>
             <p className="text-sm text-muted-foreground">{fullUser?.phoneNumber || user.email}</p>
+             <div className="flex items-center gap-2 pt-1">
+               <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                 标准会员
+               </span>
+             </div>
           </div>
+          <Button variant="outline" size="sm">
+            编辑
+          </Button>
         </div>
       </div>
 
       {/* 账号信息 */}
-      <div className="card overflow-hidden">
-        <div className="border-b border-border px-4 py-3">
-          <h2 className="font-medium">账号信息</h2>
+      <div className="overflow-hidden rounded-xl border bg-card animate-slide-up" style={{ animationDelay: "100ms" }}>
+        <div className="border-b border-border/50 bg-muted/30 px-4 py-3">
+          <h3 className="text-sm font-medium text-muted-foreground">基本信息</h3>
         </div>
-        <div className="divide-y divide-border">
+        <div className="divide-y divide-border/50">
           {user.username && (
-            <div className="flex items-center gap-3 px-4 py-3">
-              <User className="h-5 w-5 text-muted-foreground" />
-              <div className="flex-1">
-                <div className="text-sm text-muted-foreground">用户名</div>
-                <div className="font-medium">{user.username}</div>
+            <div className="flex items-center justify-between px-4 py-3.5 hover:bg-accent/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">用户名</span>
               </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground font-mono">{user.username}</span>
             </div>
           )}
 
           {user.name && (
-            <div className="flex items-center gap-3 px-4 py-3">
-              <User className="h-5 w-5 text-muted-foreground" />
-              <div className="flex-1">
-                <div className="text-sm text-muted-foreground">昵称</div>
-                <div className="font-medium">{user.name}</div>
+            <div className="flex items-center justify-between px-4 py-3.5 hover:bg-accent/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">昵称</span>
               </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">{user.name}</span>
             </div>
           )}
 
           {fullUser?.phoneNumber && (
-            <div className="flex items-center gap-3 px-4 py-3">
-              <Phone className="h-5 w-5 text-muted-foreground" />
-              <div className="flex-1">
-                <div className="text-sm text-muted-foreground">手机号</div>
-                <div className="font-medium">{fullUser.phoneNumber}</div>
+            <div className="flex items-center justify-between px-4 py-3.5 hover:bg-accent/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">手机号</span>
               </div>
+              <span className="text-sm text-muted-foreground font-mono">{fullUser.phoneNumber}</span>
             </div>
           )}
 
           {user.email && (
-            <div className="flex items-center gap-3 px-4 py-3">
-              <Mail className="h-5 w-5 text-muted-foreground" />
-              <div className="flex-1">
-                <div className="text-sm text-muted-foreground">邮箱</div>
-                <div className="font-medium">{user.email}</div>
+            <div className="flex items-center justify-between px-4 py-3.5 hover:bg-accent/30 transition-colors">
+              <div className="flex items-center gap-3">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">邮箱</span>
               </div>
-            </div>
-          )}
-
-          {user.role === "admin" && (
-            <div className="flex items-center gap-3 px-4 py-3">
-              <Shield className="h-5 w-5 text-primary" />
-              <div className="flex-1">
-                <div className="text-sm text-muted-foreground">权限</div>
-                <div className="font-medium text-primary">管理员</div>
-              </div>
+              <span className="text-sm text-muted-foreground">{user.email}</span>
             </div>
           )}
         </div>
       </div>
 
       {/* 设置选项 */}
-      <div className="card overflow-hidden">
-        <div className="border-b border-border px-4 py-3">
-          <h2 className="font-medium">设置</h2>
+      <div className="overflow-hidden rounded-xl border bg-card animate-slide-up" style={{ animationDelay: "200ms" }}>
+        <div className="border-b border-border/50 bg-muted/30 px-4 py-3">
+          <h3 className="text-sm font-medium text-muted-foreground">安全设置</h3>
         </div>
-        <div className="divide-y divide-border">
+        <div className="divide-y divide-border/50">
           <button
             type="button"
-            className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50"
+            className="flex w-full items-center justify-between px-4 py-3.5 text-left hover:bg-accent/50 transition-colors"
             disabled
           >
-            <User className="h-5 w-5 text-muted-foreground" />
-            <div className="flex-1">
-              <div className="font-medium">编辑个人资料</div>
-              <div className="text-sm text-muted-foreground">修改头像、昵称等</div>
+            <div className="flex items-center gap-3">
+              <KeyRound className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">修改密码</span>
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </button>
-
-          <button
-            type="button"
-            className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50"
-            disabled
-          >
-            <Shield className="h-5 w-5 text-muted-foreground" />
-            <div className="flex-1">
-              <div className="font-medium">修改密码</div>
-              <div className="text-sm text-muted-foreground">更新登录密码</div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-          </button>
+          
+          {user.role === "admin" && (
+             <button
+                type="button"
+                className="flex w-full items-center justify-between px-4 py-3.5 text-left hover:bg-accent/50 transition-colors"
+                disabled
+              >
+                <div className="flex items-center gap-3">
+                  <Shield className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">管理员后台</span>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
+          )}
         </div>
       </div>
 
       {/* 退出登录 */}
-      <div className="card overflow-hidden">
-        <div className="flex w-full items-center justify-center gap-2 px-4 py-3">
-          <SignOutButton className="w-full text-destructive hover:bg-destructive/10">
-            <LogOut className="mr-2 h-5 w-5" />
-            退出登录
-          </SignOutButton>
-        </div>
+      <div className="animate-slide-up" style={{ animationDelay: "300ms" }}>
+        <SignOutButton className="w-full rounded-xl border border-destructive/20 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:border-destructive/30 h-12 font-medium">
+          <LogOut className="mr-2 h-4 w-4" />
+          退出登录
+        </SignOutButton>
       </div>
 
-      {/* 账号ID（调试用） */}
-      <div className="rounded-lg border border-dashed border-border/50 p-3 text-center">
-        <div className="text-xs text-muted-foreground">账号 ID</div>
-        <div className="mt-1 font-mono text-xs text-muted-foreground">{user.id}</div>
+      <div className="text-center text-xs text-muted-foreground animate-slide-up" style={{ animationDelay: "400ms" }}>
+        <p>Account ID: <span className="font-mono">{user.id}</span></p>
       </div>
     </div>
   );

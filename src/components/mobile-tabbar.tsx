@@ -1,16 +1,9 @@
 "use client";
 
-import { Home, PenTool, Users, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Home, MessageSquare, User, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const tabs = [
-  { icon: Home, label: "首页", href: "/" },
-  { icon: PenTool, label: "功能", href: "/features" },
-  { icon: Users, label: "广场", href: "/square" },
-  { icon: User, label: "我的", href: "/me" },
-];
 
 export function MobileTabbar() {
   const pathname = usePathname();
@@ -20,28 +13,50 @@ export function MobileTabbar() {
     return null;
   }
 
-  return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
-      <div className="flex items-center justify-around px-2 py-2">
-        {tabs.map((tab) => {
-          const isActive = pathname === tab.href;
-          const Icon = tab.icon;
+  const tabs = [
+    {
+      label: "首页",
+      icon: Home,
+      href: "/",
+      active: pathname === "/",
+    },
+    {
+      label: "对话",
+      icon: MessageSquare,
+      href: "/chat",
+      active: pathname === "/chat",
+    },
+    {
+      label: "控制台",
+      icon: LayoutDashboard,
+      href: "/dashboard",
+      active: pathname === "/dashboard",
+    },
+    {
+      label: "我的",
+      icon: User,
+      href: "/me",
+      active: pathname === "/me",
+    },
+  ];
 
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-3 py-2 transition-colors",
-                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Icon className={cn("h-5 w-5", isActive && "fill-primary/20")} />
-              <span className="text-xs font-medium">{tab.label}</span>
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/40 bg-background/80 backdrop-blur-lg supports-[backdrop-filter]:bg-background/60 md:hidden pb-[env(safe-area-inset-bottom)]">
+      <nav className="flex h-16 items-center justify-around px-2">
+        {tabs.map((tab) => (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            className={cn(
+              "flex flex-1 flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors active:scale-95",
+              tab.active ? "text-primary" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <tab.icon className={cn("h-6 w-6", tab.active && "fill-current")} strokeWidth={tab.active ? 2.5 : 2} />
+            <span className="text-[10px] font-medium">{tab.label}</span>
+          </Link>
+        ))}
+      </nav>
+    </div>
   );
 }

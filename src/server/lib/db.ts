@@ -10,6 +10,9 @@ const globalForPrisma = globalThis as unknown as {
 let prismaClient: PrismaClient | undefined;
 let prismaPool: Pool | undefined;
 
+type PrismaClientKey = keyof PrismaClient;
+type PrismaClientValue = PrismaClient[PrismaClientKey];
+
 function getPrismaClient() {
   if (prismaClient) return prismaClient;
 
@@ -43,16 +46,16 @@ export const prisma = new Proxy({} as PrismaClient, {
     const valueProxy = new Proxy(() => {}, {
       get(_fnTarget, nestedProp) {
         const client = getPrismaClient();
-        const value = (client as any)[prop as keyof PrismaClient];
+        const value = client[prop as PrismaClientKey] as PrismaClientValue | undefined;
         if (value == null) return value;
-        const nested = Reflect.get(value, nestedProp);
+        const nested = Reflect.get(value as object, nestedProp);
         return typeof nested === "function" ? nested.bind(value) : nested;
       },
       apply(_fnTarget, _thisArg, argArray) {
         const client = getPrismaClient();
-        const value = (client as any)[prop as keyof PrismaClient];
+        const value = client[prop as PrismaClientKey] as PrismaClientValue | undefined;
         if (typeof value !== "function") return value;
-        return value.apply(client, argArray);
+        return (value as (...args: unknown[]) => unknown).apply(client, argArray);
       },
     });
 

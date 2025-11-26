@@ -21,7 +21,7 @@ export default async function proxy(request: NextRequest) {
   }
 
   // 获取当前 session
-  const { data: session, error } = await betterFetch<SessionResponse>("/api/auth/get-session", {
+  const { data: session } = await betterFetch<SessionResponse>("/api/auth/get-session", {
     baseURL: request.nextUrl.origin,
     headers: {
       cookie: request.headers.get("cookie") || "",

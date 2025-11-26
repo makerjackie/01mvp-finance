@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, Smartphone, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { type FormEvent, useState } from "react";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { siteConfig } from "@/lib/config/site";
+import { cn } from "@/lib/utils";
 
 type Mode = "signin" | "signup";
 type AuthMethod = "sms" | "password";
@@ -66,7 +67,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
       } else {
         setError(error?.message || "发送失败");
       }
-    } catch (err) {
+    } catch {
       setError("网络错误，请重试");
     } finally {
       setIsPending(false);
@@ -106,7 +107,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
         setError("验证失败，请重试");
         setIsPending(false);
       }
-    } catch (err) {
+    } catch {
       setError("网络错误，请重试");
       setIsPending(false);
     }
@@ -160,7 +161,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
         setError("登录失败，请重试");
         setIsPending(false);
       }
-    } catch (err) {
+    } catch {
       setError("网络错误，请重试");
       setIsPending(false);
     }
@@ -171,46 +172,50 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
   }`;
 
   return (
-    <div className="p-6 sm:p-8">
-      <div className="mb-6 space-y-2 text-center">
-        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-          {mode === "signin" ? "欢迎回来" : "注册账号"}
-        </p>
-        <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-          {mode === "signin" ? `登录 ${siteConfig.name}` : `加入 ${siteConfig.name}`}
+    <div className="w-full p-6 sm:p-8">
+      <div className="mb-8 space-y-2 text-center">
+        <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+          {mode === "signin" ? "欢迎回来" : "创建账号"}
         </h2>
+        <p className="text-sm text-muted-foreground">
+          {mode === "signin" ? `登录您的 ${siteConfig.name} 账号` : `注册 ${siteConfig.name} 账号，开始使用`}
+        </p>
       </div>
 
       {/* 登录方式切换 */}
-      <div className="mb-6 flex rounded-lg border p-1">
+      <div className="mb-8 flex rounded-xl bg-muted p-1">
         <button
           type="button"
           onClick={() => setAuthMethod("sms")}
-          className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
-            authMethod === "sms" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-          }`}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
+            authMethod === "sms"
+              ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+              : "text-muted-foreground hover:text-foreground"
+          )}
         >
-          短信验证码
+          <Smartphone className="h-4 w-4" />
+          验证码登录
         </button>
         <button
           type="button"
           onClick={() => setAuthMethod("password")}
-          className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
+          className={cn(
+            "flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
             authMethod === "password"
-              ? "bg-primary text-primary-foreground"
+              ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/5"
               : "text-muted-foreground hover:text-foreground"
-          }`}
+          )}
         >
+          <KeyRound className="h-4 w-4" />
           密码登录
         </button>
       </div>
 
       {authMethod === "sms" ? (
-        <form onSubmit={handleSmsLogin} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="phone" className="text-foreground">
-              手机号
-            </Label>
+        <form onSubmit={handleSmsLogin} className="space-y-5 animate-fade-in">
+          <div className="space-y-2">
+            <Label htmlFor="phone">手机号</Label>
             <div className="flex gap-2">
               <Input
                 id="phone"
@@ -226,7 +231,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
                 variant="outline"
                 onClick={handleSendSms}
                 disabled={isPending || countdown > 0}
-                className="shrink-0"
+                className="shrink-0 min-w-[100px]"
               >
                 {countdown > 0 ? `${countdown}s` : "获取验证码"}
               </Button>
@@ -234,10 +239,8 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
           </div>
 
           {smsSent && (
-            <div className="space-y-1.5">
-              <Label htmlFor="code" className="text-foreground">
-                验证码
-              </Label>
+            <div className="space-y-2 animate-slide-up">
+              <Label htmlFor="code">验证码</Label>
               <Input
                 id="code"
                 type="text"
@@ -245,12 +248,14 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
                 onChange={(e) => setSmsCode(e.target.value)}
                 placeholder="请输入 6 位验证码"
                 maxLength={6}
+                className="tracking-widest"
               />
             </div>
           )}
 
           {error && (
-            <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive flex items-center gap-2 animate-slide-up">
+              <div className="h-1.5 w-1.5 rounded-full bg-destructive" />
               {error}
             </div>
           )}
@@ -258,7 +263,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
           <Button type="submit" className="w-full" size="lg" disabled={isPending || !smsSent}>
             {isPending ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 处理中...
               </>
             ) : (
@@ -267,12 +272,10 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
           </Button>
         </form>
       ) : (
-        <form onSubmit={handlePasswordLogin} className="space-y-4">
+        <form onSubmit={handlePasswordLogin} className="space-y-5 animate-fade-in">
           {mode === "signup" && (
-            <div className="space-y-1.5">
-              <Label htmlFor="name" className="text-foreground">
-                昵称（可选）
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="name">昵称（可选）</Label>
               <Input
                 id="name"
                 type="text"
@@ -280,15 +283,13 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
                 onChange={(e) => setName(e.target.value)}
                 value={name}
                 maxLength={50}
-                placeholder="展示用昵称"
+                placeholder="设置一个好听的昵称"
               />
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="username" className="text-foreground">
-              用户名
-            </Label>
+          <div className="space-y-2">
+            <Label htmlFor="username">用户名</Label>
             <Input
               id="username"
               value={username}
@@ -301,15 +302,13 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
             />
           </div>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="password" className="text-foreground">
-                密码
-              </Label>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">密码</Label>
               {mode === "signin" && (
                 <Link
                   href="/forgot-password"
-                  className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  className="text-xs text-muted-foreground underline-offset-4 hover:text-primary hover:underline"
                 >
                   忘记密码？
                 </Link>
@@ -324,12 +323,13 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
               required
               minLength={8}
               maxLength={100}
-              placeholder="至少 8 位"
+              placeholder="至少 8 位字符"
             />
           </div>
 
           {error && (
-            <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive flex items-center gap-2 animate-slide-up">
+              <div className="h-1.5 w-1.5 rounded-full bg-destructive" />
               {error}
             </div>
           )}
@@ -337,7 +337,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
           <Button type="submit" className="w-full" size="lg" disabled={isPending}>
             {isPending ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 处理中...
               </>
             ) : mode === "signin" ? (
@@ -349,13 +349,14 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
         </form>
       )}
 
-      <div className="mt-8 space-y-3 rounded-xl border border-border/70 bg-background/60 p-4 text-sm text-muted-foreground">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <span>{mode === "signin" ? "第一次来？" : "已经有账号？"}</span>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={switchHref}>{mode === "signin" ? "去注册" : "去登录"}</Link>
-          </Button>
-        </div>
+      <div className="mt-8 text-center text-sm">
+        <span className="text-muted-foreground">{mode === "signin" ? "还没有账号？" : "已经有账号？"}</span>
+        <Link 
+          href={switchHref} 
+          className="ml-2 font-medium text-primary underline-offset-4 hover:underline"
+        >
+          {mode === "signin" ? "立即注册" : "直接登录"}
+        </Link>
       </div>
     </div>
   );
