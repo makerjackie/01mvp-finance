@@ -5,7 +5,7 @@
 # ========================================
 # Configuration
 # ========================================
-IMAGE_NAME ?= drop01mvp
+IMAGE_NAME ?= 01mvp-nextjs-template
 REGISTRY ?= docker.cnb.cool/01mvp
 TAG ?= latest
 IMAGE_TAG ?= $(TAG)
@@ -19,7 +19,7 @@ PLATFORM ?= linux/amd64
 # ========================================
 help:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "📦 Drop - Docker 部署管理"
+	@echo "📦 01mvp Next.js Template - Docker 部署管理"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
 	@echo "🚀 开发命令"

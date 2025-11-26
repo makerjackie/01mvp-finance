@@ -7,24 +7,55 @@ const globalForPrisma = globalThis as unknown as {
   pool: Pool | undefined;
 };
 
-const databaseUrl = process.env.DATABASE_URL;
+let prismaClient: PrismaClient | undefined;
+let prismaPool: Pool | undefined;
 
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is not set");
+function getPrismaClient() {
+  if (prismaClient) return prismaClient;
+
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL is not set");
+  }
+
+  const pool = prismaPool ?? globalForPrisma.pool ?? new Pool({ connectionString: databaseUrl });
+  const adapter = new PrismaPg(pool);
+
+  prismaClient =
+    globalForPrisma.prisma ??
+    new PrismaClient({
+      adapter,
+      log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+    });
+
+  prismaPool = pool;
+
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prisma = prismaClient;
+    globalForPrisma.pool = pool;
+  }
+
+  return prismaClient;
 }
 
-const pool = globalForPrisma.pool ?? new Pool({ connectionString: databaseUrl });
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const valueProxy = new Proxy(() => {}, {
+      get(_fnTarget, nestedProp) {
+        const client = getPrismaClient();
+        const value = (client as any)[prop as keyof PrismaClient];
+        if (value == null) return value;
+        const nested = Reflect.get(value, nestedProp);
+        return typeof nested === "function" ? nested.bind(value) : nested;
+      },
+      apply(_fnTarget, _thisArg, argArray) {
+        const client = getPrismaClient();
+        const value = (client as any)[prop as keyof PrismaClient];
+        if (typeof value !== "function") return value;
+        return value.apply(client, argArray);
+      },
+    });
 
-const adapter = new PrismaPg(pool);
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    adapter,
-    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
-  });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-  globalForPrisma.pool = pool;
-}
+    return valueProxy;
+  },
+});

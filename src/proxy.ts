@@ -7,7 +7,7 @@ type SessionResponse = {
   user: User;
 };
 
-export default async function authMiddleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 如果是 API 路由或静态资源，跳过中间件
