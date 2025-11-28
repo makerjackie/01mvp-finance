@@ -13,7 +13,7 @@ export default function ImmersiveNavPage() {
       <ImmersiveHeader title="活动详情" />
 
       <div className="relative h-64 w-full bg-muted overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-10" />
+        <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent z-10" />
         <img
           src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80"
           alt="Event Cover"
