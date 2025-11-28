@@ -28,7 +28,7 @@ export function ProfileForm({ name, username, email, phoneNumber }: ProfileFormP
     try {
       const trimmedName = displayName.trim();
       await authClient.updateUser({
-        name: trimmedName || null,
+        name: trimmedName || undefined,
       });
       toast.success("个人信息已更新");
       router.refresh();

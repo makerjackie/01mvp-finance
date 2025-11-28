@@ -27,7 +27,8 @@ model User {
   updatedAt           DateTime
   sessions            Session[]
   accounts            Account[]
-  chatMessages        ChatMessage[]
+  chatMessages        ChatMessage[]   @relation("UserChatMessages")
+  chatSessions        ChatSession[]   @relation("UserChatSessions")
   twoFactor           TwoFactor?
   memberships         Member[]
   invitations         Invitation[]   @relation("InvitationInviter")
@@ -141,13 +142,31 @@ model Invitation {
 
 // 聊天消息
 model ChatMessage {
-  id        String   @id @default(cuid()) @map("_id")
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      String   // "user" | "assistant"
-  content   String
-  createdAt DateTime @default(now())
+  id         String       @id @default(cuid()) @map("_id")
+  sessionId  String
+  session    ChatSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?        @relation("UserChatMessages", fields: [userId], references: [id], onDelete: SetNull)
+  role       String       // "user" | "assistant" | "system"
+  parts      Json?
+  content    String
+  clientId   String?      @unique
+  createdAt  DateTime     @default(now())
 
+  @@index([sessionId])
   @@index([userId])
   @@map("chat_message")
+}
+
+model ChatSession {
+  id        String         @id @default(cuid()) @map("_id")
+  title     String?
+  userId    String?
+  user      User?          @relation("UserChatSessions", fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  messages  ChatMessage[]
+
+  @@index([userId])
+  @@map("chat_session")
 }
