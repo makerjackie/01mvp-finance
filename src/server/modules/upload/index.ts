@@ -52,6 +52,10 @@ const app = new Hono()
 
     if (await fileExists(filename)) {
       const buffer = await readBinary(filename);
+      const arrayBuffer = buffer.buffer.slice(
+        buffer.byteOffset,
+        buffer.byteOffset + buffer.byteLength,
+      ) as ArrayBuffer;
       
       let contentType = "application/octet-stream";
       const ext = path.extname(filename).toLowerCase();
@@ -61,7 +65,7 @@ const app = new Hono()
       else if (ext === ".webp") contentType = "image/webp";
       else if (ext === ".svg") contentType = "image/svg+xml";
 
-      return c.body(buffer, 200, { "Content-Type": contentType });
+      return c.body(arrayBuffer, 200, { "Content-Type": contentType });
     }
 
     return c.json({ error: "File not found" }, 404);

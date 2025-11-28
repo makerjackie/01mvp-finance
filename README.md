@@ -117,6 +117,16 @@ bun dev                    # http://localhost:3000
 - `Makefile` 封装本地与生产命令：`make dev/build/clean`，`make up/down/logs/shell/restart/ps` 管理本地 compose；`make release TAG=v1.2.0` 构建并推送镜像；`make deploy TAG=v1.2.0` 拉起生产 compose；`make prod-logs`/`make prod-shell` 便于运维。
 - 可通过环境变量或参数覆盖 `IMAGE_NAME`、`IMAGE_TAG`、`REGISTRY`、`HOST_PORT`、`PLATFORM` 等，如 `make release TAG=v1.2.0 IMAGE_NAME=foo REGISTRY=registry.example.com/bar`。
 
+## Cloudflare Pages 部署（可选）
+
+> 适合纯前端或调用外部 API 的场景；项目内的 Prisma + PostgreSQL 依赖 Node 原生二进制，无法在 Cloudflare Pages Functions/Workers 上运行，完整功能仍建议保持 Docker/Node 部署。
+
+- 先登录 Cloudflare：`wrangler login`，并在 Pages 控制台创建项目。
+- 构建产物：`bun run cf:build`（基于 `@cloudflare/next-on-pages` 生成 `.vercel/output`）。
+- 本地预览：`bun run cf:preview`（`wrangler pages dev .vercel/output/static`）。
+- 部署上线：`bun run cf:deploy`（默认使用 `wrangler.toml` 的 `name`，可用 `-p <project>` 覆盖），在 Cloudflare Pages 设置好 `NEXT_PUBLIC_API_URL` 等环境变量。
+- 此配置只增加 Cloudflare 选项，不影响现有 Docker 镜像/Compose 流程。
+
 ## 常见问题
 
 - 短信收不到：确认 `TENCENT_*` 已配置，模板 ID、签名、短信 AppId 与手机号区号匹配。  

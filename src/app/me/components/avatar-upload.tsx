@@ -104,3 +104,4 @@ export function AvatarUpload({ user }: AvatarUploadProps) {
   );
 }
 
+

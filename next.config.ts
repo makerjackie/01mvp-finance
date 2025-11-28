@@ -1,7 +1,15 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+const baseConfig: NextConfig = {
   output: "standalone",
 };
 
-export default nextConfig;
+const withCloudflareDev = async (): Promise<NextConfig> => {
+  if (process.env.NODE_ENV === "development") {
+    const { setupDevPlatform } = await import("@cloudflare/next-on-pages/next-dev");
+    await setupDevPlatform();
+  }
+  return baseConfig;
+};
+
+export default withCloudflareDev;
