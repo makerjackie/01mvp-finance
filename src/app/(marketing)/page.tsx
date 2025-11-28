@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { ArrowRight, MessageSquare, Phone, Cloud, Zap, Shield, Globe, CheckCircle2, Terminal } from "lucide-react";
+import { ArrowRight, MessageSquare, Phone, Cloud, Zap, Shield, Globe } from "lucide-react";
 import { siteConfig } from "@/lib/config/site";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { LogoMark } from "@/components/logo";
 
 const features = [
   {
@@ -194,9 +195,7 @@ export default function Home() {
       <footer className="border-t border-border/40 bg-background">
         <div className="container mx-auto px-6 py-12 flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-              {siteConfig.name[0]}
-            </div>
+            <LogoMark size={26} className="shadow-sm" />
             <div>
               <p className="font-medium text-foreground">{siteConfig.name}</p>
               <p className="text-xs">© 2024. 保留所有权利。</p>

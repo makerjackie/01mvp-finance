@@ -1,4 +1,4 @@
-# 01mvp Next.js Template
+# 01MVP Template
 
 开箱即用的 Next.js + Hono + Better Auth + Prisma 模板，内置短信验证码/用户名密码登录、AI 对话示例、S3/本地存储封装，支持 Bun/Node 运行与 Docker standalone 部署。
 

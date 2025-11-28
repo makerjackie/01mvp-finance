@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { MessageSquare, User, LogOut, LayoutDashboard, Settings, Sparkles } from "lucide-react";
+import { MessageSquare, User, LogOut, LayoutDashboard, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { siteConfig } from "@/lib/config/site";
+import { Logo } from "@/components/logo";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,10 +32,7 @@ export function TopNav() {
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 h-14">
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2 font-semibold transition-opacity hover:opacity-80">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground shadow-sm">
-              {siteConfig.name[0]}
-            </div>
-            <span className="hidden font-bold sm:inline-block tracking-tight">{siteConfig.name}</span>
+            <Logo size={28} textClassName="hidden sm:inline-block font-bold tracking-tight" />
           </Link>
 
           <nav className="hidden md:flex items-center gap-1">

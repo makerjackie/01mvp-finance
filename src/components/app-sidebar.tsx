@@ -3,25 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import {
-  LayoutDashboard,
-  MessageSquare,
-  User,
-  Settings,
-  LogOut,
-  Sparkles,
-  ChevronRight,
-  Menu,
-  CreditCard,
-  HelpCircle,
-  Upload,
-} from "lucide-react";
+import { LayoutDashboard, MessageSquare, User, LogOut, Sparkles, Menu, CreditCard, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { siteConfig } from "@/lib/config/site";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { authClient } from "@/lib/auth-client";
-import { Separator } from "@/components/ui/separator";
+import { Logo } from "@/components/logo";
 
 // 导航菜单配置
 const navItems = [
@@ -66,16 +53,6 @@ const navItems = [
       },
     ],
   },
-  {
-    title: "开发示例",
-    items: [
-      {
-        title: "UI 示例",
-        href: "/example-ui",
-        icon: Sparkles,
-      },
-    ],
-  },
 ];
 
 interface AppSidebarProps {
@@ -93,10 +70,7 @@ export function AppSidebar({ user, className }: AppSidebarProps) {
       {/* Sidebar Header */}
       <div className="flex h-14 items-center px-6 border-b border-border/40">
         <Link href="/" className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold shadow-sm">
-            {siteConfig.name[0]}
-          </div>
-          <span className="tracking-tight">{siteConfig.name}</span>
+          <Logo size={26} textClassName="tracking-tight" />
         </Link>
       </div>
 

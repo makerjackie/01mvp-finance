@@ -2,13 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
 import { Bell, ChevronRight, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MobileSidebar } from "@/components/app-sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { siteConfig } from "@/lib/config/site";
-import { authClient } from "@/lib/auth-client";
+import { LogoMark } from "@/components/logo";
 
 interface AppHeaderProps {
   user?: any;
@@ -43,9 +41,7 @@ export function AppHeader({ user }: AppHeaderProps) {
 
         {/* Mobile Logo (Only show when sidebar hidden) */}
         <Link href="/" className="flex items-center gap-2 font-semibold md:hidden">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-xs">
-            {siteConfig.name[0]}
-          </div>
+          <LogoMark size={22} className="shadow-sm" priority />
         </Link>
 
         {/* Desktop Breadcrumbs */}

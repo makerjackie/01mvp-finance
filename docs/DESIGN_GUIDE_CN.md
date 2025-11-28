@@ -56,6 +56,16 @@
   * **隐藏 Tabbar**：在 `MobileTabbar` 组件中检查当前路径，若在黑名单（如 `/chat`, `/example-ui/*`）中则不渲染。
   * **沉浸式导航**：在页面组件中使用自定义 Header 替代默认 `AppHeader`，或在 `AppHeader` 中根据路由动态切换模式。
 
+### D. 功能中心与 Example UI 响应式策略（移动优先，桌面增强）
+* **功能中心（/features）**：作为总览入口，顶部 Tabs 区分“核心功能 / UI 演示”；移动端保持单列网格，`md+` 保持左右留白与 2 列起的栅格。
+* **沉浸式导航示例（immersive-nav）**：移动端维持全屏沉浸；`md+` 可加 72-96px 的窄侧 Rail 放锚点/章节，高亮与滚动同步，避免喧宾夺主。
+* **复杂标签示例（complex-tabs）**：Tabs 是主导航，默认不叠加 Sidebar；`md+` 仅做排版增强（内容区更宽、左右留白、Tabs 吸顶）。如内容极长再考虑镜像 Sidebar，但需与 Tabs 共用同一数据源和高亮状态。
+* **桌面端细节（轻量改动）**：
+  * 容器：移动端基础样式不改；`md/ lg` 叠加 `max-w-5xl~6xl`、`px-6~8`、更大的段落间距。
+  * 导航：`md+` 可使用 `sticky` Tabs/Nav（`top` 根据 Header 高度预留）；Hover/Focus 态适当增强。
+  * 锚点：长内容加 `id` 与 `scroll-margin-top`，配合 Sidebar/Rail 平滑滚动。
+* **实现建议**：提取 `ExampleLayout`/`LayoutShell` 组件，包含容器宽度、内边距、可选 Sidebar Slot。页面仅传入导航数据与内容，避免重复样式散落。
+
 ---
 
 ## 3. UI 组件规范 (Component Specs)
@@ -104,3 +114,13 @@ We are building a "Hybrid App Shell" AI tool.
    - Ensure touch targets are at least 44px.
    - Bottom padding `pb-24` to account for the floating TabBar.
 ```
+
+---
+
+## 5. 示例页实现与可维护性最佳实践
+
+* **单一数据源驱动导航**：Tabs 与 Sidebar/Rail 并存时，共享同一 `items` 数据与高亮状态，避免双重导航分叉。
+* **组件化布局**：用可复用的 `ExampleLayout`/`PageContainer` 管理 `max-width`、padding、gap、sticky header/rail；示例页面仅提供插槽内容。
+* **响应式叠加思路**：先写移动端样式，再在 `md/ lg` 断点用少量类名/媒体查询叠加，不重写一套桌面样式。
+* **低侵入增强**：桌面端只做留白、吸顶、Hover/Focus 提示，不额外引入复杂动画或脚本，确保移动端一致性。
+* **可访问性与性能**：保留 `role="tablist"`、`aria-selected`、键盘导航；滚动锚点使用原生行为，避免多重监听器影响性能。

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ImmersiveHeader } from "@/components/immersive-header";
 
 type ChatSession = {
   id: string;
@@ -22,6 +23,7 @@ export default function ChatPage() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionTitle, setActiveSessionTitle] = useState("新的对话");
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [pendingSession, setPendingSession] = useState<{ id: string; messages: UIMessage[] } | null>(null);
   const hasLoadedInitialSession = useRef(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -81,11 +83,11 @@ export default function ChatPage() {
   const startNewChat = useCallback(() => {
     const newId = nanoid();
     setChatId(newId);
-    setMessages([]);
+    setPendingSession({ id: newId, messages: [] });
     setInput("");
     setActiveSessionTitle("新的对话");
     inputRef.current?.focus();
-  }, [setInput, setMessages]);
+  }, [setInput]);
 
   const loadSession = useCallback(
     async (sessionId: string) => {
@@ -96,7 +98,7 @@ export default function ChatPage() {
         const data = await res.json();
         setChatId(data.id);
         setActiveSessionTitle(data.title ?? "新的对话");
-        setMessages(data.messages ?? []);
+        setPendingSession({ id: data.id, messages: data.messages ?? [] });
         setInput("");
       } catch (err) {
         console.error("加载会话失败", err);
@@ -104,8 +106,15 @@ export default function ChatPage() {
         setIsHistoryLoading(false);
       }
     },
-    [setInput, setMessages],
+    [setInput],
   );
+
+  useEffect(() => {
+    if (!pendingSession) return;
+    if (pendingSession.id !== chatId) return;
+    setMessages(pendingSession.messages);
+    setPendingSession(null);
+  }, [chatId, pendingSession, setMessages]);
 
   useEffect(() => {
     fetchSessions();
@@ -166,7 +175,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex min-h-full bg-gray-50/50 dark:bg-neutral-950">
+    <div className="flex flex-1 min-h-0 bg-gray-50/50 dark:bg-neutral-950">
       {/* History panel (desktop) */}
       <aside className="hidden lg:flex w-72 flex-col border-r border-border/50 bg-white/70 dark:bg-neutral-900/50 backdrop-blur-sm">
         <div className="px-4 py-4 border-b border-border/50 flex items-center justify-between">
@@ -206,9 +215,25 @@ export default function ChatPage() {
         </div>
       </aside>
 
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+        <ImmersiveHeader
+          title="AI 助手"
+          className="md:hidden"
+          actions={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-full"
+              onClick={startNewChat}
+              disabled={isLoading}
+            >
+              <Plus className="h-5 w-5" />
+            </Button>
+          }
+        />
+
         {/* Header */}
-        <header className="sticky top-0 z-10 border-b border-border/40 bg-background/80 backdrop-blur-md px-4 py-3 flex items-center justify-between">
+        <header className="sticky top-0 z-10 hidden md:flex border-b border-border/40 bg-background/80 backdrop-blur-md px-4 py-3 items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
               <Bot className="h-5 w-5" />
@@ -252,7 +277,7 @@ export default function ChatPage() {
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 scrollbar-none">
+        <div className="flex-1 overflow-y-auto p-4 scrollbar-none min-h-0">
           <div className="mx-auto max-w-2xl space-y-6 py-4 pb-10">
             {messages.length === 0 && !isHistoryLoading && (
               <div className="flex flex-col items-center justify-center text-center h-[60vh] animate-in fade-in duration-500">
@@ -342,7 +367,7 @@ export default function ChatPage() {
         </div>
 
         {/* Input Area */}
-        <div className="p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background to-transparent">
+        <div className="mt-auto p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background to-transparent">
           <div className="mx-auto max-w-2xl">
             <form
               onSubmit={handleSubmit}
