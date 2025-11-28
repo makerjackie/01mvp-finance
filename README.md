@@ -2,6 +2,14 @@
 
 开箱即用的 Next.js + Hono + Better Auth + Prisma 模板，内置短信验证码/用户名密码登录、AI 对话示例、S3/本地存储封装，支持 Bun/Node 运行与 Docker standalone 部署。
 
+## 🎨 UI 设计规范
+
+本项遵循 **Hybrid App Shell** 设计架构（桌面端 Sidebar + 移动端 TabBar）。
+
+👉 **[阅读完整的 UI 设计规范文档 (中文)](docs/DESIGN_GUIDE_CN.md)**
+
+该文档包含了核心设计理念、组件使用规范以及**可直接复制给 AI 的开发提示词 (System Prompt)**，帮助你快速构建风格统一的新页面。
+
 ## 功能亮点
 
 - 认证：Better Auth（短信 OTP、用户名+密码、2FA、组织/管理员插件）。
@@ -20,8 +28,8 @@
 
 ## 目录速览
 
-- `app/`：页面（`(login)` 登录注册，`dashboard` 私有示例，`chat` AI 对话，根目录为落地页）。
-- `components/`：UI 与业务组件（登录、私有路由示例等）。
+- `app/`：页面（`(login)` 登录注册，`(app)` 应用功能页，`(marketing)` 落地页）。
+- `components/`：UI 与业务组件（登录、Sidebar、Header 等）。
 - `lib/`：配置、auth 客户端、API 客户端、工具函数。
 - `server/`：Hono 路由、Better Auth 配置、Prisma schema（`server/prisma`）、存储与 AI/SMS 封装。
 - `public/`：静态资源。

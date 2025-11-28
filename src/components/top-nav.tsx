@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { MessageSquare, User, LogOut, LayoutDashboard, Settings } from "lucide-react";
+import { MessageSquare, User, LogOut, LayoutDashboard, Settings, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { siteConfig } from "@/lib/config/site";
@@ -37,45 +37,58 @@ export function TopNav() {
             <span className="hidden font-bold sm:inline-block tracking-tight">{siteConfig.name}</span>
           </Link>
 
-          {user && (
-             <nav className="hidden md:flex items-center gap-1">
-               <Link 
-                href="/dashboard" 
-                className={cn(
-                  "px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                  pathname === "/dashboard" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                )}
-              >
-                控制台
-               </Link>
-               <Link 
-                href="/features" 
-                className={cn(
-                  "px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                  pathname === "/features" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                )}
-              >
-                功能
-               </Link>
-               <Link 
-                href="/chat" 
-                className={cn(
-                  "px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                  pathname === "/chat" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                )}
-              >
-                对话
-               </Link>
-             </nav>
-          )}
+          <nav className="hidden md:flex items-center gap-1">
+            <Link
+              href="/features"
+              className={cn(
+                "px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                pathname === "/features"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+              )}
+            >
+              功能中心
+            </Link>
+            {user && (
+              <>
+                <Link
+                  href="/dashboard"
+                  className={cn(
+                    "px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                    pathname === "/dashboard"
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                  )}
+                >
+                  控制台
+                </Link>
+                <Link
+                  href="/chat"
+                  className={cn(
+                    "px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                    pathname === "/chat"
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                  )}
+                >
+                  AI 对话
+                </Link>
+              </>
+            )}
+          </nav>
         </div>
 
         <div className="flex items-center gap-2">
           {!user && (
-            <Button variant="ghost" size="sm" asChild className="hidden sm:flex text-muted-foreground hover:text-foreground">
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="hidden sm:flex text-muted-foreground hover:text-foreground"
+            >
               <Link href={siteConfig.links.chat} className="flex items-center gap-1.5">
                 <MessageSquare className="h-4 w-4" />
-                AI 对话
+                AI 演示
               </Link>
             </Button>
           )}
@@ -83,7 +96,11 @@ export function TopNav() {
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="flex items-center gap-2 pl-1 pr-2 rounded-full border border-border/40 hover:bg-accent hover:text-accent-foreground ml-2 h-8">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-2 pl-1 pr-2 rounded-full border border-border/40 hover:bg-accent hover:text-accent-foreground ml-2 h-8"
+                >
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs">
                     <User className="h-3 w-3" />
                   </div>
@@ -130,9 +147,6 @@ export function TopNav() {
             </DropdownMenu>
           ) : (
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" asChild className="hidden sm:flex">
-                <Link href="/chat">AI 对话</Link>
-              </Button>
               <Button size="sm" asChild className="rounded-full px-5 shadow-sm">
                 <Link href="/sign-in">登录</Link>
               </Button>

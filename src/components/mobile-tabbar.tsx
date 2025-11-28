@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, MessageSquare, User, LayoutDashboard } from "lucide-react";
+import { Home, MessageSquare, User, LayoutDashboard, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function MobileTabbar() {
@@ -21,16 +21,16 @@ export function MobileTabbar() {
       active: pathname === "/",
     },
     {
+      label: "功能",
+      icon: Sparkles,
+      href: "/features",
+      active: pathname === "/features",
+    },
+    {
       label: "对话",
       icon: MessageSquare,
       href: "/chat",
       active: pathname === "/chat",
-    },
-    {
-      label: "控制台",
-      icon: LayoutDashboard,
-      href: "/dashboard",
-      active: pathname === "/dashboard",
     },
     {
       label: "我的",
@@ -41,22 +41,35 @@ export function MobileTabbar() {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/40 bg-background/80 backdrop-blur-lg supports-[backdrop-filter]:bg-background/60 md:hidden pb-[env(safe-area-inset-bottom)]">
-      <nav className="flex h-16 items-center justify-around px-2">
+    <div className="fixed bottom-6 left-4 right-4 z-50 md:hidden">
+      <div className="bg-background/80 backdrop-blur-xl border border-border/50 shadow-lg rounded-2xl px-4 py-2 flex items-center justify-between">
         {tabs.map((tab) => (
           <Link
             key={tab.href}
             href={tab.href}
-            className={cn(
-              "flex flex-1 flex-col items-center justify-center gap-1 rounded-xl py-2 transition-colors active:scale-95",
-              tab.active ? "text-primary" : "text-muted-foreground hover:text-foreground"
-            )}
+            className="flex flex-col items-center justify-center gap-1 group relative py-1 px-2"
           >
-            <tab.icon className={cn("h-6 w-6", tab.active && "fill-current")} strokeWidth={tab.active ? 2.5 : 2} />
-            <span className="text-[10px] font-medium">{tab.label}</span>
+            <div
+              className={cn(
+                "p-2 rounded-xl transition-all duration-200",
+                tab.active
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground group-hover:bg-muted group-hover:text-foreground",
+              )}
+            >
+              <tab.icon className="h-5 w-5" strokeWidth={tab.active ? 2.5 : 2} />
+            </div>
+            <span
+              className={cn(
+                "text-[10px] font-medium transition-colors",
+                tab.active ? "text-foreground" : "text-muted-foreground",
+              )}
+            >
+              {tab.label}
+            </span>
           </Link>
         ))}
-      </nav>
+      </div>
     </div>
   );
 }
