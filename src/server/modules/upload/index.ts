@@ -1,8 +1,37 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { auth } from "@/server/lib/auth";
 import { writeFile, readBinary, fileExists } from "@/server/lib/storage";
 import path from "path";
 import { nanoid } from "nanoid";
+
+const getPublicBaseUrl = (c: Context) => {
+  const originFromEnv = process.env.NEXT_PUBLIC_API_URL ?? process.env.BETTER_AUTH_URL;
+  const originFromHeader = c.req.header("origin");
+  const forwardedHost = c.req.header("x-forwarded-host") ?? c.req.header("host");
+  const forwardedProto = c.req.header("x-forwarded-proto");
+
+  const candidates = [
+    originFromEnv,
+    originFromHeader,
+    forwardedHost ? `${forwardedProto ?? "http"}://${forwardedHost}` : null,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      return new URL(candidate).origin;
+    } catch {
+      // ignore invalid values and continue to the next candidate
+    }
+  }
+
+  try {
+    return new URL(c.req.url).origin;
+  } catch {
+    return "http://localhost:3000";
+  }
+};
 
 const app = new Hono()
   .post("/", async (c) => {
@@ -24,12 +53,12 @@ const app = new Hono()
     // Validate file type
     const allowedTypes = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"];
     if (!allowedTypes.includes(file.type)) {
-        return c.json({ error: "Invalid file type. Only images are allowed." }, 400);
+      return c.json({ error: "Invalid file type. Only images are allowed." }, 400);
     }
-    
+
     // Max size check (e.g. 5MB)
     if (file.size > 5 * 1024 * 1024) {
-        return c.json({ error: "File too large (max 5MB)" }, 400);
+      return c.json({ error: "File too large (max 5MB)" }, 400);
     }
 
     const extension = path.extname(file.name) || ".jpg";
@@ -39,24 +68,21 @@ const app = new Hono()
     await writeFile(filename, Buffer.from(buffer));
 
     return c.json({
-      url: `/api/uploads/${filename}`,
+      url: `${getPublicBaseUrl(c)}/api/uploads/${filename}`,
     });
   })
   .get("/:filename", async (c) => {
     const filename = c.req.param("filename");
-    
+
     // Basic security check
     if (filename.includes("..") || filename.includes("/")) {
-        return c.json({ error: "Invalid filename" }, 400);
+      return c.json({ error: "Invalid filename" }, 400);
     }
 
     if (await fileExists(filename)) {
       const buffer = await readBinary(filename);
-      const arrayBuffer = buffer.buffer.slice(
-        buffer.byteOffset,
-        buffer.byteOffset + buffer.byteLength,
-      ) as ArrayBuffer;
-      
+      const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+
       let contentType = "application/octet-stream";
       const ext = path.extname(filename).toLowerCase();
       if (ext === ".png") contentType = "image/png";
@@ -72,4 +98,3 @@ const app = new Hono()
   });
 
 export default app;
-

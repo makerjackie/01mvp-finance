@@ -1,12 +1,13 @@
 import { headers } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LogOut, CreditCard, Settings, User, Shield, ChevronRight } from "lucide-react";
+import { LogOut, CreditCard, Settings, Shield, ChevronRight } from "lucide-react";
 import SignOutButton from "@/components/logout";
 import { auth } from "@/server/lib/auth";
 import { prisma } from "@/server/lib/db";
 import { AvatarUpload } from "./components/avatar-upload";
 import { SettingsMenu } from "./components/settings-menu";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -32,77 +33,58 @@ export default async function MePage() {
   const email = user.email;
 
   return (
-    // 移除额外的 header，使用 AppLayout 提供的
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-      {/* 用户概览卡片 - Desktop 上更宽，Mobile 上居中 */}
-      <div className="flex flex-col md:flex-row items-center md:items-start md:gap-8 space-y-4 md:space-y-0 py-4">
-        <AvatarUpload user={user} className="h-24 w-24 md:h-32 md:w-32 shadow-xl ring-4 ring-background" />
-
-        <div className="flex flex-col items-center md:items-start space-y-2 flex-1">
-          <div className="text-center md:text-left">
-            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">{displayName}</h2>
-            <p className="text-sm text-muted-foreground font-medium">{email}</p>
-          </div>
-
-          <div className="flex gap-2">
-            <Badge
-              variant="secondary"
-              className="rounded-full px-3 py-0.5 font-normal bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-100 dark:border-blue-800"
-            >
-              专业版会员
-            </Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-0.5 font-normal text-muted-foreground">
-              开发者
-            </Badge>
-          </div>
-
-          {/* Stats for Desktop - Moved here for better layout */}
-          <div className="hidden md:flex gap-6 pt-4">
-            <div className="text-center md:text-left">
-              <div className="text-lg font-bold tracking-tight">128</div>
-              <div className="text-xs text-muted-foreground">关注</div>
-            </div>
-            <div className="text-center md:text-left">
-              <div className="text-lg font-bold tracking-tight">3.2k</div>
-              <div className="text-xs text-muted-foreground">粉丝</div>
-            </div>
-            <div className="text-center md:text-left">
-              <div className="text-lg font-bold tracking-tight">8.5k</div>
-              <div className="text-xs text-muted-foreground">获赞</div>
+    <div className="space-y-8 pb-6">
+      <Card className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-white via-white to-gray-50 shadow-sm transition-all duration-200 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-900/80">
+        <CardContent className="flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-1 flex-col gap-4 md:flex-row md:items-center">
+            <AvatarUpload user={user} size="lg" className="shadow-md" />
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-2xl font-bold tracking-tight md:text-3xl">{displayName}</h2>
+                  <Badge variant="secondary" className="rounded-full border-border/60 bg-primary/5 text-primary">
+                    专业版
+                  </Badge>
+                  <Badge variant="outline" className="rounded-full border-border/60 text-muted-foreground">
+                    开发者
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">{email}</p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span className="rounded-full border border-border/60 bg-background/60 px-3 py-1">已验证邮箱</span>
+                <span className="rounded-full border border-border/60 bg-background/60 px-3 py-1">
+                  ID {user.id.slice(0, 8)}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Stats for Mobile */}
-      <div className="grid grid-cols-3 gap-3 md:hidden">
-        <StatsCard label="关注" value="128" />
-        <StatsCard label="粉丝" value="3.2k" />
-        <StatsCard label="获赞" value="8.5k" />
-      </div>
+          <div className="grid w-full grid-cols-3 gap-3 md:w-[320px]">
+            <StatsCard label="关注" value="128" />
+            <StatsCard label="粉丝" value="3.2k" />
+            <StatsCard label="获赞" value="8.5k" />
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* 左侧/上方：主要设置 */}
-        <div className="md:col-span-2 space-y-6">
-          {/* 账户设置 */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
           <section className="space-y-3">
             <h3 className="px-1 text-sm font-medium text-muted-foreground uppercase tracking-wider">账户信息</h3>
-            <Card className="overflow-hidden border-border/60 shadow-sm rounded-2xl">
-              <div className="divide-y divide-border/40">
-                <SettingsMenu
-                  name={user.name}
-                  username={user.username}
-                  email={user.email}
-                  phoneNumber={fullUser?.phoneNumber}
-                />
-              </div>
+            <Card className="overflow-hidden rounded-2xl border border-border/60 shadow-sm">
+              <SettingsMenu
+                name={user.name}
+                username={user.username}
+                email={user.email}
+                phoneNumber={fullUser?.phoneNumber}
+              />
             </Card>
           </section>
 
-          {/* 通用设置 */}
           <section className="space-y-3">
             <h3 className="px-1 text-sm font-medium text-muted-foreground uppercase tracking-wider">通用设置</h3>
-            <Card className="overflow-hidden border-border/60 shadow-sm rounded-2xl">
+            <Card className="overflow-hidden rounded-2xl border border-border/60 shadow-sm">
               <div className="divide-y divide-border/40">
                 <MenuItem icon={CreditCard} label="订阅管理" value="专业版" />
                 <MenuItem icon={Shield} label="隐私安全" />
@@ -112,26 +94,32 @@ export default async function MePage() {
           </section>
         </div>
 
-        {/* 右侧/下方：其他操作 */}
         <div className="space-y-6">
-          <section className="space-y-3">
-            <h3 className="px-1 text-sm font-medium text-muted-foreground uppercase tracking-wider">操作</h3>
-            <Button
-              variant="ghost"
-              className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 h-12 rounded-xl font-medium border border-border/40"
-              asChild
-            >
-              <SignOutButton className="w-full flex items-center justify-center gap-2">
-                <LogOut className="h-4 w-4" />
-                退出登录
+          <Card className="rounded-2xl border border-border/60 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold">账户操作</CardTitle>
+              <CardDescription>安全退出并刷新会话</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <SignOutButton
+                variant="destructive"
+                className="w-full h-11 rounded-xl text-sm font-semibold transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <LogOut className="h-4 w-4" />
+                  退出登录
+                </div>
               </SignOutButton>
-            </Button>
-          </section>
+              <Button variant="outline" className="w-full rounded-xl border-border/60 text-sm" asChild>
+                <Link href="/dashboard">返回控制台</Link>
+              </Button>
+            </CardContent>
+          </Card>
 
-          <Card className="bg-muted/30 border-none shadow-none">
-            <CardContent className="p-4 text-center space-y-2">
+          <Card className="rounded-2xl border border-border/60 bg-muted/40 shadow-sm">
+            <CardContent className="space-y-2 p-4 text-center">
               <p className="text-xs text-muted-foreground">当前版本: v1.0.0</p>
-              <p className="text-[10px] text-muted-foreground/60 font-mono">Build {user.id.slice(0, 8)}</p>
+              <p className="text-[11px] font-mono text-muted-foreground/70">Build {user.id.slice(0, 8)}</p>
             </CardContent>
           </Card>
         </div>
@@ -142,9 +130,9 @@ export default async function MePage() {
 
 function StatsCard({ label, value }: { label: string; value: string }) {
   return (
-    <Card className="border-border/40 bg-background/50 shadow-sm hover:bg-background transition-colors">
+    <Card className="rounded-xl border border-border/60 bg-background/60 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0">
       <CardContent className="p-3 text-center">
-        <div className="text-lg font-bold tracking-tight">{value}</div>
+        <div className="text-lg font-semibold tracking-tight">{value}</div>
         <div className="text-xs text-muted-foreground">{label}</div>
       </CardContent>
     </Card>
@@ -153,9 +141,9 @@ function StatsCard({ label, value }: { label: string; value: string }) {
 
 function MenuItem({ icon: Icon, label, value }: { icon: any; label: string; value?: string }) {
   return (
-    <button className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left group">
+    <button className="group flex w-full items-center justify-between p-4 text-left transition-all duration-200 hover:bg-muted/50 active:translate-y-[1px]">
       <div className="flex items-center gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/5 text-primary group-hover:bg-primary/10 transition-colors">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/5 text-primary transition-colors group-hover:bg-primary/10">
           <Icon className="h-4 w-4" />
         </div>
         <span className="text-sm font-medium">{label}</span>

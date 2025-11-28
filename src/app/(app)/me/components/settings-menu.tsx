@@ -39,11 +39,11 @@ export function SettingsMenu({ name, username, email, phoneNumber }: SettingsMen
   };
 
   return (
-    <div className="rounded-xl border bg-card">
+    <div className="rounded-xl bg-card">
       {items.map((item, index) => {
         const opened = openKey === item.key;
         return (
-          <div key={item.key} className={index > 0 ? "border-t" : undefined}>
+          <div key={item.key} className={index > 0 ? "border-t border-border/50" : undefined}>
             <button
               type="button"
               className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/40"

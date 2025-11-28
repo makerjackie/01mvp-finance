@@ -3,9 +3,13 @@
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "./ui/button";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
-export default function SignOutButton({ className, children }: { className?: string; children?: ReactNode }) {
+type SignOutButtonProps = Omit<ComponentProps<typeof Button>, "onClick"> & {
+  children?: ReactNode;
+};
+
+export default function SignOutButton({ className, children, ...props }: SignOutButtonProps) {
   const router = useRouter();
 
   async function handleSignOut() {
@@ -14,7 +18,7 @@ export default function SignOutButton({ className, children }: { className?: str
   }
 
   return (
-    <Button onClick={handleSignOut} className={className}>
+    <Button onClick={handleSignOut} className={className} {...props}>
       {children || "退出登录"}
     </Button>
   );

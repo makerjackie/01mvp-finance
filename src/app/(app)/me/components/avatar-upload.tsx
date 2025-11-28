@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Camera, Loader2, Edit2 } from "lucide-react";
+import { Loader2, Edit2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
@@ -14,13 +14,15 @@ interface AvatarUploadProps {
     name?: string | null;
     username?: string | null;
   };
+  size?: "md" | "lg";
   className?: string;
 }
 
-export function AvatarUpload({ user, className }: AvatarUploadProps) {
+export function AvatarUpload({ user, size = "lg", className }: AvatarUploadProps) {
   const router = useRouter();
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sizeClass = size === "md" ? "h-20 w-20" : "h-24 w-24";
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -72,13 +74,15 @@ export function AvatarUpload({ user, className }: AvatarUploadProps) {
   };
 
   return (
-    <div className={cn("relative inline-block", className)}>
+    <div className="relative inline-flex">
       <label
         className={cn(
-          "group relative block h-20 w-20 cursor-pointer overflow-hidden rounded-full border-2 border-background bg-muted shadow-sm transition-all hover:opacity-90",
-          isUploading && "opacity-50 cursor-wait",
+          "group relative block cursor-pointer overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-background via-background to-muted/60 shadow-sm transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0",
+          sizeClass,
+          isUploading && "opacity-60 cursor-wait",
+          className,
         )}
-        title="Click to change avatar"
+        title="点击更换头像"
       >
         <input
           type="file"
@@ -89,24 +93,23 @@ export function AvatarUpload({ user, className }: AvatarUploadProps) {
           disabled={isUploading}
         />
 
-        <Avatar className="h-full w-full">
+        <Avatar className="h-full w-full border border-border/50">
           <AvatarImage src={user.image || ""} alt={user.name || "Avatar"} className="object-cover" />
-          <AvatarFallback className="text-lg bg-primary/10 text-primary">
+          <AvatarFallback className="text-lg font-semibold bg-primary/10 text-primary">
             {user.name?.[0] || user.username?.[0] || "U"}
           </AvatarFallback>
         </Avatar>
 
         {isUploading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+          <div className="absolute inset-0 flex items-center justify-center bg-neutral-950/30">
             <Loader2 className="h-5 w-5 animate-spin text-white" />
           </div>
         )}
       </label>
 
-      {/* Edit Badge - Always visible or on hover */}
-      <div className="absolute bottom-0 right-0 z-10 pointer-events-none">
-        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-background shadow-sm">
-          <Edit2 className="h-3 w-3" />
+      <div className="pointer-events-none absolute -bottom-1 -right-1 z-10">
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-background shadow-sm">
+          <Edit2 className="h-3.5 w-3.5" />
         </div>
       </div>
     </div>
