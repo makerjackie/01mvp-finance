@@ -31,6 +31,31 @@
 | **Top Nav (顶部栏)** | **极简模式**。<br>仅显示：面包屑 (Breadcrumbs) / 页面标题。<br>右侧：通知、帮助。 | **标准模式**。<br>左侧：汉堡菜单。<br>中间：Logo/标题。<br>右侧：头像/通知。 |
 | **Tab Bar (底栏)** | **隐藏**。<br>功能由 Sidebar 承载。 | **常驻底部 (Floating)**。<br>悬浮胶囊样式。<br>仅放 3-4 个最高频入口 (Chat, Home, Me)。 |
 
+### C. Top Nav / Tabbar 显隐策略与间距
+* **保留场景**：主导航/可切换入口（仪表盘、聊天列表、功能中心、个人中心）。这些页面需要快速跳转，保留 Top Nav（面包屑/标题）+ 移动端 Tabbar。
+* **隐藏场景**：需要沉浸或关键操作的单任务流（支付/授权、扫码、全屏预览、数字名片预览、地图、表单签名、绑定手机号、全屏对话模式）。隐藏 Top Nav 和 Tabbar，确保不被遮挡。
+* **沉浸式导航 (Immersive Nav)**：
+  * **适用场景**：详情页、内容浏览页（如活动详情、文章阅读）。
+  * **布局**：
+    *   左侧：返回按钮 (Back Button) + 标题 (Title)。
+    *   右侧：功能操作区 (Actions)，如“关注”、“分享”、“更多”。
+  *   **交互**：点击返回按钮回退上一页；右侧按钮触发上下文相关操作。
+* **顶部选项卡 (Top Tabs)**：
+  * **适用场景**：复杂详情页需展示多维度信息（如活动详情页包含：活动信息、参与者、项目信息）。
+  * **位置**：位于 Top Nav 下方，吸顶或随页面滚动。
+  * **样式**：Segmented Control 或 Underline Tabs。
+* **聊天/设置类页面**：
+  * 聊天列表：保留 Top Nav + Tabbar；单聊详情：保留 Top Nav，隐藏全局 Tabbar（底部只留输入区，避免与键盘/Tabbar 竞争）。
+  * 设置/用户资料编辑：保留 Top Nav（标题/返回），隐藏 Tabbar（设置是深层任务）。
+  * 数字名片：编辑态保留 Top Nav、隐藏 Tabbar；预览态全屏隐藏两者，并提供轻扫/点击唤起导航的手势或按钮。
+* **间距规范**：内容容器默认 `padding-top`=Top Nav 高度+`env(safe-area-inset-top)`，`padding-bottom`=Tabbar 高度+`env(safe-area-inset-bottom)`。滚动区 `overflow-auto`；浮动按钮需在内容流内放置并留出 Tabbar 高度。
+* **实现方式（当前代码）**：
+  * 营销页：`src/app/(marketing)/layout.tsx` 内统一挂载 `TopNav`。
+  * 应用页：`src/app/(app)/layout.tsx` 内统一挂载 `AppHeader`（Top Nav）+ `MobileTabbar`；`MobileTabbar` 已在登录/注册路径下自动隐藏。
+  * 登录/注册：`src/app/(login)/layout.tsx` 无 Top Nav/Tabbar，天然全屏。
+  * **隐藏 Tabbar**：在 `MobileTabbar` 组件中检查当前路径，若在黑名单（如 `/chat`, `/example-ui/*`）中则不渲染。
+  * **沉浸式导航**：在页面组件中使用自定义 Header 替代默认 `AppHeader`，或在 `AppHeader` 中根据路由动态切换模式。
+
 ---
 
 ## 3. UI 组件规范 (Component Specs)

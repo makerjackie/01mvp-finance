@@ -34,36 +34,47 @@ export default async function MePage() {
 
   return (
     <div className="space-y-8 pb-6">
-      <Card className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-white via-white to-gray-50 shadow-sm transition-all duration-200 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-900/80">
-        <CardContent className="flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-1 flex-col gap-4 md:flex-row md:items-center">
-            <AvatarUpload user={user} size="lg" className="shadow-md" />
-            <div className="space-y-3">
-              <div className="space-y-1">
+      <Card className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-white via-white to-gray-50/50 shadow-sm transition-all duration-200 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-900/80">
+        <CardContent className="p-4 md:p-8">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4 md:gap-6">
+              <AvatarUpload user={user} size="lg" className="h-16 w-16 shrink-0 shadow-sm md:h-24 md:w-24" />
+              <div className="space-y-1.5 md:space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-2xl font-bold tracking-tight md:text-3xl">{displayName}</h2>
-                  <Badge variant="secondary" className="rounded-full border-border/60 bg-primary/5 text-primary">
-                    专业版
-                  </Badge>
-                  <Badge variant="outline" className="rounded-full border-border/60 text-muted-foreground">
-                    开发者
-                  </Badge>
+                  <h2 className="text-xl font-bold tracking-tight md:text-3xl">{displayName}</h2>
+                  <div className="flex items-center gap-1.5">
+                    <Badge
+                      variant="secondary"
+                      className="h-5 rounded-full border-border/60 bg-primary/5 px-2 text-[10px] font-medium text-primary md:h-6 md:text-xs"
+                    >
+                      专业版
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className="h-5 rounded-full border-border/60 px-2 text-[10px] text-muted-foreground md:h-6 md:text-xs"
+                    >
+                      开发者
+                    </Badge>
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">{email}</p>
-              </div>
-              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                <span className="rounded-full border border-border/60 bg-background/60 px-3 py-1">已验证邮箱</span>
-                <span className="rounded-full border border-border/60 bg-background/60 px-3 py-1">
-                  ID {user.id.slice(0, 8)}
-                </span>
+                <p className="text-xs text-muted-foreground md:text-sm">{email}</p>
+                <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground md:text-xs">
+                  <span className="flex items-center gap-1 rounded-full border border-border/40 bg-background/50 px-2 py-0.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                    已验证
+                  </span>
+                  <span className="rounded-full border border-border/40 bg-background/50 px-2 py-0.5 font-mono">
+                    ID: {user.id.slice(0, 8)}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="grid w-full grid-cols-3 gap-3 md:w-[320px]">
-            <StatsCard label="关注" value="128" />
-            <StatsCard label="粉丝" value="3.2k" />
-            <StatsCard label="获赞" value="8.5k" />
+            <div className="grid grid-cols-3 divide-x divide-border/40 rounded-xl border border-border/40 bg-background/40 p-2 md:w-auto md:min-w-[320px] md:gap-3 md:divide-x-0 md:border-0 md:bg-transparent md:p-0">
+              <StatsItem label="关注" value="128" />
+              <StatsItem label="粉丝" value="3.2k" />
+              <StatsItem label="获赞" value="8.5k" />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -128,14 +139,12 @@ export default async function MePage() {
   );
 }
 
-function StatsCard({ label, value }: { label: string; value: string }) {
+function StatsItem({ label, value }: { label: string; value: string }) {
   return (
-    <Card className="rounded-xl border border-border/60 bg-background/60 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0">
-      <CardContent className="p-3 text-center">
-        <div className="text-lg font-semibold tracking-tight">{value}</div>
-        <div className="text-xs text-muted-foreground">{label}</div>
-      </CardContent>
-    </Card>
+    <div className="flex flex-col items-center justify-center p-1 md:rounded-xl md:border md:border-border/60 md:bg-background/60 md:p-3 md:shadow-sm md:transition-all md:duration-200 md:hover:-translate-y-0.5 md:hover:shadow-md">
+      <div className="text-base font-bold tracking-tight md:text-lg">{value}</div>
+      <div className="text-[10px] text-muted-foreground md:text-xs">{label}</div>
+    </div>
   );
 }
 

@@ -80,10 +80,9 @@ export default async function FeaturesPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50/50 dark:bg-neutral-950">
-      {/* 头部 */}
-      <header className="sticky top-0 z-10 border-b border-border/40 bg-background/80 backdrop-blur-md px-6 py-4">
-        <div className="mx-auto max-w-4xl flex justify-between items-center">
+    <div className="w-full">
+      <div className="mx-auto max-w-4xl space-y-8">
+        <div className="flex items-start justify-between gap-2">
           <div>
             <h1 className="text-xl font-bold tracking-tight">功能与组件</h1>
             <p className="text-xs text-muted-foreground hidden sm:block">探索基于 Design System 构建的页面</p>
@@ -94,9 +93,7 @@ export default async function FeaturesPage() {
             </Button>
           )}
         </div>
-      </header>
 
-      <div className="mx-auto max-w-4xl px-4 py-8 pb-24">
         <Tabs defaultValue="modules" className="space-y-8">
           <div className="flex justify-center">
             <TabsList className="grid w-full max-w-md grid-cols-2">

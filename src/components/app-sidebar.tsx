@@ -66,6 +66,16 @@ const navItems = [
       },
     ],
   },
+  {
+    title: "开发示例",
+    items: [
+      {
+        title: "UI 示例",
+        href: "/example-ui",
+        icon: Sparkles,
+      },
+    ],
+  },
 ];
 
 interface AppSidebarProps {

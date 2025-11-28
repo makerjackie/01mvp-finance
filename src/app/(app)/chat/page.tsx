@@ -166,7 +166,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50/50 dark:bg-neutral-950">
+    <div className="flex min-h-full bg-gray-50/50 dark:bg-neutral-950">
       {/* History panel (desktop) */}
       <aside className="hidden lg:flex w-72 flex-col border-r border-border/50 bg-white/70 dark:bg-neutral-900/50 backdrop-blur-sm">
         <div className="px-4 py-4 border-b border-border/50 flex items-center justify-between">
@@ -253,7 +253,7 @@ export default function ChatPage() {
 
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4 scrollbar-none">
-          <div className="mx-auto max-w-2xl space-y-6 py-4 pb-24">
+          <div className="mx-auto max-w-2xl space-y-6 py-4 pb-10">
             {messages.length === 0 && !isHistoryLoading && (
               <div className="flex flex-col items-center justify-center text-center h-[60vh] animate-in fade-in duration-500">
                 <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm">
@@ -342,7 +342,7 @@ export default function ChatPage() {
         </div>
 
         {/* Input Area */}
-        <div className="p-4 pb-6 bg-gradient-to-t from-background via-background to-transparent">
+        <div className="p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background to-transparent">
           <div className="mx-auto max-w-2xl">
             <form
               onSubmit={handleSubmit}

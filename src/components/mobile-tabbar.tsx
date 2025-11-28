@@ -4,12 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, MessageSquare, User, LayoutDashboard, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { shouldHideTabbar } from "@/lib/config/navigation";
 
 export function MobileTabbar() {
   const pathname = usePathname();
 
-  // 不在登录/注册页面显示tabbar
-  if (pathname?.startsWith("/sign-in") || pathname?.startsWith("/sign-up")) {
+  // 登录/注册、沉浸式页面隐藏 Tabbar
+  if (shouldHideTabbar(pathname)) {
     return null;
   }
 

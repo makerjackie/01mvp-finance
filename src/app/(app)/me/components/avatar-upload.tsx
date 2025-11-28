@@ -77,7 +77,7 @@ export function AvatarUpload({ user, size = "lg", className }: AvatarUploadProps
     <div className="relative inline-flex">
       <label
         className={cn(
-          "group relative block cursor-pointer overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-background via-background to-muted/60 shadow-sm transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0",
+          "group relative block cursor-pointer overflow-hidden rounded-full border border-border/60 bg-gradient-to-br from-background via-background to-muted/60 shadow-sm transition-all duration-200 focus-within:ring-2 focus-within:ring-primary/20 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0",
           sizeClass,
           isUploading && "opacity-60 cursor-wait",
           className,
@@ -93,7 +93,7 @@ export function AvatarUpload({ user, size = "lg", className }: AvatarUploadProps
           disabled={isUploading}
         />
 
-        <Avatar className="h-full w-full border border-border/50">
+        <Avatar className="h-full w-full">
           <AvatarImage src={user.image || ""} alt={user.name || "Avatar"} className="object-cover" />
           <AvatarFallback className="text-lg font-semibold bg-primary/10 text-primary">
             {user.name?.[0] || user.username?.[0] || "U"}
