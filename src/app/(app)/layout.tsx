@@ -36,7 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
 
       {/* Mobile Tabbar - 仅在 md 以下显示，固定底部 */}
-      <MobileTabbar />
+      <MobileTabbar user={user} />
     </div>
   );
 }

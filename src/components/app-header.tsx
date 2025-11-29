@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { MobileSidebar } from "@/components/app-sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogoMark } from "@/components/logo";
+import { cn } from "@/lib/utils";
+import { isImmersivePage } from "@/lib/config/navigation";
 
 interface AppHeaderProps {
   user?: any;
@@ -14,6 +16,7 @@ interface AppHeaderProps {
 
 export function AppHeader({ user }: AppHeaderProps) {
   const pathname = usePathname();
+  const immersive = isImmersivePage(pathname);
 
   // 简单的面包屑逻辑
   const segments = pathname?.split("/").filter(Boolean) || [];
@@ -34,7 +37,12 @@ export function AppHeader({ user }: AppHeaderProps) {
   });
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 w-full items-center gap-4 border-b border-border/40 bg-background/80 backdrop-blur-xl px-4 lg:px-6">
+    <header
+      className={cn(
+        "sticky top-0 z-20 flex h-14 w-full items-center gap-4 border-b border-border/40 bg-background/80 backdrop-blur-xl px-4 lg:px-6",
+        immersive ? "hidden md:flex" : "",
+      )}
+    >
       {/* Left: Mobile Menu & Breadcrumbs */}
       <div className="flex items-center gap-2 lg:gap-4">
         <MobileSidebar user={user} />

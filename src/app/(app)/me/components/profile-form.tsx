@@ -14,24 +14,39 @@ interface ProfileFormProps {
   username?: string | null;
   email?: string | null;
   phoneNumber?: string | null;
+  onSuccess?: () => void;
 }
 
-export function ProfileForm({ name, username, email, phoneNumber }: ProfileFormProps) {
+export function ProfileForm({ name, username, email, phoneNumber, onSuccess }: ProfileFormProps) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState(name ?? "");
   const [isSaving, setIsSaving] = useState(false);
+  const trimmedName = displayName.trim();
+  const isDirty = trimmedName !== (name ?? "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!isDirty) {
+      toast.info("没有需要更新的内容");
+      return;
+    }
+
+    if (trimmedName && trimmedName.length < 2) {
+      toast.error("昵称至少需要 2 个字符");
+      return;
+    }
+
     setIsSaving(true);
 
     try {
-      const trimmedName = displayName.trim();
       await authClient.updateUser({
         name: trimmedName || undefined,
       });
       toast.success("个人信息已更新");
+      setDisplayName(trimmedName);
       router.refresh();
+      onSuccess?.();
     } catch (error) {
       console.error(error);
       toast.error("保存失败，请稍后重试");
@@ -50,7 +65,9 @@ export function ProfileForm({ name, username, email, phoneNumber }: ProfileFormP
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="用于展示的名字"
+            maxLength={32}
           />
+          <p className="text-xs text-muted-foreground">推荐使用 2-20 字的昵称，方便团队识别。</p>
         </div>
 
         <div className="space-y-2">
@@ -69,9 +86,9 @@ export function ProfileForm({ name, username, email, phoneNumber }: ProfileFormP
         </div>
       </div>
 
-      <Button type="submit" disabled={isSaving} className="w-fit">
+      <Button type="submit" disabled={isSaving || !isDirty} className="w-fit">
         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        保存
+        保存更改
       </Button>
     </form>
   );

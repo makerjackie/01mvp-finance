@@ -8,7 +8,11 @@ import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 
-export function ChangePasswordForm() {
+interface ChangePasswordFormProps {
+  onSuccess?: () => void;
+}
+
+export function ChangePasswordForm({ onSuccess }: ChangePasswordFormProps = {}) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -19,6 +23,11 @@ export function ChangePasswordForm() {
 
     if (newPassword !== confirmPassword) {
       toast.error("新密码两次输入不一致");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      toast.error("新密码长度需至少 8 位");
       return;
     }
 
@@ -39,6 +48,7 @@ export function ChangePasswordForm() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      onSuccess?.();
     } catch (error) {
       console.error(error);
       toast.error(error instanceof Error ? error.message : "密码修改失败");
@@ -86,6 +96,8 @@ export function ChangePasswordForm() {
           />
         </div>
       </div>
+
+      <p className="text-xs text-muted-foreground">建议包含大小写字母、数字和符号，避免使用与其他网站相同的密码。</p>
 
       <Button type="submit" disabled={isLoading} className="w-fit">
         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

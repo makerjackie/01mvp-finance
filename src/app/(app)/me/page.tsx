@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LogOut, CreditCard, Settings, Shield, ChevronRight } from "lucide-react";
+import { type LucideIcon, LogOut, CreditCard, Settings, Shield, ChevronRight } from "lucide-react";
 import SignOutButton from "@/components/logout";
 import { auth } from "@/server/lib/auth";
 import { prisma } from "@/server/lib/db";
@@ -33,7 +33,7 @@ export default async function MePage() {
   const email = user.email;
 
   return (
-    <div className="space-y-8 pb-6">
+    <div className="space-y-8 pb-10">
       <Card className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-white via-white to-gray-50/50 shadow-sm transition-all duration-200 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-900/80">
         <CardContent className="p-4 md:p-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -82,19 +82,46 @@ export default async function MePage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <section className="space-y-3">
-            <h3 className="px-1 text-sm font-medium text-muted-foreground uppercase tracking-wider">账户信息</h3>
+            <div className="flex items-center justify-between px-1">
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">账户信息</h3>
+                <p className="text-xs text-muted-foreground">概览你的基本资料，按需在子界面中管理。</p>
+              </div>
+              <Badge variant="outline" className="h-6 rounded-full border-border/70 px-3 text-[11px]">
+                实时同步
+              </Badge>
+            </div>
             <Card className="overflow-hidden rounded-2xl border border-border/60 shadow-sm">
-              <SettingsMenu
-                name={user.name}
-                username={user.username}
-                email={user.email}
-                phoneNumber={fullUser?.phoneNumber}
-              />
+              <CardContent className="space-y-6 p-4 md:p-6">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <InfoRow label="昵称" value={displayName} />
+                  <InfoRow label="用户名" value={user.username || "未设置"} />
+                  <InfoRow label="邮箱" value={email || "未填写"} />
+                  <InfoRow label="手机号" value={fullUser?.phoneNumber || "未绑定"} />
+                </div>
+
+                <div className="rounded-xl border border-dashed border-border/60 bg-muted/30 px-3 py-3 text-xs text-muted-foreground">
+                  账户信息会实时同步，编辑请通过下方菜单进入对应页面。
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden rounded-2xl border border-border/60 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold">账户管理</CardTitle>
+                <CardDescription className="text-xs">进入独立页面进行资料或安全相关操作。</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <SettingsMenu username={user.username} email={user.email} phoneNumber={fullUser?.phoneNumber} />
+              </CardContent>
             </Card>
           </section>
 
           <section className="space-y-3">
-            <h3 className="px-1 text-sm font-medium text-muted-foreground uppercase tracking-wider">通用设置</h3>
+            <div className="px-1">
+              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">通用设置</h3>
+              <p className="text-xs text-muted-foreground">订阅、隐私和偏好设置会在这里集中管理。</p>
+            </div>
             <Card className="overflow-hidden rounded-2xl border border-border/60 shadow-sm">
               <div className="divide-y divide-border/40">
                 <MenuItem icon={CreditCard} label="订阅管理" value="专业版" />
@@ -148,7 +175,16 @@ function StatsItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MenuItem({ icon: Icon, label, value }: { icon: any; label: string; value?: string }) {
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <span className="text-sm font-semibold text-foreground">{value}</span>
+    </div>
+  );
+}
+
+function MenuItem({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value?: string }) {
   return (
     <button className="group flex w-full items-center justify-between p-4 text-left transition-all duration-200 hover:bg-muted/50 active:translate-y-[1px]">
       <div className="flex items-center gap-3">

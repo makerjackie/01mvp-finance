@@ -1,72 +1,77 @@
-"use client";
-
-import { useState } from "react";
-import { ChevronDown, ChevronRight, KeyRound, User as UserIcon } from "lucide-react";
-import { ProfileForm } from "./profile-form";
-import { ChangePasswordForm } from "./change-password-form";
+import Link from "next/link";
+import { type LucideIcon, ChevronRight, KeyRound, User as UserIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface SettingsMenuProps {
-  name?: string | null;
   username?: string | null;
   email?: string | null;
   phoneNumber?: string | null;
 }
 
-type MenuKey = "profile" | "password" | null;
+type MenuKey = "profile" | "password";
 
-export function SettingsMenu({ name, username, email, phoneNumber }: SettingsMenuProps) {
-  const [openKey, setOpenKey] = useState<MenuKey>(null);
+interface MenuItem {
+  key: MenuKey;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  href: string;
+  meta?: string;
+  badge?: string;
+}
 
-  const items = [
+export function SettingsMenu({ username, email, phoneNumber }: SettingsMenuProps) {
+  const items: MenuItem[] = [
     {
-      key: "profile" as const,
-      title: "编辑个人信息",
-      description: "修改昵称，查看账号、邮箱和手机号。",
-      icon: <UserIcon className="h-4 w-4 text-muted-foreground" />,
-      content: <ProfileForm name={name} username={username} email={email} phoneNumber={phoneNumber} />,
+      key: "profile",
+      title: "编辑个人资料",
+      description: "更新昵称，查看账号、邮箱和手机号。",
+      icon: UserIcon,
+      href: "/me/profile",
+      meta: `${email || "未填写"} · ${username || "未设置"}`,
+      badge: "资料",
     },
     {
-      key: "password" as const,
+      key: "password",
       title: "修改密码",
-      description: "更新登录密码并同时下线其他会话。",
-      icon: <KeyRound className="h-4 w-4 text-muted-foreground" />,
-      content: <ChangePasswordForm />,
+      description: "下线其他会话，保障账号安全。",
+      icon: KeyRound,
+      href: "/me/password",
+      meta: phoneNumber ? `已绑定手机号 ${phoneNumber}` : "建议绑定手机号以增强安全性",
+      badge: "安全",
     },
   ];
 
-  const toggle = (key: MenuKey) => {
-    setOpenKey((prev) => (prev === key ? null : key));
-  };
-
   return (
-    <div className="rounded-xl bg-card">
-      {items.map((item, index) => {
-        const opened = openKey === item.key;
+    <div className="divide-y divide-border/40">
+      {items.map((item) => {
+        const Icon = item.icon;
         return (
-          <div key={item.key} className={index > 0 ? "border-t border-border/50" : undefined}>
-            <button
-              type="button"
-              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/40"
-              onClick={() => toggle(item.key)}
-            >
-              <span className="mt-0.5">{item.icon}</span>
-              <div className="flex-1 space-y-1">
-                <p className="text-sm font-semibold text-foreground">{item.title}</p>
+          <Link
+            key={item.key}
+            href={item.href}
+            className="flex w-full items-center justify-between px-3 py-4 transition-colors hover:bg-muted/40"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon className="h-4 w-4" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                  {item.badge ? (
+                    <Badge variant="secondary" className="h-5 rounded-full border-border/60 px-2 text-[10px]">
+                      {item.badge}
+                    </Badge>
+                  ) : null}
+                </div>
                 <p className="text-xs text-muted-foreground">{item.description}</p>
+                {item.meta ? <p className="text-[11px] text-muted-foreground/80">{item.meta}</p> : null}
               </div>
-              {opened ? (
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              )}
-            </button>
+            </div>
 
-            {opened && (
-              <div className="px-4 pb-4">
-                <div className="rounded-lg border bg-background/50 p-4">{item.content}</div>
-              </div>
-            )}
-          </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </Link>
         );
       })}
     </div>

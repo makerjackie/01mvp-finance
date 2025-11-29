@@ -3,23 +3,36 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, MessageSquare, User, LayoutDashboard, Sparkles } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { shouldHideTabbar } from "@/lib/config/navigation";
 
-export function MobileTabbar() {
+type MobileTabbarProps = {
+  user?: any;
+};
+
+type TabItem = {
+  label: string;
+  icon: LucideIcon;
+  href: string;
+  active: boolean;
+};
+
+export function MobileTabbar({ user }: MobileTabbarProps) {
   const pathname = usePathname();
+  const isAuthed = Boolean(user);
 
   // 登录/注册、沉浸式页面隐藏 Tabbar
   if (shouldHideTabbar(pathname)) {
     return null;
   }
 
-  const tabs = [
+  const tabs: TabItem[] = [
     {
-      label: "首页",
-      icon: Home,
-      href: "/",
-      active: pathname === "/",
+      label: isAuthed ? "控制台" : "首页",
+      icon: isAuthed ? LayoutDashboard : Home,
+      href: isAuthed ? "/dashboard" : "/",
+      active: isAuthed ? pathname.startsWith("/dashboard") : pathname === "/",
     },
     {
       label: "功能",
