@@ -10,8 +10,10 @@ import { LogoMark } from "@/components/logo";
 import { cn } from "@/lib/utils";
 import { isImmersivePage } from "@/lib/config/navigation";
 
+import type { User } from "better-auth";
+
 interface AppHeaderProps {
-  user?: any;
+  user?: User;
 }
 
 export function AppHeader({ user }: AppHeaderProps) {
@@ -86,7 +88,7 @@ export function AppHeader({ user }: AppHeaderProps) {
         {/* Mobile Avatar (Sidebar has it, but TopNav also good for context) */}
         <div className="md:hidden">
           <Avatar className="h-8 w-8 border border-border/50">
-            <AvatarImage src={user?.image} />
+            <AvatarImage src={user?.image || undefined} />
             <AvatarFallback className="text-xs">{user?.name?.[0] || "U"}</AvatarFallback>
           </Avatar>
         </div>

@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, MessageSquare, User, LogOut, Sparkles, Menu, CreditCard, Upload } from "lucide-react";
+import {
+  LayoutDashboard,
+  MessageSquare,
+  User as UserIcon,
+  LogOut,
+  Sparkles,
+  Menu,
+  CreditCard,
+  Upload,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -43,7 +52,7 @@ const navItems = [
       {
         title: "个人中心",
         href: "/me",
-        icon: User,
+        icon: UserIcon,
       },
       {
         title: "订阅管理",
@@ -55,8 +64,10 @@ const navItems = [
   },
 ];
 
+import type { User } from "better-auth";
+
 interface AppSidebarProps {
-  user?: any;
+  user?: User;
   className?: string;
 }
 
@@ -119,13 +130,11 @@ export function AppSidebar({ user, className }: AppSidebarProps) {
         {user ? (
           <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group relative">
             <Avatar className="h-9 w-9 border border-border/50">
-              <AvatarImage src={user.image} />
-              <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                {user.name?.[0] || user.username?.[0] || "U"}
-              </AvatarFallback>
+              <AvatarImage src={user.image || undefined} />
+              <AvatarFallback className="bg-primary/10 text-primary text-xs">{user.name?.[0] || "U"}</AvatarFallback>
             </Avatar>
             <div className="flex-1 overflow-hidden">
-              <p className="truncate text-sm font-medium text-foreground">{user.name || user.username}</p>
+              <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
               <p className="truncate text-xs text-muted-foreground">{user.email}</p>
             </div>
             {/* 简单的退出按钮 (实际项目中可能是 Dropdown) */}
@@ -155,7 +164,7 @@ export function AppSidebar({ user, className }: AppSidebarProps) {
 }
 
 // Mobile Drawer Component (reusing the same sidebar content)
-export function MobileSidebar({ user }: { user?: any }) {
+export function MobileSidebar({ user }: { user?: User }) {
   return (
     <Sheet>
       <SheetTrigger asChild>

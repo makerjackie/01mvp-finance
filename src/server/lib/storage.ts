@@ -181,3 +181,22 @@ export const fileExists = async (key: string): Promise<boolean> => {
     return false;
   }
 };
+
+/**
+ * 获取文件的公开访问 URL
+ */
+export const getPublicUrl = (key: string): string | null => {
+  if (useS3) {
+    if (process.env.S3_PUBLIC_DOMAIN) {
+      // Remove trailing slash from domain if present
+      const domain = process.env.S3_PUBLIC_DOMAIN.replace(/\/$/, "");
+      return `${domain}/${key}`;
+    }
+    // Fallback: construct URL from endpoint and bucket
+    // Note: This assumes the endpoint is accessible publicly.
+    const endpoint = S3_ENDPOINT?.startsWith("http") ? S3_ENDPOINT : `https://${S3_ENDPOINT}`;
+    // Using path style as default since forcePathStyle is true in client config
+    return `${endpoint}/${S3_BUCKET}/${key}`;
+  }
+  return null;
+};

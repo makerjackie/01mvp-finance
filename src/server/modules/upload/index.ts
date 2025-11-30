@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { auth } from "@/server/lib/auth";
-import { writeFile, readBinary, fileExists } from "@/server/lib/storage";
+import { writeFile, readBinary, fileExists, getPublicUrl } from "@/server/lib/storage";
 import path from "path";
 import { nanoid } from "nanoid";
 
@@ -67,8 +67,11 @@ const app = new Hono()
 
     await writeFile(filename, Buffer.from(buffer));
 
+    const publicUrl = getPublicUrl(filename);
+    const url = publicUrl ?? `${getPublicBaseUrl(c)}/api/uploads/${filename}`;
+
     return c.json({
-      url: `${getPublicBaseUrl(c)}/api/uploads/${filename}`,
+      url,
     });
   })
   .get("/:filename", async (c) => {

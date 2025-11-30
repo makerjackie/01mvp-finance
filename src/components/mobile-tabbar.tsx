@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, MessageSquare, User, LayoutDashboard, Sparkles } from "lucide-react";
+import { Home, MessageSquare, User as UserIcon, LayoutDashboard, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { shouldHideTabbar } from "@/lib/config/navigation";
 
+import type { User } from "better-auth";
+
 type MobileTabbarProps = {
-  user?: any;
+  user?: User;
 };
 
 type TabItem = {
@@ -48,7 +50,7 @@ export function MobileTabbar({ user }: MobileTabbarProps) {
     },
     {
       label: "我的",
-      icon: User,
+      icon: UserIcon,
       href: "/me",
       active: pathname === "/me",
     },

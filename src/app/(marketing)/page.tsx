@@ -4,7 +4,6 @@ import { siteConfig } from "@/lib/config/site";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import { LogoMark } from "@/components/logo";
 
 const features = [
@@ -46,8 +45,8 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative flex flex-col items-center justify-center px-6 py-24 md:py-32 lg:py-40 overflow-hidden">
         {/* Background Elements */}
-        <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]" />
-        <div className="absolute top-0 left-0 right-0 -z-10 h-[500px] w-full bg-gradient-to-b from-primary/5 to-transparent blur-3xl" />
+        <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-size-[14px_24px]" />
+        <div className="absolute top-0 left-0 right-0 -z-10 h-[500px] w-full bg-linear-to-b from-primary/5 to-transparent blur-3xl" />
 
         <div className="container max-w-5xl mx-auto text-center space-y-8 animate-fade-in">
           <Badge
@@ -58,7 +57,7 @@ export default function Home() {
             v1.0 正式发布
           </Badge>
 
-          <h1 className="text-4xl font-bold tracking-tighter sm:text-6xl md:text-7xl lg:text-8xl bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/70 max-w-3xl mx-auto leading-tight">
+          <h1 className="text-4xl font-bold tracking-tighter sm:text-6xl md:text-7xl lg:text-8xl bg-clip-text text-transparent bg-linear-to-b from-foreground to-foreground/70 max-w-3xl mx-auto leading-tight">
             更快速地构建 <br className="hidden sm:block" />
             <span className="text-foreground">{siteConfig.name}</span>
           </h1>
@@ -167,8 +166,8 @@ export default function Home() {
 
       {/* CTA Section */}
       <section className="container mx-auto px-6 py-24 md:py-32">
-        <div className="relative mx-auto max-w-4xl rounded-3xl bg-gradient-to-b from-muted/50 to-muted/10 border border-border/50 p-8 md:p-16 text-center overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent" />
+        <div className="relative mx-auto max-w-4xl rounded-3xl bg-linear-to-b from-muted/50 to-muted/10 border border-border/50 p-8 md:p-16 text-center overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent" />
 
           <div className="relative z-10 space-y-8">
             <h2 className="text-3xl font-bold sm:text-4xl md:text-5xl tracking-tight">
@@ -221,7 +220,7 @@ export default function Home() {
   );
 }
 
-function SparkleIcon(props: any) {
+function SparkleIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}

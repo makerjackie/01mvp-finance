@@ -281,7 +281,7 @@ export default function ChatPage() {
           <div className="mx-auto max-w-2xl space-y-6 py-4 pb-10">
             {messages.length === 0 && !isHistoryLoading && (
               <div className="flex flex-col items-center justify-center text-center h-[60vh] animate-in fade-in duration-500">
-                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm">
+                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-3xl bg-linear-to-br from-primary/20 to-primary/5 shadow-sm">
                   <Sparkles className="h-8 w-8 text-primary" />
                 </div>
                 <h2 className="text-xl font-semibold tracking-tight mb-2">今天有什么可以帮您的吗？</h2>
@@ -295,7 +295,9 @@ export default function ChatPage() {
                   ].map((suggestion) => (
                     <button
                       key={suggestion.text}
-                      onClick={() => handleInputChange({ target: { value: suggestion.text } } as any)}
+                      onClick={() =>
+                        handleInputChange({ target: { value: suggestion.text } } as React.ChangeEvent<HTMLInputElement>)
+                      }
                       className="text-left px-4 py-3 rounded-xl border border-border/50 bg-white dark:bg-neutral-900 hover:bg-accent/50 hover:border-primary/20 transition-all text-xs text-muted-foreground hover:text-foreground shadow-sm"
                     >
                       <span className="mr-2">{suggestion.icon}</span> {suggestion.text}
@@ -367,7 +369,7 @@ export default function ChatPage() {
         </div>
 
         {/* Input Area */}
-        <div className="mt-auto p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-background via-background to-transparent">
+        <div className="mt-auto p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] bg-linear-to-t from-background via-background to-transparent">
           <div className="mx-auto max-w-2xl">
             <form
               onSubmit={handleSubmit}

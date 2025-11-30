@@ -1,6 +1,7 @@
 "use client";
 
 import { ImmersiveHeader } from "@/components/immersive-header";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,10 +15,12 @@ export default function ImmersiveNavPage() {
 
       <div className="relative h-64 w-full bg-muted overflow-hidden">
         <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent z-10" />
-        <img
+        <Image
           src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80"
           alt="Event Cover"
-          className="w-full h-full object-cover"
+          fill
+          className="object-cover"
+          priority
         />
         <div className="absolute bottom-4 left-4 right-4 z-20 text-white">
           <Badge className="mb-2 bg-primary text-primary-foreground border-none">线下活动</Badge>

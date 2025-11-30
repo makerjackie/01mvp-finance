@@ -37,7 +37,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8 pb-6">
-      <section className="rounded-2xl border border-border/60 bg-gradient-to-br from-white via-white to-gray-50 p-6 shadow-sm transition-all duration-200 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-900/80">
+      <section className="rounded-2xl border border-border/60 bg-linear-to-br from-white via-white to-gray-50 p-6 shadow-sm transition-all duration-200 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-900/80">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -182,7 +182,7 @@ function ActionLink({
   href: string;
   title: string;
   description: string;
-  icon: any;
+  icon: React.ElementType;
 }) {
   return (
     <Link href={href} className="group block">
@@ -200,7 +200,7 @@ function ActionLink({
   );
 }
 
-function InfoRow({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
