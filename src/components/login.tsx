@@ -191,7 +191,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
             "flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
             authMethod === "sms"
               ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/5"
-              : "text-muted-foreground hover:text-foreground"
+              : "text-muted-foreground hover:text-foreground",
           )}
         >
           <Smartphone className="h-4 w-4" />
@@ -204,7 +204,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
             "flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
             authMethod === "password"
               ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/5"
-              : "text-muted-foreground hover:text-foreground"
+              : "text-muted-foreground hover:text-foreground",
           )}
         >
           <KeyRound className="h-4 w-4" />
@@ -270,6 +270,16 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
               "登录"
             )}
           </Button>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            点击登录即表示您同意我们的
+            <Link href="/terms" className="underline underline-offset-4 hover:text-primary">
+              服务条款
+            </Link>
+            {" 和 "}
+            <Link href="/privacy" className="underline underline-offset-4 hover:text-primary">
+              隐私政策
+            </Link>
+          </p>
         </form>
       ) : (
         <form onSubmit={handlePasswordLogin} className="space-y-5 animate-fade-in">
@@ -346,15 +356,22 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
               "创建账号"
             )}
           </Button>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            点击登录即表示您同意我们的
+            <Link href="/terms" className="underline underline-offset-4 hover:text-primary">
+              服务条款
+            </Link>
+            {" 和 "}
+            <Link href="/privacy" className="underline underline-offset-4 hover:text-primary">
+              隐私政策
+            </Link>
+          </p>
         </form>
       )}
 
       <div className="mt-8 text-center text-sm">
         <span className="text-muted-foreground">{mode === "signin" ? "还没有账号？" : "已经有账号？"}</span>
-        <Link 
-          href={switchHref} 
-          className="ml-2 font-medium text-primary underline-offset-4 hover:underline"
-        >
+        <Link href={switchHref} className="ml-2 font-medium text-primary underline-offset-4 hover:underline">
           {mode === "signin" ? "立即注册" : "直接登录"}
         </Link>
       </div>
