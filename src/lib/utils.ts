@@ -16,12 +16,17 @@ export const fetchCallback = ({ setIsPending }: { setIsPending: (value: boolean)
   };
 };
 
-export function getUserDisplayName(user: {
-  name?: string | null;
-  phoneNumber?: string | null;
-  username?: string | null;
-  email?: string | null;
-} | null | undefined) {
+export function getUserDisplayName(
+  user:
+    | {
+        name?: string | null;
+        phoneNumber?: string | null;
+        username?: string | null;
+        email?: string | null;
+      }
+    | null
+    | undefined,
+) {
   if (!user) return "用户";
 
   // 优先显示昵称
@@ -41,4 +46,20 @@ export function getUserDisplayName(user: {
   }
 
   return "用户";
+}
+
+/**
+ * 获取当前应用的 Base URL
+ * 优先使用浏览器环境的 window.location.origin
+ * 其次使用环境变量 NEXT_PUBLIC_API_URL
+ * 最后回退到 localhost
+ */
+export function getBaseUrl() {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  return "http://localhost:3000";
 }
