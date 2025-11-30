@@ -21,19 +21,6 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         <div className="rounded-2xl border border-border/50 bg-card/50 backdrop-blur-xl shadow-xl shadow-black/5">
           {children}
         </div>
-
-        <div className="text-center text-xs text-muted-foreground">
-          <p>
-            点击登录即表示您同意我们的
-            <Link href="#" className="underline underline-offset-4 hover:text-foreground ml-1">
-              服务条款
-            </Link>
-            {" 和 "}
-            <Link href="#" className="underline underline-offset-4 hover:text-foreground">
-              隐私政策
-            </Link>
-          </p>
-        </div>
       </div>
     </div>
   );

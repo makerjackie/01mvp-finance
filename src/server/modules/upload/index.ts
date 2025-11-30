@@ -6,7 +6,7 @@ import path from "path";
 import { nanoid } from "nanoid";
 
 const getPublicBaseUrl = (c: Context) => {
-  const originFromEnv = process.env.NEXT_PUBLIC_API_URL ?? process.env.BETTER_AUTH_URL;
+  const originFromEnv = process.env.BETTER_AUTH_URL;
   const originFromHeader = c.req.header("origin");
   const forwardedHost = c.req.header("x-forwarded-host") ?? c.req.header("host");
   const forwardedProto = c.req.header("x-forwarded-proto");
@@ -15,6 +15,7 @@ const getPublicBaseUrl = (c: Context) => {
     originFromEnv,
     originFromHeader,
     forwardedHost ? `${forwardedProto ?? "http"}://${forwardedHost}` : null,
+    process.env.NEXT_PUBLIC_API_URL,
   ];
 
   for (const candidate of candidates) {
