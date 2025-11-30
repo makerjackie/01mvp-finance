@@ -1,10 +1,10 @@
-import { getBaseUrl } from "@/lib/utils";
+import { getPublicUrl } from "@/lib/utils";
 
 export const siteConfig = {
   name: "01MVP Template",
   description: "快速构建你的下一个产品",
   tagline: "开箱即用的 Next.js 模板",
-  apiBase: getBaseUrl(),
+  apiBase: getPublicUrl(),
   features: [
     {
       title: "短信验证码登录",
