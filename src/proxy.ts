@@ -10,6 +10,9 @@ type SessionResponse = {
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // 使用容器内的 HTTP 回环地址，避免 behind TLS (Caddy) 时出现 ERR_SSL_PACKET_LENGTH_TOO_LONG
+  const internalBaseUrl = process.env.INTERNAL_BASE_URL || `http://127.0.0.1:${process.env.PORT || 3000}`;
+
   // 如果是 API 路由或静态资源，跳过中间件
   if (
     pathname.startsWith("/api") ||
@@ -21,12 +24,23 @@ export default async function proxy(request: NextRequest) {
   }
 
   // 获取当前 session
-  const { data: session } = await betterFetch<SessionResponse>("/api/auth/get-session", {
-    baseURL: request.nextUrl.origin,
-    headers: {
-      cookie: request.headers.get("cookie") || "",
-    },
-  });
+  let session: SessionResponse | null = null;
+  try {
+    const { data } = await betterFetch<SessionResponse>("/api/auth/get-session", {
+      baseURL: internalBaseUrl,
+      headers: {
+        cookie: request.headers.get("cookie") || "",
+      },
+    });
+    session = data;
+  } catch (error) {
+    // 留下足够的上下文便于线上排查，但避免输出用户 Cookie
+    console.error("[proxy] failed to fetch session", {
+      message: error instanceof Error ? error.message : String(error),
+      baseURL: internalBaseUrl,
+      pathname,
+    });
+  }
 
   // 需要保护的路由列表
   const protectedRoutes = ["/dashboard", "/me"];
