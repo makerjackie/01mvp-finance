@@ -34,7 +34,8 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV HOSTNAME=0.0.0.0
+# 注意：不要设置 HOSTNAME=0.0.0.0，这会导致 Next.js 内部请求使用错误的 URL
+# Next.js standalone 默认监听 0.0.0.0，无需显式设置
 
 # 运行期需要 openssl（Prisma）与健康检查依赖
 RUN apt-get update \

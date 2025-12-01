@@ -419,8 +419,8 @@ export default function ImageGenerationPage() {
                 <span className="text-7xl">🍌</span>
               </div>
               <div className="text-center space-y-4">
-                <h3 className="text-3xl font-semibold text-foreground tracking-tight">批量生成 • 多比例</h3>
-                <p className="text-base text-muted-foreground max-w-sm mx-auto">让 Nano 感受 Giga</p>
+                <h3 className="text-3xl font-semibold text-foreground tracking-tight"> 支持批量/多比例生成</h3>
+                <p className="text-base text-muted-foreground max-w-sm mx-auto"> Google Nano Banana </p>
               </div>
             </div>
           )}
@@ -791,19 +791,22 @@ export default function ImageGenerationPage() {
           onClick={() => setLightboxImage(null)}
         >
           <div className="shrink-0 h-16 flex justify-end items-center px-4 md:px-8">
-            <Button size="icon" variant="ghost" onClick={() => setLightboxImage(null)} className="rounded-full">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setLightboxImage(null)}
+              className="rounded-full text-white hover:bg-white/10"
+            >
               <X size={24} />
             </Button>
           </div>
 
-          <div
-            className="flex-1 min-h-0 relative flex items-center justify-center px-4 md:px-12 pb-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="flex-1 min-h-0 relative flex items-center justify-center px-4 md:px-12 pb-4">
             <img
               src={lightboxImage.url}
               alt={lightboxImage.prompt}
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
             />
           </div>
 
@@ -812,7 +815,7 @@ export default function ImageGenerationPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="max-w-4xl mx-auto flex flex-col items-center gap-4 text-center">
-              <p className="text-base md:text-lg text-foreground font-medium leading-relaxed">{lightboxImage.prompt}</p>
+              <p className="text-base md:text-lg text-white font-medium leading-relaxed">{lightboxImage.prompt}</p>
               <div className="flex gap-3">
                 <Button variant="secondary" asChild>
                   <a href={lightboxImage.url} download={`giga-banana-${lightboxImage.id}.png`}>
