@@ -13,7 +13,6 @@ type MenuKey = "profile" | "password";
 interface MenuItem {
   key: MenuKey;
   title: string;
-  description: string;
   icon: LucideIcon;
   href: string;
   meta?: string;
@@ -25,7 +24,6 @@ export function SettingsMenu({ username, email, phoneNumber }: SettingsMenuProps
     {
       key: "profile",
       title: "编辑个人资料",
-      description: "更新昵称，查看账号、邮箱和手机号。",
       icon: UserIcon,
       href: "/me/profile",
       meta: `${email || "未填写"} · ${username || "未设置"}`,
@@ -34,7 +32,6 @@ export function SettingsMenu({ username, email, phoneNumber }: SettingsMenuProps
     {
       key: "password",
       title: "修改密码",
-      description: "下线其他会话，保障账号安全。",
       icon: KeyRound,
       href: "/me/password",
       meta: phoneNumber ? `已绑定手机号 ${phoneNumber}` : "建议绑定手机号以增强安全性",
@@ -65,7 +62,6 @@ export function SettingsMenu({ username, email, phoneNumber }: SettingsMenuProps
                     </Badge>
                   ) : null}
                 </div>
-                <p className="text-xs text-muted-foreground">{item.description}</p>
                 {item.meta ? <p className="text-[11px] text-muted-foreground/80">{item.meta}</p> : null}
               </div>
             </div>

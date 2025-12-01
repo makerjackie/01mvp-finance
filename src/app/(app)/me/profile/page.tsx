@@ -39,7 +39,6 @@ export default async function ProfileSettingsPage() {
 
       <div className="space-y-2">
         <h2 className="text-xl font-semibold tracking-tight">编辑个人资料</h2>
-        <p className="text-sm text-muted-foreground">更新昵称并查看账号、邮箱和手机号等基础信息。</p>
       </div>
 
       <Card className="rounded-2xl border border-border/60 shadow-sm">

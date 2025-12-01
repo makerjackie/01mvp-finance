@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Sparkles, ImageIcon, X, Plus, SlidersHorizontal, Download } from "lucide-react";
+import { Sparkles, ImageIcon, X, Plus, SlidersHorizontal, Download, Wand2 } from "lucide-react";
+import { ImmersiveHeader } from "@/components/immersive-header";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -50,6 +51,12 @@ const DEFAULT_PRESETS: StylePreset[] = [
     name: "极简",
     description: "简单几何形状,扁平设计,干净整洁,矢量艺术",
     icon: "⬜",
+  },
+  {
+    id: "custom",
+    name: "自定义",
+    description: "",
+    icon: "✨",
   },
 ];
 
@@ -103,9 +110,10 @@ export default function ImageGenerationPage() {
   const [useCustomKey, setUseCustomKey] = useState(false);
   const [needCustomKey, setNeedCustomKey] = useState(false);
   const [prompt, setPrompt] = useState(
-    "一只可爱的巨大桃子,手绘蜡笔风格,粗糙质感,粗黑轮廓,大圆眼睛,可爱简单的脸,鲜艳的蓝色背景",
+    "一只可爱的香蕉,手绘蜡笔风格,粗糙质感,粗黑轮廓,大圆眼睛,可爱简单的脸,鲜艳的蓝色背景",
   );
   const [selectedStyleId, setSelectedStyleId] = useState<string>("none");
+  const [customStylePrompt, setCustomStylePrompt] = useState("");
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [showConfig, setShowConfig] = useState(false);
   const [params, setParams] = useState<GenerationParams>({
@@ -190,8 +198,13 @@ export default function ImageGenerationPage() {
 
     const style = DEFAULT_PRESETS.find((s) => s.id === selectedStyleId);
     let finalPrompt = prompt;
-    if (style && style.id !== "none") {
-      finalPrompt = `${style.description}. ${prompt}`;
+
+    if (style) {
+      if (style.id === "custom" && customStylePrompt.trim()) {
+        finalPrompt = `${customStylePrompt}. ${prompt}`;
+      } else if (style.id !== "none" && style.id !== "custom") {
+        finalPrompt = `${style.description}. ${prompt}`;
+      }
     }
 
     const finalRefImages = [...referenceImages, ...(style?.referenceImages || [])];
@@ -328,6 +341,7 @@ export default function ImageGenerationPage() {
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
+      <ImmersiveHeader className="md:hidden" title="AI 生图" />
       <div className="flex-1 overflow-y-auto pt-8 pb-48 px-4 md:px-8 scrollbar-thin [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
         <div className="max-w-[1800px] mx-auto space-y-10 min-h-[50vh]">
           {groupedTasks.length > 0 ? (
@@ -401,8 +415,8 @@ export default function ImageGenerationPage() {
             </div>
           ) : (
             <div className="h-[65vh] flex flex-col items-center justify-center text-muted-foreground space-y-8">
-              <div className="p-8 rounded-full bg-primary/10 border border-border">
-                <span className="text-7xl">🍑</span>
+              <div className="p-8 rounded-full bg-primary/5 border border-border/50">
+                <span className="text-7xl">🍌</span>
               </div>
               <div className="text-center space-y-4">
                 <h3 className="text-3xl font-semibold text-foreground tracking-tight">批量生成 • 多比例</h3>
@@ -414,7 +428,7 @@ export default function ImageGenerationPage() {
       </div>
 
       {/* Floating Footer */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 flex flex-col items-center justify-end pointer-events-none pb-6 px-4">
+      <div className="fixed bottom-0 left-0 right-0 z-30 flex flex-col items-center justify-end pointer-events-none pb-6 px-4 bg-linear-to-t from-background via-background/90 to-transparent pt-20">
         <div className="w-full max-w-4xl pointer-events-auto flex flex-col items-center gap-3">
           {/* Settings Tray */}
           <div
@@ -507,26 +521,44 @@ export default function ImageGenerationPage() {
           </div>
 
           {/* Style Chips */}
-          <div className="w-full overflow-x-auto pb-1 scrollbar-none mask-linear-fade">
-            <div className="flex gap-2 items-center justify-center md:justify-start px-1 min-w-max mx-auto">
-              {DEFAULT_PRESETS.map((p) => {
-                const isSelected = selectedStyleId === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => setSelectedStyleId(p.id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all border shadow-sm ${
-                      isSelected
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background/80 backdrop-blur-md border-border/50 text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border"
-                    }`}
-                  >
-                    {p.icon && <span className="text-base">{p.icon}</span>}
-                    <span className="font-medium">{p.name}</span>
-                  </button>
-                );
-              })}
+          <div className="w-full flex flex-col gap-2">
+            <div className="w-full overflow-x-auto pb-1 scrollbar-none mask-linear-fade">
+              <div className="flex gap-2 items-center justify-center md:justify-start px-1 min-w-max mx-auto">
+                {DEFAULT_PRESETS.map((p) => {
+                  const isSelected = selectedStyleId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setSelectedStyleId(p.id)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all border shadow-sm ${
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background/60 backdrop-blur-md border-border/50 text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border"
+                      }`}
+                    >
+                      {p.icon && <span className="text-base">{p.icon}</span>}
+                      <span className="font-medium">{p.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+
+            {/* Custom Style Input */}
+            {selectedStyleId === "custom" && (
+              <div className="w-full animate-in fade-in slide-in-from-top-2 duration-300 px-1">
+                <div className="relative">
+                  <Wand2 className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                  <input
+                    type="text"
+                    value={customStylePrompt}
+                    onChange={(e) => setCustomStylePrompt(e.target.value)}
+                    placeholder="输入自定义风格描述 (例如: 像素艺术, 8bit, 复古游戏风格...)"
+                    className="w-full bg-background/60 backdrop-blur-md border border-border/50 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Main Input Bar */}
@@ -713,16 +745,16 @@ export default function ImageGenerationPage() {
                   {!showConfig && (
                     <button
                       onClick={() => setShowConfig(true)}
-                      className="hidden md:flex items-center gap-3 mr-1 px-4 py-2 rounded-full bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 shadow-sm hover:shadow-md transition-all text-xs font-medium"
+                      className="hidden md:flex items-center gap-3 mr-1 px-4 py-2 rounded-full bg-background/80 backdrop-blur-md border border-border/50 text-foreground shadow-sm hover:shadow-md transition-all text-xs font-medium"
                     >
-                      <span className="text-orange-400 dark:text-orange-600 font-bold tracking-wide">
+                      <span className="text-orange-500 dark:text-orange-400 font-bold tracking-wide">
                         {params.aspectRatios.length > 2
                           ? `${params.aspectRatios.length} 比例`
                           : params.aspectRatios.join(", ")}
                       </span>
-                      <span className="w-px h-3 bg-white/20 dark:bg-black/20 shrink-0" />
+                      <span className="w-px h-3 bg-border shrink-0" />
                       <span className="shrink-0">{params.resolution}</span>
-                      <span className="w-px h-3 bg-white/20 dark:bg-black/20 shrink-0" />
+                      <span className="w-px h-3 bg-border shrink-0" />
                       <span className="shrink-0">{params.count}</span>
                     </button>
                   )}
@@ -783,7 +815,7 @@ export default function ImageGenerationPage() {
               <p className="text-base md:text-lg text-foreground font-medium leading-relaxed">{lightboxImage.prompt}</p>
               <div className="flex gap-3">
                 <Button variant="secondary" asChild>
-                  <a href={lightboxImage.url} download={`giga-peach-${lightboxImage.id}.png`}>
+                  <a href={lightboxImage.url} download={`giga-banana-${lightboxImage.id}.png`}>
                     <Download size={18} />
                     下载
                   </a>
