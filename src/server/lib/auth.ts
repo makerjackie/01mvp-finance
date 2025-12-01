@@ -3,39 +3,30 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { admin, organization, twoFactor, username, phoneNumber } from "better-auth/plugins";
 import { prisma } from "./db";
 import { sendSms } from "./sms";
+import { getBaseUrl, getPublicUrl } from "@/lib/utils";
 
-const parseOrigin = (value?: string | null) => {
-  if (!value) return null;
-  try {
-    return new URL(value).origin;
-  } catch {
-    return null;
-  }
-};
+// 服务端内部调用：使用 http://localhost 避免 Docker 容器中的 SSL 错误
+const internalBaseURL = getBaseUrl();
 
-// Docker 容器内部应使用内部 URL，避免 SSL 错误
-// BETTER_AUTH_INTERNAL_URL 用于容器内部调用（http://localhost:3000）
-// BETTER_AUTH_URL 用于外部访问和客户端重定向（https://your-domain.com）
-const authOrigin =
-  parseOrigin(process.env.BETTER_AUTH_INTERNAL_URL) ||
-  parseOrigin(process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_API_URL) ||
-  "http://localhost:3000";
+// 客户端访问和 CORS：使用外部 URL（支持 HTTPS）
+const publicURL = getPublicUrl();
 
+// Trusted Origins：允许客户端和本地开发的请求
 const trustedOrigins = Array.from(
   new Set(
     [
-      ...(process.env.TRUSTED_ORIGINS || process.env.BETTER_AUTH_TRUSTED_ORIGINS || "")
+      publicURL,
+      "http://localhost:3000",
+      ...(process.env.TRUSTED_ORIGINS || "")
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
-      authOrigin,
-      "http://localhost:3000",
     ].filter(Boolean),
   ),
 );
 
 export const auth = betterAuth({
-  baseURL: `${authOrigin}/api/auth`,
+  baseURL: `${internalBaseURL}/api/auth`,
   trustedOrigins,
   database: prismaAdapter(prisma, {
     provider: "postgresql",
