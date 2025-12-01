@@ -13,17 +13,21 @@ const parseOrigin = (value?: string | null) => {
   }
 };
 
+// Docker 容器内部应使用内部 URL，避免 SSL 错误
+// BETTER_AUTH_INTERNAL_URL 用于容器内部调用（http://localhost:3000）
+// BETTER_AUTH_URL 用于外部访问和客户端重定向（https://your-domain.com）
 const authOrigin =
+  parseOrigin(process.env.BETTER_AUTH_INTERNAL_URL) ||
   parseOrigin(process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_API_URL) ||
   "http://localhost:3000";
 
 const trustedOrigins = Array.from(
   new Set(
     [
-      ...((process.env.TRUSTED_ORIGINS || process.env.BETTER_AUTH_TRUSTED_ORIGINS || "")
+      ...(process.env.TRUSTED_ORIGINS || process.env.BETTER_AUTH_TRUSTED_ORIGINS || "")
         .split(",")
         .map((s) => s.trim())
-        .filter(Boolean)),
+        .filter(Boolean),
       authOrigin,
       "http://localhost:3000",
     ].filter(Boolean),

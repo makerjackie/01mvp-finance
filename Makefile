@@ -11,7 +11,7 @@ TAG ?= latest
 IMAGE_TAG ?= $(TAG)
 FULL_IMAGE = $(REGISTRY)/$(IMAGE_NAME):$(TAG)
 
-export HOST_PORT ?= 3000
+export HOST_PORT ?= 3006
 PLATFORM ?= linux/amd64
 
 # ========================================
