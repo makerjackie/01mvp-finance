@@ -12,6 +12,7 @@ import {
   Menu,
   CreditCard,
   Upload,
+  ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -28,6 +29,11 @@ const navItems = [
         title: "功能中心",
         href: "/features",
         icon: Sparkles,
+      },
+      {
+        title: "AI 生图",
+        href: "/ai-image",
+        icon: ImageIcon,
       },
       {
         title: "AI 对话",

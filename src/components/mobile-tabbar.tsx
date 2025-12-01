@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, MessageSquare, User as UserIcon, LayoutDashboard, Sparkles } from "lucide-react";
+import { Home, MessageSquare, User as UserIcon, LayoutDashboard, Sparkles, ImageIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { shouldHideTabbar } from "@/lib/config/navigation";
@@ -37,10 +37,10 @@ export function MobileTabbar({ user }: MobileTabbarProps) {
       active: isAuthed ? pathname.startsWith("/dashboard") : pathname === "/",
     },
     {
-      label: "功能",
-      icon: Sparkles,
-      href: "/features",
-      active: pathname === "/features",
+      label: "生图",
+      icon: ImageIcon,
+      href: "/ai-image",
+      active: pathname === "/ai-image",
     },
     {
       label: "对话",

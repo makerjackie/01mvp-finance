@@ -1,6 +1,6 @@
 import { adminClient, usernameClient, phoneNumberClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { getBaseUrl } from "@/lib/utils";
 
 export const authClient = createAuthClient({

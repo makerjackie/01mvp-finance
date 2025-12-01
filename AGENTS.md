@@ -28,6 +28,6 @@
 - PRs: explain intent, key changes, validation steps (`lint/typecheck/build`), link issues, and attach UI screenshots/GIFs when applicable.
 
 ## Security & Configuration Tips
-- Copy `.env.example` to `.env.local`; never commit secrets. Required keys: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `NEXT_PUBLIC_API_URL`, AI/SMS creds, S3 params.  
+- Copy `.env.example` to `.env.local`; never commit secrets. Required keys: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `NEXT_PUBLIC_SITE_URL`, AI/SMS creds, S3 params.  
 - Local storage defaults to `storage/`; configure S3 creds to use object storage. Use `.env.production` for deploys.  
 - After env changes, verify `/api/health` and login flow.

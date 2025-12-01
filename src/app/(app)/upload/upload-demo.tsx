@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, ImageIcon, Link2, Loader2, ShieldCheck, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 type UploadResponse = {
   url: string;
@@ -157,13 +157,7 @@ export function UploadDemo() {
               </div>
             </div>
           )}
-          <Input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleFileChange}
-          />
+          <Input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
         </div>
 
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">

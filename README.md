@@ -43,7 +43,7 @@ cp .env.example .env.local
 
 - `DATABASE_URL`：Postgres 连接串。  
 - `BETTER_AUTH_SECRET`：随机字符串。  
-- `BETTER_AUTH_URL` / `NEXT_PUBLIC_API_URL`：本地默认 `http://localhost:3000`。  
+- `NEXT_PUBLIC_SITE_URL`：本地默认 `http://localhost:3000`。  
 - AI：`AI_API_ENDPOINT`、`AI_API_KEY`、`AI_MODEL`（允许 `deepseek-chat` / `gpt-4o-mini`）。  
 - 短信登录：`TENCENT_*`（见 `.env.example`），未配置时改用用户名密码登录。  
 - 存储：`S3_ENDPOINT/S3_ACCESS_KEY/S3_SECRET_KEY/S3_BUCKET/S3_REGION`（留空则使用本地 `storage` 目录）。  
@@ -104,7 +104,7 @@ bun dev                    # http://localhost:3000
 
 - Dockerfile 采用多阶段：Bun 安装依赖与构建，最终镜像使用 `node:22-slim` 运行 `.next/standalone`，非 root 用户，带基础健康检查。
 - 健康检查路径：`/api/health`。
-- 部署时确保同样的环境变量（`DATABASE_URL`、`BETTER_AUTH_SECRET`、`NEXT_PUBLIC_API_URL`、`AI_API_KEY`、`TENCENT_*` 等）。
+- 部署时确保同样的环境变量（`DATABASE_URL`、`BETTER_AUTH_SECRET`、`NEXT_PUBLIC_SITE_URL`、`AI_API_KEY`、`TENCENT_*` 等）。
 
 ## CNB 构建流水线（.cnb.yml）
 
@@ -132,7 +132,7 @@ bun dev                    # http://localhost:3000
 - 先登录 Cloudflare：`wrangler login`，并在 Pages 控制台创建项目。
 - 构建产物：`bun run cf:build`（基于 `@cloudflare/next-on-pages` 生成 `.vercel/output`）。
 - 本地预览：`bun run cf:preview`（`wrangler pages dev .vercel/output/static`）。
-- 部署上线：`bun run cf:deploy`（默认使用 `wrangler.toml` 的 `name`，可用 `-p <project>` 覆盖），在 Cloudflare Pages 设置好 `NEXT_PUBLIC_API_URL` 等环境变量。
+- 部署上线：`bun run cf:deploy`（默认使用 `wrangler.toml` 的 `name`，可用 `-p <project>` 覆盖），在 Cloudflare Pages 设置好 `NEXT_PUBLIC_SITE_URL` 等环境变量。
 - 此配置只增加 Cloudflare 选项，不影响现有 Docker 镜像/Compose 流程。
 
 ## 常见问题

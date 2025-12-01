@@ -4,6 +4,7 @@ import authController from "./modules/auth";
 import chatRoutes from "./modules/chat";
 import privateRoutes from "./modules/private";
 import uploadRoutes from "./modules/upload";
+import imageGenRoutes from "./modules/image-gen";
 
 export const app = new Hono()
   .basePath("/api")
@@ -12,7 +13,8 @@ export const app = new Hono()
   .route("/auth", authController)
   .route("/chat", chatRoutes)
   .route("/private", privateRoutes)
-  .route("/uploads", uploadRoutes);
+  .route("/uploads", uploadRoutes)
+  .route("/image-gen", imageGenRoutes);
 
 export type AppType = typeof app;
 export default app;

@@ -11,6 +11,12 @@ const internalBaseURL = getBaseUrl();
 // 客户端访问和 CORS：使用外部 URL（支持 HTTPS）
 const publicURL = getPublicUrl();
 
+// Debug logging for auth configuration
+console.log("[Auth Config] internalBaseURL:", internalBaseURL);
+console.log("[Auth Config] publicURL:", publicURL);
+console.log("[Auth Config] NEXT_PUBLIC_SITE_URL:", process.env.NEXT_PUBLIC_SITE_URL);
+console.log("[Auth Config] PORT:", process.env.PORT);
+
 // Trusted Origins：允许客户端和本地开发的请求
 const trustedOrigins = Array.from(
   new Set(

@@ -212,7 +212,7 @@
   .glass {
     @apply bg-background/60 backdrop-blur-lg border border-border/50;
   }
-  
+
   .glass-card {
     @apply bg-card/50 backdrop-blur-sm border border-border/50 shadow-sm;
   }
@@ -227,7 +227,7 @@
   .animate-slide-up {
     animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  
+
   .animate-in-from-bottom {
     animation: in-from-bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   }
@@ -255,7 +255,7 @@
       transform: translateY(0);
     }
   }
-  
+
   @keyframes in-from-bottom {
     from {
       opacity: 0;
@@ -279,5 +279,10 @@
 
   .scrollbar-none::-webkit-scrollbar {
     display: none;
+  }
+
+  .mask-linear-fade {
+    mask-image: linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent);
   }
 }

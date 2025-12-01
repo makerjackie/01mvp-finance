@@ -12,7 +12,6 @@ services:
       NODE_ENV: production
       PORT: 3000
       # 容器内部使用 HTTP，避免 SSL 错误
-      BETTER_AUTH_INTERNAL_URL: http://localhost:3000
     # 端口映射
     ports:
       - "${HOST_PORT:-3000}:3000"
