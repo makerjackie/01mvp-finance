@@ -5,6 +5,23 @@ import { prisma } from "./db";
 import { sendSms } from "./sms";
 import { getBaseUrl, getPublicUrl } from "@/lib/utils";
 
+const normalizeOrigin = (value?: string | null) => {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.origin;
+  } catch {
+    // 退化处理：简单去除尾部斜杠
+    return value.replace(/\/+$/, "");
+  }
+};
+
+const withOriginVariants = (value?: string | null) => {
+  const origin = normalizeOrigin(value);
+  if (!origin) return [];
+  return [origin, `${origin}/`];
+};
+
 // 服务端内部调用：使用 http://localhost 避免 Docker 容器中的 SSL 错误
 const internalBaseURL = getBaseUrl();
 
@@ -15,12 +32,13 @@ const publicURL = getPublicUrl();
 const trustedOrigins = Array.from(
   new Set(
     [
-      publicURL,
-      "http://localhost:3000",
+      ...withOriginVariants(publicURL),
+      ...withOriginVariants("http://localhost:3000"),
       ...(process.env.TRUSTED_ORIGINS || "")
         .split(",")
         .map((s) => s.trim())
-        .filter(Boolean),
+        .filter(Boolean)
+        .flatMap((s) => withOriginVariants(s)),
     ].filter(Boolean),
   ),
 );
