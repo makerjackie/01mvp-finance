@@ -7,12 +7,26 @@ type SessionResponse = {
   user: User;
 };
 
+// 缓存一次成功的内部 base URL，避免每次请求都重试
+let cachedInternalBaseUrl: string | null = null;
+
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 使用容器内的 HTTP 回环地址，避免 behind TLS (Caddy) 时出现 ERR_SSL_PACKET_LENGTH_TOO_LONG
-  const internalBaseUrl = process.env.INTERNAL_BASE_URL || `http://127.0.0.1:${process.env.PORT || 3000}`;
-  const sessionUrl = `${internalBaseUrl}/api/auth/get-session`;
+  const port = process.env.PORT || "3000";
+  const candidateBaseUrls = Array.from(
+    new Set(
+      [
+        process.env.INTERNAL_BASE_URL,
+        process.env.INTERNAL_HOST,
+        process.env.INTERNAL_HOSTNAME,
+        process.env.HOSTNAME ? `http://${process.env.HOSTNAME}:${port}` : null,
+        `http://127.0.0.1:${port}`,
+        `http://localhost:${port}`,
+        `http://app:${port}`, // docker-compose 默认服务名
+      ].filter(Boolean),
+    ),
+  ) as string[];
 
   const serializeError = (error: unknown) => {
     if (error instanceof Error) {
@@ -36,41 +50,88 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const cookieHeader = request.headers.get("cookie") || "";
+  if (!cookieHeader) {
+    // 没有 cookie 直接认为未登录，避免无意义的内部请求
+    return handleRouting({ pathname, session: null, request });
+  }
+
   // 获取当前 session
   let session: SessionResponse | null = null;
-  const cookieHeader = request.headers.get("cookie") || "";
 
-  // 首选 betterFetch（严格模式，自动处理 JSON），失败时降级到原生 fetch，防止临时网络问题导致误判未登录
-  const logContext = { url: sessionUrl, pathname, hasCookie: Boolean(cookieHeader) };
-
-  try {
-    const { data } = await betterFetch<SessionResponse>(sessionUrl, {
-      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
-    });
-    session = data;
-  } catch (error) {
-    console.error("[proxy] betterFetch session failed", { ...logContext, error: serializeError(error) });
+  const tryFetchSession = async (baseUrl: string) => {
+    const sessionUrl = `${baseUrl.replace(/\/+$/, "")}/api/auth/get-session`;
+    const logContext = { url: sessionUrl, pathname, hasCookie: Boolean(cookieHeader) };
 
     try {
-      const res = await fetch(sessionUrl, {
-        headers: cookieHeader ? { cookie: cookieHeader } : undefined,
-        cache: "no-store",
+      const { data } = await betterFetch<SessionResponse>(sessionUrl, {
+        headers: { cookie: cookieHeader },
       });
-
-      if (res.ok) {
-        session = (await res.json()) as SessionResponse;
-      } else {
-        console.error("[proxy] fallback fetch session non-OK", {
-          ...logContext,
-          status: res.status,
-          statusText: res.statusText,
+      return { session: data, error: null, baseUrl };
+    } catch (error) {
+      // 降级到原生 fetch
+      try {
+        const res = await fetch(sessionUrl, {
+          headers: { cookie: cookieHeader },
+          cache: "no-store",
         });
+
+        if (res.ok) {
+          const data = (await res.json()) as SessionResponse;
+          return { session: data, error: null, baseUrl };
+        }
+
+        return {
+          session: null,
+          error: {
+            ...logContext,
+            status: res.status,
+            statusText: res.statusText,
+          },
+          baseUrl,
+        };
+      } catch (fallbackError) {
+        return { session: null, error: { ...logContext, error: serializeError(fallbackError) }, baseUrl };
       }
-    } catch (fallbackError) {
-      console.error("[proxy] fallback fetch session failed", { ...logContext, error: serializeError(fallbackError) });
+    }
+  };
+
+  const basesToTry = cachedInternalBaseUrl ? [cachedInternalBaseUrl] : candidateBaseUrls;
+  const errors: unknown[] = [];
+
+  for (const baseUrl of basesToTry) {
+    const result = await tryFetchSession(baseUrl);
+    if (result.session) {
+      session = result.session;
+      cachedInternalBaseUrl = baseUrl;
+      break;
+    }
+    if (result.error) {
+      errors.push(result.error);
     }
   }
 
+  if (!session) {
+    console.error("[proxy] session fetch failed for all candidates", {
+      pathname,
+      hasCookie: Boolean(cookieHeader),
+      tried: basesToTry,
+      errors,
+    });
+  }
+
+  return handleRouting({ pathname, session, request });
+}
+
+function handleRouting({
+  pathname,
+  session,
+  request,
+}: {
+  pathname: string;
+  session: SessionResponse | null;
+  request: NextRequest;
+}) {
   // 需要保护的路由列表
   const protectedRoutes = ["/dashboard", "/me"];
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
