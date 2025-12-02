@@ -12,6 +12,19 @@ export default async function proxy(request: NextRequest) {
 
   // 使用容器内的 HTTP 回环地址，避免 behind TLS (Caddy) 时出现 ERR_SSL_PACKET_LENGTH_TOO_LONG
   const internalBaseUrl = process.env.INTERNAL_BASE_URL || `http://127.0.0.1:${process.env.PORT || 3000}`;
+  const sessionUrl = `${internalBaseUrl}/api/auth/get-session`;
+
+  const serializeError = (error: unknown) => {
+    if (error instanceof Error) {
+      return {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        cause: error.cause instanceof Error ? error.cause.message : error.cause,
+      };
+    }
+    return { message: String(error) };
+  };
 
   // 如果是 API 路由或静态资源，跳过中间件
   if (
@@ -25,21 +38,37 @@ export default async function proxy(request: NextRequest) {
 
   // 获取当前 session
   let session: SessionResponse | null = null;
+  const cookieHeader = request.headers.get("cookie") || "";
+
+  // 首选 betterFetch（严格模式，自动处理 JSON），失败时降级到原生 fetch，防止临时网络问题导致误判未登录
+  const logContext = { url: sessionUrl, pathname, hasCookie: Boolean(cookieHeader) };
+
   try {
-    const { data } = await betterFetch<SessionResponse>("/api/auth/get-session", {
-      baseURL: internalBaseUrl,
-      headers: {
-        cookie: request.headers.get("cookie") || "",
-      },
+    const { data } = await betterFetch<SessionResponse>(sessionUrl, {
+      headers: cookieHeader ? { cookie: cookieHeader } : undefined,
     });
     session = data;
   } catch (error) {
-    // 留下足够的上下文便于线上排查，但避免输出用户 Cookie
-    console.error("[proxy] failed to fetch session", {
-      message: error instanceof Error ? error.message : String(error),
-      baseURL: internalBaseUrl,
-      pathname,
-    });
+    console.error("[proxy] betterFetch session failed", { ...logContext, error: serializeError(error) });
+
+    try {
+      const res = await fetch(sessionUrl, {
+        headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+        cache: "no-store",
+      });
+
+      if (res.ok) {
+        session = (await res.json()) as SessionResponse;
+      } else {
+        console.error("[proxy] fallback fetch session non-OK", {
+          ...logContext,
+          status: res.status,
+          statusText: res.statusText,
+        });
+      }
+    } catch (fallbackError) {
+      console.error("[proxy] fallback fetch session failed", { ...logContext, error: serializeError(fallbackError) });
+    }
   }
 
   // 需要保护的路由列表
