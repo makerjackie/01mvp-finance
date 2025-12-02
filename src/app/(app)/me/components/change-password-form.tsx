@@ -31,6 +31,13 @@ export function ChangePasswordForm({ onSuccess }: ChangePasswordFormProps = {}) 
       return;
     }
 
+    // 加强密码强度验证
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+    if (!passwordRegex.test(newPassword)) {
+      toast.error("密码必须包含大小写字母、数字和特殊字符(@$!%*?&)");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -97,7 +104,9 @@ export function ChangePasswordForm({ onSuccess }: ChangePasswordFormProps = {}) 
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">建议包含大小写字母、数字和符号，避免使用与其他网站相同的密码。</p>
+      <p className="text-xs text-muted-foreground">
+        密码长度至少 8 位，必须包含大小写字母、数字和特殊字符(@$!%*?&)，避免使用与其他网站相同的密码。
+      </p>
 
       <Button type="submit" disabled={isLoading} className="w-fit">
         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { Sparkles, ImageIcon, X, Plus, SlidersHorizontal, Download, Wand2 } from "lucide-react";
 import { ImmersiveHeader } from "@/components/immersive-header";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,6 @@ import { Card } from "@/components/ui/card";
 import { toast } from "@/lib/toast";
 import type {
   AspectRatio,
-  Resolution,
   GenerationParams,
   GeneratedImage,
   GenerationTask,
@@ -231,7 +231,7 @@ export default function ImageGenerationPage() {
       setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: "generating" } : t)));
 
       try {
-        const requestBody: any = {
+        const requestBody: Record<string, unknown> = {
           prompt: finalPrompt,
           referenceImages: finalRefImages,
           aspectRatio: task.aspectRatio,
@@ -390,7 +390,14 @@ export default function ImageGenerationPage() {
                                 )}
                                 {task.status === "success" && task.data && (
                                   <div className="relative cursor-pointer" onClick={() => setLightboxImage(task.data!)}>
-                                    <img src={task.data.url} alt={task.prompt} className="w-full h-auto" />
+                                    <Image
+                                      src={task.data.url}
+                                      alt={task.prompt}
+                                      width={800}
+                                      height={600}
+                                      className="w-full h-auto"
+                                      unoptimized={task.data.url.startsWith("data:")}
+                                    />
                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/card:opacity-100 transition-opacity flex items-center justify-center gap-2">
                                       <Button size="icon" variant="secondary" onClick={(e) => e.stopPropagation()}>
                                         <Download className="h-4 w-4" />
@@ -654,7 +661,14 @@ export default function ImageGenerationPage() {
                     key={idx}
                     className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-border group shadow-sm"
                   >
-                    <img src={img} className="w-full h-full object-cover" alt={`ref-${idx}`} />
+                    <Image
+                      src={img}
+                      alt={`ref-${idx}`}
+                      width={64}
+                      height={64}
+                      className="w-full h-full object-cover"
+                      unoptimized
+                    />
                     <button
                       onClick={() => removeReferenceImage(idx)}
                       className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -802,11 +816,15 @@ export default function ImageGenerationPage() {
           </div>
 
           <div className="flex-1 min-h-0 relative flex items-center justify-center px-4 md:px-12 pb-4">
-            <img
+            <Image
               src={lightboxImage.url}
               alt={lightboxImage.prompt}
+              width={1920}
+              height={1080}
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
               onClick={(e) => e.stopPropagation()}
+              unoptimized={lightboxImage.url.startsWith("data:")}
+              priority
             />
           </div>
 

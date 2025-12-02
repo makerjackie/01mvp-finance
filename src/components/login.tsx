@@ -217,15 +217,20 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
           <div className="space-y-2">
             <Label htmlFor="phone">手机号</Label>
             <div className="flex gap-2">
-              <Input
-                id="phone"
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="请输入手机号"
-                maxLength={11}
-                className="flex-1"
-              />
+              <div className="flex flex-1 gap-1.5">
+                <div className="flex items-center justify-center rounded-lg border bg-muted px-3 text-sm font-medium text-muted-foreground">
+                  +86
+                </div>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  placeholder="请输入手机号"
+                  maxLength={11}
+                  className="flex-1"
+                />
+              </div>
               <Button
                 type="button"
                 variant="outline"

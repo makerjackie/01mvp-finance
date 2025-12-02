@@ -55,7 +55,7 @@ const USE_URL_FORMAT = true;
 imageGenRoutes.post("/generate", async (c) => {
   try {
     const body = await c.req.json<GenerateImageRequest>();
-    const { prompt, referenceImages, aspectRatio, resolution, apiKey, baseUrl, useCustomKey } = body;
+    const { prompt, referenceImages, aspectRatio, apiKey, baseUrl, useCustomKey } = body;
 
     if (!prompt && (!referenceImages || referenceImages.length === 0)) {
       return c.json({ error: "Prompt or reference images are required" }, 400);
@@ -111,7 +111,15 @@ imageGenRoutes.post("/generate", async (c) => {
     }
 
     // 构建请求体
-    const parts: any[] = [];
+    interface ImagePart {
+      inlineData?: {
+        mimeType: string;
+        data: string;
+      };
+      text?: string;
+    }
+
+    const parts: ImagePart[] = [];
 
     if (referenceImages && referenceImages.length > 0) {
       for (const img of referenceImages) {
@@ -157,7 +165,7 @@ imageGenRoutes.post("/generate", async (c) => {
         if (errorJson.error && errorJson.error.message) {
           errorMessage = errorJson.error.message;
         }
-      } catch (e) {
+      } catch {
         errorMessage += ` - ${errorText.substring(0, 100)}`;
       }
       return c.json({ error: errorMessage }, response.status >= 500 ? 500 : 400);

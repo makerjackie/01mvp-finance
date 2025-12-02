@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, MessageSquare, User as UserIcon, LayoutDashboard, Sparkles, ImageIcon } from "lucide-react";
+import { Home, MessageSquare, User as UserIcon, LayoutDashboard, ImageIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { shouldHideTabbar } from "@/lib/config/navigation";

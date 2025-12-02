@@ -2,6 +2,26 @@ import type { NextConfig } from "next";
 
 const baseConfig: NextConfig = {
   output: "standalone",
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "file.302.ai",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.302.ai",
+        pathname: "/**",
+      },
+      // 添加其他可能的图片CDN域名
+      {
+        protocol: "https",
+        hostname: "generativelanguage.googleapis.com",
+        pathname: "/**",
+      },
+    ],
+  },
 };
 
 const withCloudflareDev = async (): Promise<NextConfig> => {
