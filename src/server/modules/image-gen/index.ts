@@ -112,9 +112,12 @@ imageGenRoutes.post("/generate", async (c) => {
 
     // 构建请求体
     interface ImagePart {
-      inlineData?: {
-        mimeType: string;
-        data: string;
+      inline_data?: {
+        mime_type: string;
+        data?: string;
+      };
+      image_url?: {
+        url: string;
       };
       text?: string;
     }
@@ -130,11 +133,22 @@ imageGenRoutes.post("/generate", async (c) => {
         const matches = img.match(/^data:(.+);base64,(.+)$/);
         if (matches) {
           parts.push({
-            inlineData: {
-              mimeType: matches[1],
+            inline_data: {
+              mime_type: matches[1],
               data: matches[2],
             },
           });
+          continue;
+        }
+
+        // 兼容远程 URL 参考图
+        try {
+          const url = new URL(img);
+          if (url.protocol === "http:" || url.protocol === "https:") {
+            parts.push({ image_url: { url: url.toString() } });
+          }
+        } catch {
+          // ignore invalid url
         }
       }
     }
@@ -213,9 +227,10 @@ imageGenRoutes.post("/generate", async (c) => {
 
         // Base64 格式: { inlineData: { mimeType: "image/png", data: "..." } }
         // 302.ai 和 Google 原版都支持此格式
-        if (part.inlineData && part.inlineData.data) {
+        if ((part.inlineData && part.inlineData.data) || (part.inline_data && part.inline_data.data)) {
+          const inlineData = part.inlineData || part.inline_data;
           return c.json({
-            url: `data:${part.inlineData.mimeType || "image/png"};base64,${part.inlineData.data}`,
+            url: `data:${inlineData.mimeType || inlineData.mime_type || "image/png"};base64,${inlineData.data}`,
           });
         }
       }

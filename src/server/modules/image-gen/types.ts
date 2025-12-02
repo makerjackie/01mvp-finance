@@ -37,4 +37,5 @@ export interface GenerationTask {
   placeholder?: boolean;
   data?: GeneratedImage;
   error?: string;
+  referenceImages?: string[];
 }

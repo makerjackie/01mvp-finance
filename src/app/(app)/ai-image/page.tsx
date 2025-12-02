@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import { Sparkles, ImageIcon, X, Plus, SlidersHorizontal, Download, Wand2 } from "lucide-react";
+import { Sparkles, ImageIcon, X, Plus, SlidersHorizontal, Download, Wand2, Info } from "lucide-react";
+import { nanoid } from "nanoid";
 import { ImmersiveHeader } from "@/components/immersive-header";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -67,6 +68,7 @@ const ASPECT_RATIOS: { portrait: AspectRatio[]; landscape: AspectRatio[] } = {
 
 const PARAMS_STORAGE_KEY = "gp_params_v2";
 const TASKS_STORAGE_KEY = "gp_tasks_history_v1";
+const SESSIONS_STORAGE_KEY = "gp_sessions_history_v1";
 const MAX_HISTORY_ITEMS = 200;
 
 const DEFAULT_PARAMS: GenerationParams = {
@@ -74,6 +76,24 @@ const DEFAULT_PARAMS: GenerationParams = {
   resolution: "1K",
   count: 2,
 };
+
+type ImageSession = {
+  id: string;
+  title: string;
+  tasks: GenerationTask[];
+  createdAt: number;
+  updatedAt: number;
+};
+
+const DEFAULT_SESSION_TITLE = "新的设计";
+
+const createEmptySession = (title = DEFAULT_SESSION_TITLE): ImageSession => ({
+  id: nanoid(),
+  title,
+  tasks: [],
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+});
 
 const AspectRatioIcon = ({
   ratio,
@@ -127,13 +147,47 @@ export default function ImageGenerationPage() {
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [showConfig, setShowConfig] = useState(false);
   const [params, setParams] = useState<GenerationParams>(DEFAULT_PARAMS);
-  const [tasks, setTasks] = useState<GenerationTask[]>([]);
+  const [sessions, setSessions] = useState<ImageSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<GeneratedImage | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const promptInputRef = useRef<HTMLTextAreaElement>(null);
 
+  const sortSessions = (list: ImageSession[]) => [...list].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const currentSession = sessions.find((session) => session.id === currentSessionId);
+  const tasks = currentSession?.tasks ?? [];
+
+  const ensureActiveSessionId = () => {
+    if (currentSessionId) return currentSessionId;
+    const session = createEmptySession();
+    setSessions([session]);
+    setCurrentSessionId(session.id);
+    return session.id;
+  };
+
+  const updateSessionById = (sessionId: string, updater: (session: ImageSession) => ImageSession) => {
+    setSessions((prev) => sortSessions(prev.map((session) => (session.id === sessionId ? updater(session) : session))));
+  };
+
+  const startNewSession = () => {
+    const session = createEmptySession();
+    setSessions((prev) => sortSessions([session, ...prev]));
+    setCurrentSessionId(session.id);
+    setPrompt("");
+    setReferenceImages([]);
+    setNeedCustomKey(false);
+    setLightboxImage(null);
+  };
+
+  const handleSelectSession = (sessionId: string) => {
+    setCurrentSessionId(sessionId);
+    setReferenceImages([]);
+    setLightboxImage(null);
+  };
+
   useEffect(() => {
+    // 持久化的 API Key 相关设置
     const savedUseCustomKey = localStorage.getItem("gp_use_custom_key");
     if (savedUseCustomKey === "true") {
       setUseCustomKey(true);
@@ -143,6 +197,7 @@ export default function ImageGenerationPage() {
       if (savedBaseUrl) setBaseUrl(savedBaseUrl);
     }
 
+    // 读取上次的参数
     const savedParams = localStorage.getItem(PARAMS_STORAGE_KEY);
     if (savedParams) {
       try {
@@ -155,15 +210,47 @@ export default function ImageGenerationPage() {
       localStorage.removeItem("gp_params");
     }
 
+    // 优先从新的 session 存储中恢复
+    const savedSessions = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    if (savedSessions) {
+      try {
+        const parsed = JSON.parse(savedSessions) as ImageSession[];
+        if (parsed.length > 0) {
+          const normalized = parsed.map((session) => ({
+            ...session,
+            title: session.title || DEFAULT_SESSION_TITLE,
+            tasks: session.tasks || [],
+            createdAt: session.createdAt || Date.now(),
+            updatedAt: session.updatedAt || session.createdAt || Date.now(),
+          }));
+          const sorted = sortSessions(normalized);
+          setSessions(sorted);
+          setCurrentSessionId(sorted[0].id);
+          return;
+        }
+      } catch (e) {
+        console.error("Failed to parse saved sessions:", e);
+      }
+    }
+
+    // 兼容旧版: 如果有 legacy task,迁移为单个会话
     const savedTasks = localStorage.getItem(TASKS_STORAGE_KEY);
     if (savedTasks) {
       try {
         const parsed = JSON.parse(savedTasks) as GenerationTask[];
-        setTasks(parsed);
+        const legacySession = { ...createEmptySession("历史对话"), tasks: parsed };
+        setSessions([legacySession]);
+        setCurrentSessionId(legacySession.id);
+        return;
       } catch (e) {
         console.error("Failed to parse saved tasks:", e);
       }
     }
+
+    // 默认初始化一个空会话
+    const initialSession = createEmptySession();
+    setSessions([initialSession]);
+    setCurrentSessionId(initialSession.id);
   }, []);
 
   useEffect(() => {
@@ -171,15 +258,32 @@ export default function ImageGenerationPage() {
   }, [params]);
 
   useEffect(() => {
-    const completedTasks = tasks.filter((t) => t.status === "success" && t.data);
-    if (completedTasks.length === 0) {
-      localStorage.removeItem(TASKS_STORAGE_KEY);
+    if (sessions.length === 0) {
+      localStorage.removeItem(SESSIONS_STORAGE_KEY);
       return;
     }
 
-    const trimmed = completedTasks.slice(-MAX_HISTORY_ITEMS);
-    localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(trimmed));
-  }, [tasks]);
+    const sessionsForStorage = sessions.map((session) => {
+      const completedTasks = session.tasks.filter((t) => t.status === "success" && t.data);
+      const keepCompleted = completedTasks.slice(-MAX_HISTORY_ITEMS);
+      const keepIds = new Set(keepCompleted.map((t) => t.id));
+      const trimmedTasks = session.tasks.filter((t) => t.status !== "success" || keepIds.has(t.id));
+      return { ...session, tasks: trimmedTasks };
+    });
+
+    localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessionsForStorage));
+    localStorage.removeItem(TASKS_STORAGE_KEY);
+  }, [sessions]);
+
+  useEffect(() => {
+    if (!currentSessionId && sessions.length > 0) {
+      setCurrentSessionId(sessions[0].id);
+    }
+  }, [currentSessionId, sessions]);
+
+  useEffect(() => {
+    setLightboxImage(null);
+  }, [currentSessionId]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -239,6 +343,7 @@ export default function ImageGenerationPage() {
 
     const finalRefImages = [...referenceImages, ...(style?.referenceImages || [])];
 
+    const sessionId = ensureActiveSessionId();
     const batchId = Date.now().toString();
     const newTasks: GenerationTask[] = [];
 
@@ -251,11 +356,20 @@ export default function ImageGenerationPage() {
           aspectRatio: ratio,
           prompt: finalPrompt,
           placeholder: true,
+          referenceImages: finalRefImages,
         });
       }
     });
 
-    setTasks((prev) => [...prev, ...newTasks]);
+    const nextTitle = (prompt.trim() || finalPrompt).slice(0, 40) || DEFAULT_SESSION_TITLE;
+    const now = Date.now();
+    setCurrentSessionId(sessionId);
+    updateSessionById(sessionId, (session) => ({
+      ...session,
+      title: session.title && session.title !== DEFAULT_SESSION_TITLE ? session.title : nextTitle,
+      tasks: [...session.tasks, ...newTasks],
+      updatedAt: now,
+    }));
 
     let customKeyRequired = false;
 
@@ -293,8 +407,9 @@ export default function ImageGenerationPage() {
               customKeyRequired = true;
               setNeedCustomKey(true);
               toast.error("后端 API 未配置,请使用自定义 API Key");
-              setTasks((prev) =>
-                prev.map((t) =>
+              updateSessionById(sessionId, (session) => ({
+                ...session,
+                tasks: session.tasks.map((t) =>
                   t.batchId === batchId
                     ? {
                         ...t,
@@ -303,7 +418,8 @@ export default function ImageGenerationPage() {
                       }
                     : t,
                 ),
-              );
+                updatedAt: Date.now(),
+              }));
             }
             return;
           }
@@ -324,8 +440,9 @@ export default function ImageGenerationPage() {
           referenceImages: finalRefImages,
         };
 
-        setTasks((prev) =>
-          prev.map((t) =>
+        updateSessionById(sessionId, (session) => ({
+          ...session,
+          tasks: session.tasks.map((t) =>
             t.id === task.id
               ? {
                   ...t,
@@ -334,11 +451,13 @@ export default function ImageGenerationPage() {
                 }
               : t,
           ),
-        );
+          updatedAt: Date.now(),
+        }));
       } catch (err) {
         console.error("Generation error:", err);
-        setTasks((prev) =>
-          prev.map((t) =>
+        updateSessionById(sessionId, (session) => ({
+          ...session,
+          tasks: session.tasks.map((t) =>
             t.id === task.id
               ? {
                   ...t,
@@ -347,7 +466,8 @@ export default function ImageGenerationPage() {
                 }
               : t,
           ),
-        );
+          updatedAt: Date.now(),
+        }));
         if (!customKeyRequired) {
           toast.error(err instanceof Error ? err.message : "生成失败");
         }
@@ -386,12 +506,53 @@ export default function ImageGenerationPage() {
   };
 
   const groupedTasks = groupTasksByBatch(tasks);
+  const sortedSessions = sortSessions(sessions);
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
       <ImmersiveHeader className="md:hidden" title="AI 生图" />
       <div className="flex-1 overflow-y-auto pt-8 pb-48 px-4 md:px-8 scrollbar-thin [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
         <div className="max-w-[1800px] mx-auto space-y-10 min-h-[50vh]">
+          <div className="flex flex-col gap-3 p-3 md:p-4 rounded-2xl border border-border/60 bg-background/70 backdrop-blur-lg">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex-1 min-w-0 overflow-x-auto scrollbar-none">
+                <div className="flex items-center gap-2">
+                  {sortedSessions.map((session) => {
+                    const isActive = session.id === currentSessionId;
+                    return (
+                      <button
+                        key={session.id}
+                        onClick={() => handleSelectSession(session.id)}
+                        className={`px-3 py-1.5 rounded-full border text-xs md:text-sm transition-all max-w-[220px] truncate ${
+                          isActive
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            : "bg-muted/60 text-muted-foreground hover:text-foreground hover:border-border"
+                        }`}
+                        title={session.title || DEFAULT_SESSION_TITLE}
+                      >
+                        {session.title || DEFAULT_SESSION_TITLE}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={startNewSession}
+                className="rounded-full h-9 px-3 md:px-4 flex items-center gap-2 shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+                新开对话
+              </Button>
+            </div>
+            {groupedTasks.length > 0 && (
+              <div className="flex items-start gap-2 text-xs text-muted-foreground leading-relaxed">
+                <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>当前对话会沿用参考图/提示词。如果要开始完全新的设计，请点击“新开对话”创建一个新的会话。</span>
+              </div>
+            )}
+          </div>
           {groupedTasks.length > 0 ? (
             <div className="space-y-20 pb-12">
               {groupedTasks.map((batch, index) => {
@@ -399,7 +560,9 @@ export default function ImageGenerationPage() {
                 const refData = batch.find((t) => t.data)?.data;
                 const promptText = firstItem.prompt;
                 const timestamp = refData?.timestamp || Date.now();
+                const resolution = refData?.resolution || params.resolution;
                 const ratioGroups = groupTasksByRatio(batch);
+                const referenceThumbs = refData?.referenceImages || firstItem.referenceImages || [];
 
                 return (
                   <div
@@ -415,8 +578,32 @@ export default function ImageGenerationPage() {
                           {new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </span>
                         <span>•</span>
-                        <span>{params.resolution}</span>
+                        <span>{resolution}</span>
                       </div>
+                      {referenceThumbs.length > 0 && (
+                        <div className="mt-4 flex flex-col gap-2">
+                          <div className="text-[11px] uppercase font-bold text-muted-foreground tracking-[0.2em]">
+                            参考图
+                          </div>
+                          <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
+                            {referenceThumbs.map((img, idx) => (
+                              <div
+                                key={`${firstItem.batchId || index}-ref-${idx}`}
+                                className="w-14 h-14 rounded-lg overflow-hidden border border-border/70 bg-muted/50 shrink-0"
+                              >
+                                <Image
+                                  src={img}
+                                  alt={`reference-${idx}`}
+                                  width={56}
+                                  height={56}
+                                  className="w-full h-full object-cover"
+                                  unoptimized
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-8">
@@ -698,6 +885,13 @@ export default function ImageGenerationPage() {
                 >
                   切换到后端
                 </Button>
+              </div>
+            )}
+
+            {tasks.length > 0 && (
+              <div className="mx-2 mb-2 px-3 py-2 rounded-xl bg-muted/40 border border-border/50 flex items-start gap-2 text-[11px] text-muted-foreground leading-relaxed">
+                <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>如果是全新设计,建议点击上方“新开对话”开始新的会话,避免沿用当前对话的参考图或描述。</span>
               </div>
             )}
 
