@@ -65,6 +65,16 @@ const ASPECT_RATIOS: { portrait: AspectRatio[]; landscape: AspectRatio[] } = {
   landscape: ["5:4", "4:3", "3:2", "16:9", "21:9"],
 };
 
+const PARAMS_STORAGE_KEY = "gp_params_v2";
+const TASKS_STORAGE_KEY = "gp_tasks_history_v1";
+const MAX_HISTORY_ITEMS = 200;
+
+const DEFAULT_PARAMS: GenerationParams = {
+  aspectRatios: ["4:3"],
+  resolution: "1K",
+  count: 2,
+};
+
 const AspectRatioIcon = ({
   ratio,
   active,
@@ -116,11 +126,7 @@ export default function ImageGenerationPage() {
   const [customStylePrompt, setCustomStylePrompt] = useState("");
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [showConfig, setShowConfig] = useState(false);
-  const [params, setParams] = useState<GenerationParams>({
-    aspectRatios: ["16:9"],
-    resolution: "2K",
-    count: 4,
-  });
+  const [params, setParams] = useState<GenerationParams>(DEFAULT_PARAMS);
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   const [lightboxImage, setLightboxImage] = useState<GeneratedImage | null>(null);
 
@@ -137,19 +143,43 @@ export default function ImageGenerationPage() {
       if (savedBaseUrl) setBaseUrl(savedBaseUrl);
     }
 
-    const savedParams = localStorage.getItem("gp_params");
+    const savedParams = localStorage.getItem(PARAMS_STORAGE_KEY);
     if (savedParams) {
       try {
-        setParams(JSON.parse(savedParams));
+        setParams({ ...DEFAULT_PARAMS, ...JSON.parse(savedParams) });
       } catch (e) {
         console.error("Failed to parse saved params:", e);
+      }
+    } else {
+      // 清理旧版本的存储,让新版默认值生效
+      localStorage.removeItem("gp_params");
+    }
+
+    const savedTasks = localStorage.getItem(TASKS_STORAGE_KEY);
+    if (savedTasks) {
+      try {
+        const parsed = JSON.parse(savedTasks) as GenerationTask[];
+        setTasks(parsed);
+      } catch (e) {
+        console.error("Failed to parse saved tasks:", e);
       }
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("gp_params", JSON.stringify(params));
+    localStorage.setItem(PARAMS_STORAGE_KEY, JSON.stringify(params));
   }, [params]);
+
+  useEffect(() => {
+    const completedTasks = tasks.filter((t) => t.status === "success" && t.data);
+    if (completedTasks.length === 0) {
+      localStorage.removeItem(TASKS_STORAGE_KEY);
+      return;
+    }
+
+    const trimmed = completedTasks.slice(-MAX_HISTORY_ITEMS);
+    localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(trimmed));
+  }, [tasks]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -217,7 +247,7 @@ export default function ImageGenerationPage() {
         newTasks.push({
           id: `${batchId}-${ratio}-${i}`,
           batchId: batchId,
-          status: "pending",
+          status: "generating",
           aspectRatio: ratio,
           prompt: finalPrompt,
           placeholder: true,
@@ -227,8 +257,10 @@ export default function ImageGenerationPage() {
 
     setTasks((prev) => [...prev, ...newTasks]);
 
-    for (const task of newTasks) {
-      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: "generating" } : t)));
+    let customKeyRequired = false;
+
+    const generationPromises = newTasks.map(async (task) => {
+      if (customKeyRequired) return;
 
       try {
         const requestBody: Record<string, unknown> = {
@@ -257,10 +289,22 @@ export default function ImageGenerationPage() {
 
           // 检查是否需要自定义 API key
           if (errorData.needCustomKey) {
-            setNeedCustomKey(true);
-            toast.error("后端 API 未配置,请使用自定义 API Key");
-            // 取消所有待处理的任务
-            setTasks((prev) => prev.filter((t) => t.status === "success" || t.status === "error"));
+            if (!customKeyRequired) {
+              customKeyRequired = true;
+              setNeedCustomKey(true);
+              toast.error("后端 API 未配置,请使用自定义 API Key");
+              setTasks((prev) =>
+                prev.map((t) =>
+                  t.batchId === batchId
+                    ? {
+                        ...t,
+                        status: "error",
+                        error: "后端 API 未配置,请使用自定义 API Key",
+                      }
+                    : t,
+                ),
+              );
+            }
             return;
           }
 
@@ -304,9 +348,13 @@ export default function ImageGenerationPage() {
               : t,
           ),
         );
-        toast.error(err instanceof Error ? err.message : "生成失败");
+        if (!customKeyRequired) {
+          toast.error(err instanceof Error ? err.message : "生成失败");
+        }
       }
-    }
+    });
+
+    await Promise.allSettled(generationPromises);
 
     setPrompt("");
     setReferenceImages([]);

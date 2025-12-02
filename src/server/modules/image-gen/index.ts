@@ -121,6 +121,10 @@ imageGenRoutes.post("/generate", async (c) => {
 
     const parts: ImagePart[] = [];
 
+    if (prompt) {
+      parts.push({ text: prompt });
+    }
+
     if (referenceImages && referenceImages.length > 0) {
       for (const img of referenceImages) {
         const matches = img.match(/^data:(.+);base64,(.+)$/);
@@ -135,16 +139,15 @@ imageGenRoutes.post("/generate", async (c) => {
       }
     }
 
-    parts.push({ text: prompt });
-
     const payload = {
       contents: [
         {
+          role: "user",
           parts: parts,
         },
       ],
       generationConfig: {
-        responseModalities: ["TEXT", "IMAGE"],
+        responseModalities: ["IMAGE"],
         imageConfig: {
           aspect_ratio: aspectRatio,
         },
