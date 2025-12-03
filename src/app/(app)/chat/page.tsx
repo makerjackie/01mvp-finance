@@ -3,8 +3,9 @@
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import { Loader2, Bot, User, Sparkles, StopCircle, Plus, Clock3, Send } from "lucide-react";
-import { useRef, useEffect, useState, useCallback } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { nanoid } from "nanoid";
+import { Streamdown } from "streamdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,30 @@ type ChatSession = {
   updatedAt?: string;
   lastMessage?: { content?: string | null } | null;
 };
+
+const MarkdownContent = memo(
+  ({ content, isMuted = false }: { content?: string | null; isMuted?: boolean }) => {
+    if (!content) return null;
+
+    return (
+      <Streamdown
+        className={cn(
+          "space-y-2 break-words text-sm leading-relaxed",
+          " [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+          " [&_code]:whitespace-pre-wrap [&_code]:break-words [&_code]:rounded [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-[13px]",
+          " [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted/60 [&_pre]:p-3",
+          " [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4",
+          isMuted ? "text-muted-foreground" : "",
+        )}
+      >
+        {content}
+      </Streamdown>
+    );
+  },
+  (prev, next) => prev.content === next.content && prev.isMuted === next.isMuted,
+);
+
+MarkdownContent.displayName = "MarkdownContent";
 
 export default function ChatPage() {
   const [chatId, setChatId] = useState(() => nanoid());
@@ -154,24 +179,16 @@ export default function ChatPage() {
     if (message.parts?.length) {
       return message.parts.map((part, i) => {
         if (part.type === "text") {
-          return (
-            <div key={`${message.id}-${i}`} className="whitespace-pre-wrap">
-              {part.text}
-            </div>
-          );
+          return <MarkdownContent key={`${message.id}-${i}`} content={part.text} />;
         }
         if (part.type === "reasoning") {
-          return (
-            <div key={`${message.id}-${i}`} className="whitespace-pre-wrap text-muted-foreground">
-              {part.reasoning}
-            </div>
-          );
+          return <MarkdownContent key={`${message.id}-${i}`} content={part.reasoning} isMuted />;
         }
         return null;
       });
     }
 
-    return <div className="whitespace-pre-wrap">{message.content}</div>;
+    return <MarkdownContent content={message.content} />;
   };
 
   return (
