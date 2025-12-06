@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { auth } from "@/server/lib/auth";
-import { AppSidebar } from "@/components/app-sidebar";
+import { DesktopSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
 import { MobileTabbar } from "@/components/mobile-tabbar";
 import { AppMain } from "@/components/app-main";
@@ -21,9 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen flex-col md:flex-row bg-gray-50/50 dark:bg-neutral-950">
       {/* Desktop Sidebar - 仅在 md 以上显示 */}
-      <aside className="hidden md:block w-64 shrink-0 h-screen sticky top-0 z-30">
-        <AppSidebar user={user} />
-      </aside>
+      <DesktopSidebar user={user} />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">

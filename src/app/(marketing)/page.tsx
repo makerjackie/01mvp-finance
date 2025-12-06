@@ -197,7 +197,7 @@ export default function Home() {
             <LogoMark size={26} className="shadow-sm" />
             <div>
               <p className="font-medium text-foreground">{siteConfig.name}</p>
-              <p className="text-xs">© 2024. 保留所有权利。</p>
+              <p className="text-xs">© 2025. 保留所有权利。</p>
             </div>
           </div>
           <div className="flex items-center gap-8">

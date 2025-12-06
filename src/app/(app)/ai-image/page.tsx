@@ -662,7 +662,7 @@ export default function ImageGenerationPage() {
               </div>
               <div className="text-center space-y-4">
                 <h3 className="text-3xl font-semibold text-foreground tracking-tight"> 支持批量/多比例生成</h3>
-                <p className="text-base text-muted-foreground max-w-sm mx-auto"> Google Nano Banana </p>
+                <p className="text-base text-muted-foreground max-w-sm mx-auto"> 基于 Google Gemini 3 Pro </p>
               </div>
             </div>
           )}
@@ -670,7 +670,7 @@ export default function ImageGenerationPage() {
       </div>
 
       {/* Floating Footer */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 flex flex-col items-center justify-end pointer-events-none pb-6 px-4 bg-linear-to-t from-background via-background/90 to-transparent pt-20">
+      <div className="fixed bottom-0 left-0 right-0 z-30 flex flex-col items-center justify-end pointer-events-none pb-6 px-4 bg-gradient-to-t from-background via-background/90 to-transparent pt-20">
         <div className="w-full max-w-4xl pointer-events-auto flex flex-col items-center gap-3">
           {/* Settings Tray */}
           <div
@@ -691,7 +691,7 @@ export default function ImageGenerationPage() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
                     <div className="h-4 w-1 bg-primary rounded-full" />
-                    <div className="text-sm font-medium text-foreground">Nano Banana 设置</div>
+                    <div className="text-sm font-medium text-foreground">生成设置</div>
                   </div>
                   <label className="text-xs uppercase font-bold text-muted-foreground tracking-wider block pl-1">
                     画面比例
@@ -804,7 +804,7 @@ export default function ImageGenerationPage() {
           </div>
 
           {/* Main Input Bar */}
-          <div className="w-full bg-background/90 backdrop-blur-xl border border-border/50 rounded-4xl shadow-2xl shadow-black/5 flex flex-col p-2 gap-0 relative transition-all duration-300 hover:shadow-black/10 hover:border-border/80">
+          <div className="w-full bg-background/90 backdrop-blur-xl border border-border/50 rounded-[2rem] shadow-2xl shadow-black/5 flex flex-col p-2 gap-0 relative transition-all duration-300 hover:shadow-black/10 hover:border-border/80">
             {/* Custom API Key Input (只在需要时显示) */}
             {needCustomKey && (
               <div className="mx-2 mt-2 p-4 bg-orange-500/10 border border-orange-500/20 rounded-2xl mb-2">
@@ -1001,9 +1001,9 @@ export default function ImageGenerationPage() {
                   {!showConfig && (
                     <button
                       onClick={() => setShowConfig(true)}
-                      className="hidden md:flex items-center gap-3 mr-1 px-4 py-2 rounded-full bg-background/80 backdrop-blur-md border border-border/50 text-foreground shadow-sm hover:shadow-md transition-all text-xs font-medium"
+                      className="hidden md:flex items-center gap-3 mr-1 px-4 py-2 rounded-full bg-muted/50 backdrop-blur-md border border-border/50 text-foreground shadow-sm hover:shadow-md transition-all text-xs font-medium"
                     >
-                      <span className="text-orange-500 dark:text-orange-400 font-bold tracking-wide">
+                      <span className="text-primary font-bold tracking-wide">
                         {params.aspectRatios.length > 2
                           ? `${params.aspectRatios.length} 比例`
                           : params.aspectRatios.join(", ")}
@@ -1028,7 +1028,7 @@ export default function ImageGenerationPage() {
                   {/* Generate Button */}
                   <Button
                     onClick={handleGenerate}
-                    className="h-10 px-6 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                    className="h-10 px-6 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all active:scale-95 hover:scale-105"
                   >
                     <span className="hidden sm:inline font-medium mr-2">生成</span>
                     <Sparkles size={18} fill="currentColor" />
@@ -1043,7 +1043,7 @@ export default function ImageGenerationPage() {
       {/* Lightbox */}
       {lightboxImage && (
         <div
-          className="fixed inset-0 z-100 bg-black/98 backdrop-blur flex flex-col animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100] bg-black/98 backdrop-blur flex flex-col animate-in fade-in duration-200"
           onClick={() => setLightboxImage(null)}
         >
           <div className="shrink-0 h-16 flex justify-end items-center px-4 md:px-8">
