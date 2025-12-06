@@ -4,6 +4,7 @@ import { admin, organization, twoFactor, username, phoneNumber } from "better-au
 import { prisma } from "./db";
 import { sendSms } from "./sms";
 import { getBaseUrl, getPublicUrl } from "@/lib/utils";
+import { ensureInitialAdmin } from "@/server/lib/user";
 
 const normalizeOrigin = (value?: string | null) => {
   if (!value) return null;
@@ -88,3 +89,6 @@ export const auth = betterAuth({
     }),
   ],
 });
+
+// 确保首个用户具备管理员权限（兼容已有数据）
+void ensureInitialAdmin();

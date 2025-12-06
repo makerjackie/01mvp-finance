@@ -1,9 +1,9 @@
 "use client";
 
-import { Loader2, Smartphone, KeyRound } from "lucide-react";
+import { Loader2, Smartphone, KeyRound, ShieldOff } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,8 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
   const [authMethod, setAuthMethod] = useState<AuthMethod>("sms");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [passwordLoginEnabled, setPasswordLoginEnabled] = useState(true);
+  const [configLoading, setConfigLoading] = useState(true);
 
   // 短信登录状态
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -34,6 +36,60 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+
+  // 倒计时定时器
+  useEffect(() => {
+    if (!countdown) return;
+    const timer = setInterval(() => {
+      setCountdown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  // 获取后台配置（密码登录开关）
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch("/api/system/config", { cache: "no-store" });
+        const data = await res.json();
+
+        if (!cancelled && data?.config) {
+          setPasswordLoginEnabled(Boolean(data.config.passwordLoginEnabled));
+        }
+      } catch {
+        // 保持默认开启状态，避免阻塞登录
+      } finally {
+        if (!cancelled) {
+          setConfigLoading(false);
+        }
+      }
+    };
+
+    fetchConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 后台关闭密码登录时自动切回短信模式
+  useEffect(() => {
+    if (!passwordLoginEnabled && authMethod === "password") {
+      setAuthMethod("sms");
+    }
+  }, [authMethod, passwordLoginEnabled]);
+
+  const handleAuthMethodChange = (method: AuthMethod) => {
+    if (method === "password" && !passwordLoginEnabled) {
+      toast.error("当前已关闭密码登录，请使用短信验证码登录");
+      return;
+    }
+
+    setAuthMethod(method);
+    setError(null);
+  };
 
   // 发送验证码
   const handleSendSms = async () => {
@@ -52,18 +108,9 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
 
       if (data) {
         setSmsSent(true);
+        setSmsCode("");
         toast.success("验证码已发送");
-        // 倒计时 60 秒
         setCountdown(60);
-        const timer = setInterval(() => {
-          setCountdown((prev) => {
-            if (prev <= 1) {
-              clearInterval(timer);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
       } else {
         setError(error?.message || "发送失败");
       }
@@ -77,8 +124,13 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
   // 短信验证码登录
   const handleSmsLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!phoneNumber || !smsCode) {
-      setError("请填写手机号和验证码");
+    if (!phoneNumber || !/^1\d{10}$/.test(phoneNumber)) {
+      setError("请输入有效的手机号");
+      return;
+    }
+
+    if (!smsCode || smsCode.length !== 6) {
+      setError("请填写 6 位验证码");
       return;
     }
 
@@ -117,6 +169,11 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
   const handlePasswordLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+
+    if (!passwordLoginEnabled) {
+      setError("当前已关闭密码登录，请使用短信验证码登录");
+      return;
+    }
 
     const trimmedUsername = username.trim();
     if (!trimmedUsername) {
@@ -171,22 +228,26 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
     redirect ? `?redirect=${redirect}` : ""
   }`;
 
+  const headingTitle = authMethod === "sms" ? "手机号登录" : mode === "signin" ? "欢迎回来" : "创建账号";
+  const headingDescription =
+    authMethod === "sms"
+      ? "未注册手机号验证后自动创建账号"
+      : mode === "signin"
+        ? `登录您的 ${siteConfig.name} 账号`
+        : `注册 ${siteConfig.name} 账号，开始使用`;
+
   return (
     <div className="w-full p-6 sm:p-8">
       <div className="mb-8 space-y-2 text-center">
-        <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-          {mode === "signin" ? "欢迎回来" : "创建账号"}
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          {mode === "signin" ? `登录您的 ${siteConfig.name} 账号` : `注册 ${siteConfig.name} 账号，开始使用`}
-        </p>
+        <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{headingTitle}</h2>
+        <p className="text-sm text-muted-foreground">{headingDescription}</p>
       </div>
 
       {/* 登录方式切换 */}
       <div className="mb-8 flex rounded-xl bg-muted p-1">
         <button
           type="button"
-          onClick={() => setAuthMethod("sms")}
+          onClick={() => handleAuthMethodChange("sms")}
           className={cn(
             "flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
             authMethod === "sms"
@@ -199,12 +260,14 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
         </button>
         <button
           type="button"
-          onClick={() => setAuthMethod("password")}
+          onClick={() => handleAuthMethodChange("password")}
+          disabled={!passwordLoginEnabled && !configLoading}
           className={cn(
             "flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
             authMethod === "password"
               ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/5"
               : "text-muted-foreground hover:text-foreground",
+            !passwordLoginEnabled && "opacity-50 cursor-not-allowed",
           )}
         >
           <KeyRound className="h-4 w-4" />
@@ -212,23 +275,38 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
         </button>
       </div>
 
+      {!passwordLoginEnabled && !configLoading && (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+          <ShieldOff className="mt-0.5 h-4 w-4" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold leading-none">密码登录已关闭</p>
+            <p className="text-xs text-amber-800/80">请使用手机号验证码登录，管理员可在后台重新开启。</p>
+          </div>
+        </div>
+      )}
+
       {authMethod === "sms" ? (
         <form onSubmit={handleSmsLogin} className="space-y-5 animate-fade-in">
           <div className="space-y-2">
             <Label htmlFor="phone">手机号</Label>
             <div className="flex gap-2">
-              <div className="flex flex-1 gap-1.5">
-                <div className="flex items-center justify-center rounded-lg border bg-muted px-3 text-sm font-medium text-muted-foreground">
+              <div className="relative flex-1">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground select-none">
                   +86
-                </div>
+                </span>
                 <Input
                   id="phone"
                   type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
                   value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  onChange={(e) => {
+                    setPhoneNumber(e.target.value.replace(/\D/g, ""));
+                    setError(null);
+                  }}
                   placeholder="请输入手机号"
                   maxLength={11}
-                  className="flex-1"
+                  className="pl-12 text-base"
                 />
               </div>
               <Button
@@ -236,7 +314,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
                 variant="outline"
                 onClick={handleSendSms}
                 disabled={isPending || countdown > 0}
-                className="shrink-0 min-w-[100px]"
+                className="shrink-0 px-4 min-w-[110px]"
               >
                 {countdown > 0 ? `${countdown}s` : "获取验证码"}
               </Button>
@@ -249,11 +327,16 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
               <Input
                 id="code"
                 type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
                 value={smsCode}
-                onChange={(e) => setSmsCode(e.target.value)}
+                onChange={(e) => {
+                  setSmsCode(e.target.value.replace(/\D/g, ""));
+                  setError(null);
+                }}
                 placeholder="请输入 6 位验证码"
                 maxLength={6}
-                className="tracking-widest"
+                className="tracking-widest text-base"
               />
             </div>
           )}
@@ -272,7 +355,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
                 处理中...
               </>
             ) : (
-              "登录"
+              "登录 / 注册"
             )}
           </Button>
           <p className="mt-4 text-center text-xs text-muted-foreground">
@@ -295,10 +378,14 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
                 id="name"
                 type="text"
                 autoComplete="name"
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setError(null);
+                }}
                 value={name}
                 maxLength={50}
                 placeholder="设置一个好听的昵称"
+                className="text-base"
               />
             </div>
           )}
@@ -308,12 +395,16 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
             <Input
               id="username"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                setError(null);
+              }}
               type="text"
               autoComplete="username"
               required
               maxLength={50}
               placeholder="例如: demo"
+              className="text-base"
             />
           </div>
 
@@ -333,12 +424,16 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError(null);
+              }}
               autoComplete={mode === "signin" ? "current-password" : "new-password"}
               required
               minLength={8}
               maxLength={100}
               placeholder="至少 8 位字符"
+              className="text-base"
             />
           </div>
 
@@ -349,7 +444,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
             </div>
           )}
 
-          <Button type="submit" className="w-full" size="lg" disabled={isPending}>
+          <Button type="submit" className="w-full" size="lg" disabled={isPending || !passwordLoginEnabled}>
             {isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -1,5 +1,6 @@
 import { createMiddleware } from "hono/factory";
 import { auth } from "./lib/auth";
+import { ensureInitialAdmin } from "@/server/lib/user";
 
 export const sessionMiddleware = createMiddleware(async (c, next) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -15,6 +16,8 @@ export const sessionMiddleware = createMiddleware(async (c, next) => {
 });
 
 export const adminMiddleware = createMiddleware(async (c, next) => {
+  await ensureInitialAdmin();
+
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
 
   if (!session) {

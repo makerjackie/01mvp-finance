@@ -18,7 +18,7 @@ model User {
   phoneNumberVerified Boolean        @default(false)
   emailVerified       Boolean
   image               String?
-  role                String?        // "admin" | "user"
+  role                String?        @default("user") // "admin" | "user"
   banned              Boolean?       @default(false)
   banReason           String?
   banExpires          DateTime?
@@ -169,4 +169,15 @@ model ChatSession {
 
   @@index([userId])
   @@map("chat_session")
+}
+
+// 应用配置（全局仅一条）
+model AppConfig {
+  id                   String   @id @default("global")
+  passwordLoginEnabled Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  updatedById          String?
+
+  @@map("app_config")
 }

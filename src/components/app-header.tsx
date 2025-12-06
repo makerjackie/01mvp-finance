@@ -32,6 +32,7 @@ export function AppHeader({ user }: AppHeaderProps) {
       me: "个人中心",
       features: "功能中心",
       upload: "文件上传",
+      admin: "后台管理",
     };
     const title = titleMap[segment] || segment.charAt(0).toUpperCase() + segment.slice(1);
 

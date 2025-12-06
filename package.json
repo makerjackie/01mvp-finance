@@ -18,7 +18,7 @@
     "cf:deploy": "bun run cf:build && bun x wrangler pages deploy .vercel/output/static",
     "db:generate": "dotenv -c -- prisma generate --schema src/server/prisma/schema.prisma",
     "db:push": "dotenv -c -- prisma db push --schema=src/server/prisma/schema.prisma",
-    "db:studio": "dotenv -c -- prisma studio --schema=src/server/prisma/schema.prisma"
+    "db:studio": "dotenv -c -- prisma studio --config prisma.config.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.6",

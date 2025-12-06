@@ -5,6 +5,7 @@ import chatRoutes from "./modules/chat";
 import privateRoutes from "./modules/private";
 import uploadRoutes from "./modules/upload";
 import imageGenRoutes from "./modules/image-gen";
+import systemRoutes from "./modules/system";
 
 export const app = new Hono()
   .basePath("/api")
@@ -14,7 +15,8 @@ export const app = new Hono()
   .route("/chat", chatRoutes)
   .route("/private", privateRoutes)
   .route("/uploads", uploadRoutes)
-  .route("/image-gen", imageGenRoutes);
+  .route("/image-gen", imageGenRoutes)
+  .route("/system", systemRoutes);
 
 export type AppType = typeof app;
 export default app;

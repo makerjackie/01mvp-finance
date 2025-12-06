@@ -9,6 +9,7 @@ const globalForPrisma = globalThis as unknown as {
 
 let prismaClient: PrismaClient | undefined;
 let prismaPool: Pool | undefined;
+let middlewareRegistered = false;
 
 type PrismaClientKey = keyof PrismaClient;
 type PrismaClientValue = PrismaClient[PrismaClientKey];
@@ -30,6 +31,28 @@ function getPrismaClient() {
       adapter,
       log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
     });
+
+  if (!middlewareRegistered) {
+    prismaClient.$use(async (params, next) => {
+      if (params.model === "User" && params.action === "create") {
+        const data = (params.args?.data || {}) as Record<string, unknown>;
+        const userCount = await prismaClient!.user.count();
+        const role = (data.role as string | undefined) ?? (userCount === 0 ? "admin" : "user");
+
+        params.args = {
+          ...params.args,
+          data: {
+            ...data,
+            role,
+          },
+        };
+      }
+
+      return next(params);
+    });
+
+    middlewareRegistered = true;
+  }
 
   prismaPool = pool;
 

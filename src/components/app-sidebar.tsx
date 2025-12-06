@@ -15,6 +15,7 @@ import {
   ImageIcon,
   PanelLeftClose,
   PanelLeftOpen,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -25,54 +26,71 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import * as React from "react";
 
 // 导航菜单配置
-const navItems = [
-  {
-    title: "核心功能",
-    items: [
-      {
-        title: "功能中心",
-        href: "/features",
-        icon: Sparkles,
-      },
-      {
-        title: "AI 生图",
-        href: "/ai-image",
-        icon: ImageIcon,
-      },
-      {
-        title: "AI 对话",
-        href: "/chat",
-        icon: MessageSquare,
-      },
-      {
-        title: "控制台",
-        href: "/dashboard",
-        icon: LayoutDashboard,
-      },
-      {
-        title: "文件上传",
-        href: "/upload",
-        icon: Upload,
-      },
-    ],
-  },
-  {
-    title: "账户",
-    items: [
-      {
-        title: "个人中心",
-        href: "/me",
-        icon: UserIcon,
-      },
-      {
-        title: "订阅管理",
-        href: "/billing", // 假设的路径
-        icon: CreditCard,
-        disabled: true, // 暂未开发
-      },
-    ],
-  },
-];
+const buildNavItems = (user?: User) => {
+  const items = [
+    {
+      title: "核心功能",
+      items: [
+        {
+          title: "功能中心",
+          href: "/features",
+          icon: Sparkles,
+        },
+        {
+          title: "AI 生图",
+          href: "/ai-image",
+          icon: ImageIcon,
+        },
+        {
+          title: "AI 对话",
+          href: "/chat",
+          icon: MessageSquare,
+        },
+        {
+          title: "控制台",
+          href: "/dashboard",
+          icon: LayoutDashboard,
+        },
+        {
+          title: "文件上传",
+          href: "/upload",
+          icon: Upload,
+        },
+      ],
+    },
+    {
+      title: "账户",
+      items: [
+        {
+          title: "个人中心",
+          href: "/me",
+          icon: UserIcon,
+        },
+        {
+          title: "订阅管理",
+          href: "/billing", // 假设的路径
+          icon: CreditCard,
+          disabled: true, // 暂未开发
+        },
+      ],
+    },
+  ];
+
+  if (user?.role === "admin") {
+    items.push({
+      title: "系统",
+      items: [
+        {
+          title: "后台管理",
+          href: "/admin",
+          icon: ShieldCheck,
+        },
+      ],
+    });
+  }
+
+  return items;
+};
 
 import type { User } from "better-auth";
 
@@ -92,6 +110,7 @@ export function SidebarContent({
   isMobile = false,
 }: SidebarContentProps) {
   const pathname = usePathname();
+  const navItems = buildNavItems(user);
 
   return (
     <div

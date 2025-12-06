@@ -128,6 +128,15 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* 避免移动端点击输入时自动放大 */
+  @media (max-width: 640px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
 }
 
 @layer components {
