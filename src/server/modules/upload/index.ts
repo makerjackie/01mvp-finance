@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { auth } from "@/server/lib/auth";
 import { writeFile, readBinary, fileExists, getPublicUrl } from "@/server/lib/storage";
 import path from "path";
 import { nanoid } from "nanoid";
+import { sessionMiddleware, type AuthEnv } from "@/server/middleware";
+import { rateLimit } from "@/server/middleware/rate-limit";
 
-const getPublicBaseUrl = (c: Context) => {
+const getPublicBaseUrl = (c: Context<AuthEnv>) => {
   const originFromHeader = c.req.header("origin");
   const forwardedHost = c.req.header("x-forwarded-host") ?? c.req.header("host");
   const forwardedProto = c.req.header("x-forwarded-proto");
@@ -32,16 +33,8 @@ const getPublicBaseUrl = (c: Context) => {
   }
 };
 
-const app = new Hono()
-  .post("/", async (c) => {
-    const session = await auth.api.getSession({
-      headers: c.req.raw.headers,
-    });
-
-    if (!session?.user) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
+const app = new Hono<AuthEnv>()
+  .post("/", sessionMiddleware, rateLimit({ limit: 20, windowMs: 60_000 }), async (c) => {
     const body = await c.req.parseBody();
     const file = body["file"];
 

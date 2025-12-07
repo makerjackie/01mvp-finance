@@ -1,7 +1,14 @@
 import { Hono } from "hono";
 import type { AspectRatio, Resolution } from "./types";
+import { sessionMiddleware, type AuthEnv } from "@/server/middleware";
+import { rateLimit } from "@/server/middleware/rate-limit";
 
-const imageGenRoutes = new Hono();
+const imageGenRoutes = new Hono<AuthEnv>().use(sessionMiddleware).use(
+  rateLimit({
+    limit: 10,
+    windowMs: 60_000,
+  }),
+);
 
 interface GenerateImageRequest {
   prompt: string;

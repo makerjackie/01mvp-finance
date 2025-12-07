@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { auth } from "@/server/lib/auth";
 import { getPublicAppConfig } from "@/server/lib/app-config";
+import type { AuthEnv } from "@/server/middleware";
 
 const isPasswordAuthPath = (pathname: string, method: string) => {
   if (method !== "POST") return false;
@@ -13,7 +14,7 @@ const isPasswordAuthPath = (pathname: string, method: string) => {
 };
 
 // Forward every verb under /api/auth to Better Auth so hooks like get-session work.
-const authController = new Hono().all("/*", async (c) => {
+const authController = new Hono<AuthEnv>().all("/*", async (c) => {
   const pathname = new URL(c.req.url).pathname;
 
   if (isPasswordAuthPath(pathname, c.req.method)) {

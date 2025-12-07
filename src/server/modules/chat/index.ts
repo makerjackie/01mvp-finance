@@ -1,16 +1,23 @@
 import { Hono } from "hono";
 import { appendResponseMessages, streamText, type UIMessage } from "ai";
 import { nanoid } from "nanoid";
-import { auth } from "@/server/lib/auth";
 import { ai, allowedModels, defaultModel, isAllowedModel } from "@/server/lib/ai";
 import { getChatSessionMessages, listChatSessions, saveChatHistory } from "@/server/lib/chat-history";
 import { logger } from "@/server/lib/logger";
+import { sessionMiddleware, type AuthEnv } from "@/server/middleware";
+import { rateLimit } from "@/server/middleware/rate-limit";
 
-const chatRoutes = new Hono()
+const chatRoutes = new Hono<AuthEnv>()
+  .use(sessionMiddleware)
+  .use(
+    rateLimit({
+      limit: 30,
+      windowMs: 60_000,
+    }),
+  )
   .get("/sessions", async (c) => {
     try {
-      const session = await auth.api.getSession({ headers: c.req.raw.headers });
-      const userId = session?.user?.id ?? null;
+      const userId = c.get("user")?.id ?? null;
 
       const sessions = await listChatSessions(userId);
       return c.json({ sessions });
@@ -22,8 +29,7 @@ const chatRoutes = new Hono()
   .get("/:id", async (c) => {
     try {
       const sessionId = c.req.param("id");
-      const session = await auth.api.getSession({ headers: c.req.raw.headers });
-      const userId = session?.user?.id ?? null;
+      const userId = c.get("user")?.id ?? null;
 
       const result = await getChatSessionMessages(sessionId, userId);
       if (!result) {
@@ -61,8 +67,7 @@ const chatRoutes = new Hono()
 
       const selectedModel = isAllowedModel(model) ? model : defaultModel;
       const chatId = id || nanoid();
-      const session = await auth.api.getSession({ headers: c.req.raw.headers });
-      const userId = session?.user?.id ?? null;
+      const userId = c.get("user")?.id ?? null;
 
       logger.info("Chat request", { messageCount: messages.length, model: selectedModel });
 

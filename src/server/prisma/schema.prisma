@@ -175,9 +175,30 @@ model ChatSession {
 model AppConfig {
   id                   String   @id @default("global")
   passwordLoginEnabled Boolean  @default(true)
+  perUserDailyQuota    Int      @default(1000)
+  globalDailyQuota     Int      @default(100000)
+  perUserRateLimit     Int      @default(60)
+  globalRateLimit      Int      @default(1200)
+  maintenanceMode      Boolean  @default(false)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   updatedById          String?
 
   @@map("app_config")
+}
+
+model FeatureFlag {
+  id                String   @id @default(cuid()) @map("_id")
+  key               String   @unique
+  name              String
+  description       String?
+  status            String   @default("off") // "on" | "off" | "rollout"
+  rolloutPercentage Int      @default(0)
+  tags              String[] @default([])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdById       String?
+  updatedById       String?
+
+  @@map("feature_flag")
 }

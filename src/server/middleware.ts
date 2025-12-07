@@ -2,7 +2,14 @@ import { createMiddleware } from "hono/factory";
 import { auth } from "./lib/auth";
 import { ensureInitialAdmin } from "@/server/lib/user";
 
-export const sessionMiddleware = createMiddleware(async (c, next) => {
+export type AuthEnv = {
+  Variables: {
+    user: typeof auth.$Infer.Session.user | null;
+    session: typeof auth.$Infer.Session.session | null;
+  };
+};
+
+export const sessionMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
 
   if (!session) {
@@ -15,7 +22,7 @@ export const sessionMiddleware = createMiddleware(async (c, next) => {
   return next();
 });
 
-export const adminMiddleware = createMiddleware(async (c, next) => {
+export const adminMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
   await ensureInitialAdmin();
 
   const session = await auth.api.getSession({ headers: c.req.raw.headers });

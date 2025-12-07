@@ -68,7 +68,7 @@ export default async function proxy(request: NextRequest) {
         headers: { cookie: cookieHeader },
       });
       return { session: data, error: null, baseUrl };
-    } catch (error) {
+    } catch {
       // 降级到原生 fetch
       try {
         const res = await fetch(sessionUrl, {

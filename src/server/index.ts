@@ -6,8 +6,10 @@ import privateRoutes from "./modules/private";
 import uploadRoutes from "./modules/upload";
 import imageGenRoutes from "./modules/image-gen";
 import systemRoutes from "./modules/system";
+import adminRoutes from "./modules/admin";
+import type { AuthEnv } from "./middleware";
 
-export const app = new Hono()
+export const app = new Hono<AuthEnv>()
   .basePath("/api")
   .use("*", requestLogger())
   .get("/health", (c) => c.json({ status: "ok" }))
@@ -16,7 +18,8 @@ export const app = new Hono()
   .route("/private", privateRoutes)
   .route("/uploads", uploadRoutes)
   .route("/image-gen", imageGenRoutes)
-  .route("/system", systemRoutes);
+  .route("/system", systemRoutes)
+  .route("/admin", adminRoutes);
 
 export type AppType = typeof app;
 export default app;
