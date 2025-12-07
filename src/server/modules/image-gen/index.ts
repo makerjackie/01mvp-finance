@@ -1,7 +1,9 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
+import { nanoid } from "nanoid";
 import type { AspectRatio, Resolution } from "./types";
 import { sessionMiddleware, type AuthEnv } from "@/server/middleware";
 import { rateLimit } from "@/server/middleware/rate-limit";
+import { getPublicUrl, writeFile } from "@/server/lib/storage";
 
 const imageGenRoutes = new Hono<AuthEnv>().use(sessionMiddleware).use(
   rateLimit({
@@ -58,6 +60,62 @@ const USE_URL_FORMAT = true;
  * - 生产环境使用 302.ai (速度快,功能多)
  * - 如果需要图片长期存储,考虑使用 base64 格式并上传到自己的对象存储
  */
+
+const buildPublicBaseUrl = (c: Context<AuthEnv>) => {
+  const originFromHeader = c.req.header("origin");
+  const forwardedHost = c.req.header("x-forwarded-host") ?? c.req.header("host");
+  const forwardedProto = c.req.header("x-forwarded-proto");
+
+  const candidates = [
+    originFromHeader,
+    forwardedHost ? `${forwardedProto ?? "http"}://${forwardedHost}` : null,
+    process.env.NEXT_PUBLIC_SITE_URL,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      return new URL(candidate).origin;
+    } catch {
+      // ignore invalid values and continue to the next candidate
+    }
+  }
+
+  try {
+    return new URL(c.req.url).origin;
+  } catch {
+    return "http://localhost:3000";
+  }
+};
+
+const persistBufferAndGetUrl = async (c: Context<AuthEnv>, buffer: Buffer, mimeType: string) => {
+  // Keep filename flat (no slashes) so it can be served by /api/uploads/:filename
+  const sanitizedMime = mimeType.split(";")[0] ?? mimeType;
+  const extensionFromMime = sanitizedMime.split("/")[1] || "png";
+  const filename = `image-gen-${Date.now()}-${nanoid()}.${extensionFromMime}`;
+  await writeFile(filename, buffer, sanitizedMime || "application/octet-stream");
+
+  const publicUrl = getPublicUrl(filename);
+  if (publicUrl) return publicUrl;
+  return `${buildPublicBaseUrl(c)}/api/uploads/${filename}`;
+};
+
+const persistImageFromUrl = async (c: Context<AuthEnv>, imageUrl: string) => {
+  const response = await fetch(imageUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to download image (${response.status})`);
+  }
+  const mimeType = response.headers.get("content-type") ?? "image/png";
+  const arrayBuffer = await response.arrayBuffer();
+  return persistBufferAndGetUrl(c, Buffer.from(arrayBuffer), mimeType);
+};
+
+const persistInlineImage = async (c: Context<AuthEnv>, dataUrl: string) => {
+  const matches = dataUrl.match(/^data:(.+);base64,(.+)$/);
+  if (!matches) return null;
+  const [, mimeType, data] = matches;
+  return persistBufferAndGetUrl(c, Buffer.from(data, "base64"), mimeType);
+};
 
 imageGenRoutes.post("/generate", async (c) => {
   try {
@@ -197,6 +255,23 @@ imageGenRoutes.post("/generate", async (c) => {
 
     const data = await response.json();
 
+    const respondWithImage = async (originUrl: string, persist?: () => Promise<string | null>) => {
+      let storedUrl: string | null = null;
+      if (persist) {
+        try {
+          storedUrl = await persist();
+        } catch (err) {
+          console.error("Failed to persist generated image:", err);
+        }
+      }
+
+      return c.json({
+        url: storedUrl ?? originUrl,
+        originUrl,
+        stored: Boolean(storedUrl),
+      });
+    };
+
     // === 响应格式处理 ===
     // 302.ai 和 Google 原版 API 的响应格式说明:
     //
@@ -212,9 +287,7 @@ imageGenRoutes.post("/generate", async (c) => {
 
     // 尝试处理 302.ai 理论格式 (实际很少返回这种格式)
     if (use302Format && data.output) {
-      return c.json({
-        url: data.output,
-      });
+      return respondWithImage(data.output, () => persistImageFromUrl(c, data.output));
     }
 
     // 处理通用格式 (302.ai 和 Google 原版都使用 candidates 结构)
@@ -227,18 +300,16 @@ imageGenRoutes.post("/generate", async (c) => {
 
         // 302.ai URL 格式: { url: "https://file.302.ai/..." }
         if (part.url) {
-          return c.json({
-            url: part.url,
-          });
+          const originUrl = part.url as string;
+          return respondWithImage(originUrl, () => persistImageFromUrl(c, originUrl));
         }
 
         // Base64 格式: { inlineData: { mimeType: "image/png", data: "..." } }
         // 302.ai 和 Google 原版都支持此格式
         if ((part.inlineData && part.inlineData.data) || (part.inline_data && part.inline_data.data)) {
           const inlineData = part.inlineData || part.inline_data;
-          return c.json({
-            url: `data:${inlineData.mimeType || inlineData.mime_type || "image/png"};base64,${inlineData.data}`,
-          });
+          const inlineUrl = `data:${inlineData.mimeType || inlineData.mime_type || "image/png"};base64,${inlineData.data}`;
+          return respondWithImage(inlineUrl, () => persistInlineImage(c, inlineUrl));
         }
       }
     }

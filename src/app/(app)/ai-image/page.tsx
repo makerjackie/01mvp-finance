@@ -150,6 +150,7 @@ export default function ImageGenerationPage() {
   const [sessions, setSessions] = useState<ImageSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<GeneratedImage | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const promptInputRef = useRef<HTMLTextAreaElement>(null);
@@ -285,22 +286,56 @@ export default function ImageGenerationPage() {
     setLightboxImage(null);
   }, [currentSessionId]);
 
+  const ingestFiles = (files: File[]) => {
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    if (imageFiles.length === 0) return;
+
+    imageFiles.slice(0, 6).forEach((file: File) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setReferenceImages((prev) => {
+          if (prev.length >= 6) return prev;
+          if (prev.includes(result)) return prev;
+          return [...prev, result];
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      Array.from(files).forEach((file: File) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const result = reader.result as string;
-          setReferenceImages((prev) => {
-            if (prev.length >= 6) return prev;
-            return [...prev, result];
-          });
-        };
-        reader.readAsDataURL(file);
-      });
+      ingestFiles(Array.from(files));
       e.target.value = "";
     }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(e.clipboardData.files ?? []).filter((file) => file.type.startsWith("image/"));
+    if (files.length > 0) {
+      e.preventDefault();
+      ingestFiles(files);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files ?? []).filter((file) => file.type.startsWith("image/"));
+    if (files.length > 0) {
+      ingestFiles(files);
+    }
+  };
+
+  const handleDownload = (image: GeneratedImage) => {
+    const link = document.createElement("a");
+    link.href = image.url;
+    link.download = `image-${image.id}.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   const removeReferenceImage = (index: number) => {
@@ -428,10 +463,18 @@ export default function ImageGenerationPage() {
         }
 
         const data = await response.json();
+        const imageUrl = data.url || data.originUrl;
+
+        if (!imageUrl) {
+          throw new Error("未返回图片地址");
+        }
+
         const generatedData: GeneratedImage = {
           id: task.id,
           batchId: batchId,
-          url: data.url,
+          url: imageUrl,
+          originUrl: data.originUrl,
+          stored: data.stored,
           prompt: finalPrompt,
           aspectRatio: task.aspectRatio,
           resolution: params.resolution,
@@ -634,7 +677,16 @@ export default function ImageGenerationPage() {
                                       unoptimized={task.data.url.startsWith("data:")}
                                     />
                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/card:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                      <Button size="icon" variant="secondary" onClick={(e) => e.stopPropagation()}>
+                                      <Button
+                                        size="icon"
+                                        variant="secondary"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (task.data) {
+                                            handleDownload(task.data);
+                                          }
+                                        }}
+                                      >
                                         <Download className="h-4 w-4" />
                                       </Button>
                                     </div>
@@ -804,7 +856,23 @@ export default function ImageGenerationPage() {
           </div>
 
           {/* Main Input Bar */}
-          <div className="w-full bg-background/90 backdrop-blur-xl border border-border/50 rounded-[2rem] shadow-2xl shadow-black/5 flex flex-col p-2 gap-0 relative transition-all duration-300 hover:shadow-black/10 hover:border-border/80">
+          <div
+            className={`w-full bg-background/90 backdrop-blur-xl border border-border/50 rounded-[2rem] shadow-2xl shadow-black/5 flex flex-col p-2 gap-0 relative transition-all duration-300 hover:shadow-black/10 hover:border-border/80 ${
+              isDragging ? "border-primary/60 ring-2 ring-primary/10" : ""
+            }`}
+            onDragOver={(e) => {
+              e.preventDefault();
+            }}
+            onDragEnter={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={(e) => {
+              if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget as Node)) return;
+              setIsDragging(false);
+            }}
+            onDrop={handleDrop}
+          >
             {/* Custom API Key Input (只在需要时显示) */}
             {needCustomKey && (
               <div className="mx-2 mt-2 p-4 bg-orange-500/10 border border-orange-500/20 rounded-2xl mb-2">
@@ -964,6 +1032,7 @@ export default function ImageGenerationPage() {
                   ref={promptInputRef}
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
+                  onPaste={handlePaste}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();

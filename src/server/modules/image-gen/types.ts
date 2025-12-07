@@ -19,6 +19,8 @@ export interface GeneratedImage {
   id: string;
   batchId?: string;
   url: string;
+  originUrl?: string;
+  stored?: boolean;
   prompt: string;
   aspectRatio: AspectRatio;
   resolution: Resolution;
