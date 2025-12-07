@@ -1,5 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Prisma } from "@prisma/client";
 import { Pool } from "pg";
 
 const globalForPrisma = globalThis as unknown as {
@@ -9,57 +9,65 @@ const globalForPrisma = globalThis as unknown as {
 
 let prismaClient: PrismaClient | undefined;
 let prismaPool: Pool | undefined;
-let middlewareRegistered = false;
 
 type PrismaClientKey = keyof PrismaClient;
 type PrismaClientValue = PrismaClient[PrismaClientKey];
 
-function getPrismaClient() {
-  if (prismaClient) return prismaClient;
-
+function createPrismaClient() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error("DATABASE_URL is not set");
   }
 
   const pool = prismaPool ?? globalForPrisma.pool ?? new Pool({ connectionString: databaseUrl });
+  if (globalForPrisma.prisma) {
+    prismaPool = pool;
+    return globalForPrisma.prisma;
+  }
+
   const adapter = new PrismaPg(pool);
 
-  prismaClient =
+  const baseClient =
     globalForPrisma.prisma ??
     new PrismaClient({
       adapter,
       log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
     });
 
-  if (!middlewareRegistered) {
-    prismaClient.$use(async (params, next) => {
-      if (params.model === "User" && params.action === "create") {
-        const data = (params.args?.data || {}) as Record<string, unknown>;
-        const userCount = await prismaClient!.user.count();
-        const role = (data.role as string | undefined) ?? (userCount === 0 ? "admin" : "user");
+  const client = baseClient.$extends({
+    query: {
+      user: {
+        async create({ args, query }) {
+          const data = (args?.data || {}) as Prisma.UserCreateInput;
+          const userCount = await baseClient.user.count();
+          const role = (data.role as string | undefined) ?? (userCount === 0 ? "admin" : "user");
 
-        params.args = {
-          ...params.args,
-          data: {
-            ...data,
-            role,
-          },
-        };
-      }
-
-      return next(params);
-    });
-
-    middlewareRegistered = true;
-  }
+          return query({
+            ...args,
+            data: {
+              ...data,
+              role,
+            },
+          });
+        },
+      },
+    },
+  });
 
   prismaPool = pool;
 
   if (process.env.NODE_ENV !== "production") {
-    globalForPrisma.prisma = prismaClient;
+    globalForPrisma.prisma = client as PrismaClient;
     globalForPrisma.pool = pool;
   }
+
+  return client as PrismaClient;
+}
+
+function getPrismaClient() {
+  if (prismaClient) return prismaClient;
+
+  prismaClient = createPrismaClient();
 
   return prismaClient;
 }

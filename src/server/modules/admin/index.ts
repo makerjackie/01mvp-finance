@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { Prisma } from "@prisma/client";
 import { adminMiddleware, type AuthEnv } from "@/server/middleware";
 import { prisma } from "@/server/lib/db";
 import { logger } from "@/server/lib/logger";
@@ -100,12 +101,12 @@ const adminRoutes = new Hono<{
     const q = c.req.query("q")?.trim() || "";
     const limit = Math.min(Number(c.req.query("limit")) || 50, 200);
 
-    const where = q
+    const where: Prisma.UserWhereInput | undefined = q
       ? {
           OR: [
-            { email: { contains: q, mode: "insensitive" } },
-            { username: { contains: q, mode: "insensitive" } },
-            { name: { contains: q, mode: "insensitive" } },
+            { email: { contains: q, mode: Prisma.QueryMode.insensitive } },
+            { username: { contains: q, mode: Prisma.QueryMode.insensitive } },
+            { name: { contains: q, mode: Prisma.QueryMode.insensitive } },
           ],
         }
       : undefined;

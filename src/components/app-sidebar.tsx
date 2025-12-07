@@ -24,9 +24,12 @@ import { authClient } from "@/lib/auth-client";
 import { Logo } from "@/components/logo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import * as React from "react";
+import type { User } from "better-auth";
+
+type AppUser = User & { role?: string | null };
 
 // 导航菜单配置
-const buildNavItems = (user?: User) => {
+const buildNavItems = (user?: AppUser) => {
   const items = [
     {
       title: "核心功能",
@@ -92,10 +95,8 @@ const buildNavItems = (user?: User) => {
   return items;
 };
 
-import type { User } from "better-auth";
-
 interface SidebarContentProps {
-  user?: User;
+  user?: AppUser;
   className?: string;
   isCollapsed?: boolean;
   onToggle?: () => void;
@@ -271,7 +272,7 @@ export function SidebarContent({
   );
 }
 
-export function DesktopSidebar({ user }: { user?: User }) {
+export function DesktopSidebar({ user }: { user?: AppUser }) {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
 
   const toggle = () => {
@@ -293,7 +294,7 @@ export function DesktopSidebar({ user }: { user?: User }) {
 }
 
 // Mobile Drawer Component (reusing the same sidebar content)
-export function MobileSidebar({ user }: { user?: User }) {
+export function MobileSidebar({ user }: { user?: AppUser }) {
   return (
     <Sheet>
       <SheetTrigger asChild>
