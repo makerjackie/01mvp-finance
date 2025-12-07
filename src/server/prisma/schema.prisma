@@ -175,6 +175,7 @@ model ChatSession {
 model AppConfig {
   id                   String   @id @default("global")
   passwordLoginEnabled Boolean  @default(true)
+  smsLoginEnabled      Boolean  @default(true)
   perUserDailyQuota    Int      @default(1000)
   globalDailyQuota     Int      @default(100000)
   perUserRateLimit     Int      @default(60)

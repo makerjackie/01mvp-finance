@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/lib/toast";
-import { Loader2, RefreshCw, Search, Shield, ShieldOff, Ban, Check, Clock, UserRound } from "lucide-react";
+import { ROLE_OPTIONS, resolveRole } from "@/lib/rbac";
+import { Loader2, RefreshCw, Search, Shield, Ban, Check, Clock, UserRound } from "lucide-react";
 
 type AdminUser = {
   id: string;
@@ -45,7 +47,12 @@ const formatDate = (value: string | null) => {
   }
 };
 
-export function AdminUsersPanel() {
+type AdminUsersPanelProps = {
+  viewerRole?: string | null;
+  canManageUsers?: boolean;
+};
+
+export function AdminUsersPanel({ viewerRole, canManageUsers = true }: AdminUsersPanelProps) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [summary, setSummary] = useState<UserSummary | null>(null);
   const [query, setQuery] = useState("");
@@ -53,6 +60,7 @@ export function AdminUsersPanel() {
   const [refreshing, setRefreshing] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [workingId, setWorkingId] = useState<string | null>(null);
+  const normalizedViewerRole = resolveRole(viewerRole);
 
   const filteredUsers = useMemo(() => {
     if (!query.trim()) return users;
@@ -87,7 +95,50 @@ export function AdminUsersPanel() {
     fetchUsers();
   }, []);
 
+  const canEditRole = (targetRole?: string | null) => {
+    if (!canManageUsers) return false;
+    const normalized = resolveRole(targetRole);
+    if (normalized === "admin" && normalizedViewerRole !== "admin") {
+      return false;
+    }
+    return true;
+  };
+
+  const getRoleMeta = (role?: string | null) => ROLE_OPTIONS.find((option) => option.value === resolveRole(role));
+
+  const handleRoleChange = (id: string, role: string) => {
+    if (!canManageUsers) return;
+    setWorkingId(id);
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/admin/users/${id}`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "setRole", role }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.message || "更新角色失败");
+        }
+        const updated: AdminUser = {
+          ...data.user,
+          createdAt: data.user.createdAt,
+          lastActiveAt: data.user.lastActiveAt,
+        };
+        setUsers((prev) => prev.map((u) => (u.id === id ? updated : u)));
+        toast.success("角色已更新");
+        fetchUsers();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "更新角色失败");
+      } finally {
+        setWorkingId(null);
+      }
+    });
+  };
+
   const handleAction = (id: string, action: "promote" | "demote" | "ban" | "unban") => {
+    if (!canManageUsers) return;
     let banReason: string | null | undefined;
     if (action === "ban") {
       banReason = window.prompt("封禁原因（可选）", "违规行为") ?? undefined;
@@ -184,126 +235,123 @@ export function AdminUsersPanel() {
                 <p className="text-xs text-muted-foreground/80">试试更换搜索条件或刷新列表</p>
               </div>
             ) : (
-              filteredUsers.map((user) => (
-                <div
-                  key={user.id}
-                  className="rounded-xl border border-border/50 bg-background/80 p-4 shadow-sm transition-all duration-200 hover:-translate-y-[1px] hover:shadow-md"
-                >
-                  <div className="grid gap-3 md:grid-cols-6 md:items-center">
-                    <div className="col-span-2 space-y-1">
-                      <div className="flex items-center gap-2 text-sm font-semibold">
-                        <span className="truncate">{user.name}</span>
-                        {user.role === "admin" && (
-                          <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
-                            Admin
+              filteredUsers.map((user) => {
+                const roleMeta = getRoleMeta(user.role);
+                const roleValue = roleMeta?.value ?? resolveRole(user.role);
+                const roleSelectDisabled = isPending || workingId === user.id || !canEditRole(user.role);
+
+                return (
+                  <div
+                    key={user.id}
+                    className="rounded-xl border border-border/50 bg-background/80 p-4 shadow-sm transition-all duration-200 hover:-translate-y-[1px] hover:shadow-md"
+                  >
+                    <div className="grid gap-3 md:grid-cols-6 md:items-center">
+                      <div className="col-span-2 space-y-1">
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <span className="truncate">{user.name}</span>
+                          {roleValue !== "user" && (
+                            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
+                              {roleMeta?.label || roleValue}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                        {user.username && <p className="text-xs text-muted-foreground/80">@{user.username}</p>}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Select
+                          value={roleValue}
+                          onValueChange={(value) => handleRoleChange(user.id, value)}
+                          disabled={roleSelectDisabled}
+                        >
+                          <SelectTrigger className="w-[160px]">
+                            <SelectValue placeholder="选择角色" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ROLE_OPTIONS.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                                disabled={option.value === "admin" && normalizedViewerRole !== "admin"}
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] text-muted-foreground line-clamp-2">
+                          {roleMeta?.description || "默认用户，无后台权限"}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        {user.banned ? (
+                          <Badge variant="destructive" className="gap-1">
+                            <Ban className="h-3 w-3" /> 已封禁
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="gap-1">
+                            <Check className="h-3 w-3" /> 正常
                           </Badge>
                         )}
+                        <p className="text-xs text-muted-foreground line-clamp-1">
+                          {user.banned ? user.banReason || "未填写原因" : "未发现问题"}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground">{user.email}</p>
-                      {user.username && <p className="text-xs text-muted-foreground/80">@{user.username}</p>}
-                    </div>
 
-                    <div>
-                      <Badge variant="outline" className="border-border/60">
-                        {user.role || "user"}
-                      </Badge>
-                    </div>
-
-                    <div className="space-y-1">
-                      {user.banned ? (
-                        <Badge variant="destructive" className="gap-1">
-                          <Ban className="h-3 w-3" /> 已封禁
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className="gap-1">
-                          <Check className="h-3 w-3" /> 正常
-                        </Badge>
-                      )}
-                      <p className="text-xs text-muted-foreground line-clamp-1">
-                        {user.banned ? user.banReason || "未填写原因" : "未发现问题"}
-                      </p>
-                    </div>
-
-                    <div className="space-y-1 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1 text-xs">
-                        <Clock className="h-3 w-3" /> {formatDate(user.lastActiveAt)}
+                      <div className="space-y-1 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1 text-xs">
+                          <Clock className="h-3 w-3" /> {formatDate(user.lastActiveAt)}
+                        </div>
+                        <p className="text-xs text-muted-foreground/70">创建：{formatDate(user.createdAt)}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground/70">创建：{formatDate(user.createdAt)}</p>
-                    </div>
 
-                    <div className="flex flex-wrap justify-end gap-2 md:justify-end">
-                      {user.role === "admin" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={isPending || workingId === user.id}
-                          onClick={() => handleAction(user.id, "demote")}
-                        >
-                          {workingId === user.id ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <ShieldOff className="mr-2 h-4 w-4" />
-                          )}
-                          降级
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={isPending || workingId === user.id}
-                          onClick={() => handleAction(user.id, "promote")}
-                        >
-                          {workingId === user.id ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Shield className="mr-2 h-4 w-4" />
-                          )}
-                          提权
-                        </Button>
-                      )}
-                      {user.banned ? (
-                        <Button
-                          size="sm"
-                          disabled={isPending || workingId === user.id}
-                          onClick={() => handleAction(user.id, "unban")}
-                        >
-                          {workingId === user.id ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Check className="mr-2 h-4 w-4" />
-                          )}
-                          解封
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          disabled={isPending || workingId === user.id}
-                          onClick={() => handleAction(user.id, "ban")}
-                        >
-                          {workingId === user.id ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Ban className="mr-2 h-4 w-4" />
-                          )}
-                          封禁
-                        </Button>
-                      )}
+                      <div className="flex flex-wrap justify-end gap-2 md:justify-end">
+                        {user.banned ? (
+                          <Button
+                            size="sm"
+                            disabled={isPending || workingId === user.id || !canManageUsers}
+                            onClick={() => handleAction(user.id, "unban")}
+                          >
+                            {workingId === user.id ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Check className="mr-2 h-4 w-4" />
+                            )}
+                            解封
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={isPending || workingId === user.id || !canManageUsers}
+                            onClick={() => handleAction(user.id, "ban")}
+                          >
+                            {workingId === user.id ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Ban className="mr-2 h-4 w-4" />
+                            )}
+                            封禁
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <Separator className="my-3" />
-                  <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                    <span className="rounded-full border border-border/50 px-2 py-0.5">
-                      ID: {user.id.slice(0, 6)}...{user.id.slice(-4)}
-                    </span>
-                    {user.banned && (
-                      <span className="rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-destructive">
-                        {user.banReason || "违规行为"}
+                    <Separator className="my-3" />
+                    <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                      <span className="rounded-full border border-border/50 px-2 py-0.5">
+                        ID: {user.id.slice(0, 6)}...{user.id.slice(-4)}
                       </span>
-                    )}
+                      {user.banned && (
+                        <span className="rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-destructive">
+                          {user.banReason || "违规行为"}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </CardContent>

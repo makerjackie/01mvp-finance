@@ -25,6 +25,7 @@ import { Logo } from "@/components/logo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import * as React from "react";
 import type { User } from "better-auth";
+import { canAccessAdmin } from "@/lib/rbac";
 
 type AppUser = User & { role?: string | null };
 
@@ -79,7 +80,7 @@ const buildNavItems = (user?: AppUser) => {
     },
   ];
 
-  if (user?.role === "admin") {
+  if (canAccessAdmin(user)) {
     items.push({
       title: "系统",
       items: [

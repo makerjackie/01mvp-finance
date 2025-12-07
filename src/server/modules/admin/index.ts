@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { Prisma } from "@prisma/client";
-import { adminMiddleware, type AuthEnv } from "@/server/middleware";
+import { adminMiddleware, requirePermission, type AuthEnv } from "@/server/middleware";
 import { prisma } from "@/server/lib/db";
 import { logger } from "@/server/lib/logger";
 import {
@@ -10,6 +10,7 @@ import {
   updateFeatureFlag,
   type FeatureFlagStatus,
 } from "@/server/lib/feature-flags";
+import { PERMISSIONS, hasPermission, resolveRole } from "@/lib/rbac";
 
 type AdminUserDTO = {
   id: string;
@@ -90,12 +91,18 @@ const parseCsv = (raw: string): ImportUserPayload[] => {
     .filter(Boolean) as ImportUserPayload[];
 };
 
-const normalizeRole = (role?: string | null) => (role === "admin" ? "admin" : "user");
+const normalizeRole = (role?: string | null) => {
+  if (role === "admin") return "admin";
+  if (role === "manager") return "manager";
+  return "user";
+};
 
 const adminRoutes = new Hono<{
   Variables: AuthEnv["Variables"];
 }>()
   .use("/*", adminMiddleware)
+  .use("/users/*", requirePermission(PERMISSIONS.manageUsers))
+  .use("/feature-flags/*", requirePermission(PERMISSIONS.manageFeatureFlags))
   // 用户列表
   .get("/users", async (c) => {
     const q = c.req.query("q")?.trim() || "";
@@ -142,7 +149,8 @@ const adminRoutes = new Hono<{
   .patch("/users/:id", async (c) => {
     const targetId = c.req.param("id");
     const body = await c.req.json<{
-      action?: "promote" | "demote" | "ban" | "unban";
+      action?: "promote" | "demote" | "ban" | "unban" | "setRole";
+      role?: string | null;
       banReason?: string | null;
     }>();
 
@@ -152,6 +160,7 @@ const adminRoutes = new Hono<{
     }
 
     const currentUser = c.get("user");
+    const actorRole = resolveRole(currentUser?.role);
     const targetUser = await prisma.user.findUnique({
       where: { id: targetId },
       include: {
@@ -174,7 +183,14 @@ const adminRoutes = new Hono<{
       return c.json({ message: "无法操作：至少保留一名管理员" }, 400);
     }
 
+    if (targetUser.role === "admin" && actorRole !== "admin" && action !== "ban" && action !== "unban") {
+      return c.json({ message: "只有管理员可以调整管理员账号的角色" }, 403);
+    }
+
     if (action === "promote") {
+      if (actorRole !== "admin") {
+        return c.json({ message: "只有管理员可以授予管理员角色" }, 403);
+      }
       const updated = await prisma.user.update({
         where: { id: targetId },
         data: { role: "admin", banned: false, banReason: null },
@@ -185,6 +201,9 @@ const adminRoutes = new Hono<{
     }
 
     if (action === "demote") {
+      if (actorRole !== "admin") {
+        return c.json({ message: "只有管理员可以调整管理员角色" }, 403);
+      }
       const updated = await prisma.user.update({
         where: { id: targetId },
         data: { role: "user" },
@@ -214,10 +233,32 @@ const adminRoutes = new Hono<{
       return c.json({ user: mapUser(updated) });
     }
 
+    if (action === "setRole") {
+      const targetRole = normalizeRole(body.role);
+      if (targetRole === "admin" && actorRole !== "admin") {
+        return c.json({ message: "只有管理员可以授予管理员角色" }, 403);
+      }
+      if (targetUser.role === "admin" && targetRole !== "admin" && adminCount <= 1) {
+        return c.json({ message: "无法操作：至少保留一名管理员" }, 400);
+      }
+      const updated = await prisma.user.update({
+        where: { id: targetId },
+        data: { role: targetRole },
+        include: {
+          sessions: { select: { updatedAt: true }, orderBy: { updatedAt: "desc" }, take: 1 },
+        },
+      });
+      logger.info("用户角色已更新", { targetId, role: targetRole, by: currentUser?.id });
+      return c.json({ user: mapUser(updated) });
+    }
+
     return c.json({ message: "未知 action" }, 400);
   })
   // 导出用户（CSV）
   .get("/users/export", async (c) => {
+    if (!hasPermission(c.get("role"), PERMISSIONS.runOps)) {
+      return c.json({ message: "当前账号没有导出权限" }, 403);
+    }
     const users = await prisma.user.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -238,6 +279,9 @@ const adminRoutes = new Hono<{
   })
   // 导入用户（CSV/JSON）
   .post("/users/import", async (c) => {
+    if (!hasPermission(c.get("role"), PERMISSIONS.runOps)) {
+      return c.json({ message: "当前账号没有导入权限" }, 403);
+    }
     const raw = await c.req.text();
     if (!raw.trim()) {
       return c.json({ message: "导入内容为空" }, 400);

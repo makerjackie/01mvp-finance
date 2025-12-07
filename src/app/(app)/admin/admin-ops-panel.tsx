@@ -39,7 +39,11 @@ type EnvInfo = {
   now: string;
 };
 
-export function AdminOpsPanel() {
+type AdminOpsPanelProps = {
+  canRunOps?: boolean;
+};
+
+export function AdminOpsPanel({ canRunOps = true }: AdminOpsPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
@@ -67,11 +71,13 @@ export function AdminOpsPanel() {
   };
 
   useEffect(() => {
+    if (!canRunOps) return;
     fetchHealth();
     fetchEnv();
-  }, []);
+  }, [canRunOps]);
 
   const handleImport = async (file: File) => {
+    if (!canRunOps) return;
     setImporting(true);
     try {
       const text = await file.text();
@@ -95,6 +101,7 @@ export function AdminOpsPanel() {
   };
 
   const handleSelectFile = () => {
+    if (!canRunOps) return;
     fileInputRef.current?.click();
   };
 
@@ -118,7 +125,12 @@ export function AdminOpsPanel() {
             <p className="text-sm text-muted-foreground">支持用户 CSV 导出与批量导入，便于迁移与合规备份。</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.open("/api/admin/users/export", "_blank")}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open("/api/admin/users/export", "_blank")}
+              disabled={!canRunOps}
+            >
               <Download className="mr-2 h-4 w-4" />
               导出用户 CSV
             </Button>
@@ -133,7 +145,7 @@ export function AdminOpsPanel() {
                 event.target.value = "";
               }}
             />
-            <Button size="sm" onClick={handleSelectFile} disabled={importing}>
+            <Button size="sm" onClick={handleSelectFile} disabled={importing || !canRunOps}>
               {importing ? <LoaderIcon /> : <UploadCloud className="mr-2 h-4 w-4" />}
               导入 CSV/JSON
             </Button>
@@ -142,7 +154,7 @@ export function AdminOpsPanel() {
         <CardContent className="space-y-3">
           <div className="rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
             CSV 列顺序：<code className="text-foreground">name,email,role</code>（首行可含表头），role 支持{" "}
-            <code>user</code> /<code>admin</code>。
+            <code>user</code> /<code>manager</code> /<code>admin</code>。
           </div>
           {summary && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
@@ -178,7 +190,7 @@ export function AdminOpsPanel() {
         <Card className="rounded-2xl border border-border/60 shadow-sm">
           <CardHeader className="flex flex-col gap-1 space-y-0 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg font-semibold">健康检查</CardTitle>
-            <Button variant="outline" size="sm" onClick={fetchHealth} className="gap-2">
+            <Button variant="outline" size="sm" onClick={fetchHealth} className="gap-2" disabled={!canRunOps}>
               <RefreshCw className="h-4 w-4" /> 刷新
             </Button>
           </CardHeader>

@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { getAppConfig, getPublicAppConfig, updateAppConfig } from "@/server/lib/app-config";
-import { adminMiddleware, type AuthEnv } from "@/server/middleware";
+import { requirePermission, type AuthEnv } from "@/server/middleware";
 import { prisma } from "@/server/lib/db";
+import { PERMISSIONS } from "@/lib/rbac";
 
 const systemRoutes = new Hono<AuthEnv>()
   // 公共配置（无需登录，用于登录页等场景）
@@ -10,7 +11,7 @@ const systemRoutes = new Hono<AuthEnv>()
     return c.json({ config });
   })
   // 管理员专属配置
-  .use("/admin/*", adminMiddleware)
+  .use("/admin/config", requirePermission(PERMISSIONS.manageAuth))
   .get("/admin/config", async (c) => {
     const config = await getAppConfig();
     return c.json({ config });
@@ -18,6 +19,7 @@ const systemRoutes = new Hono<AuthEnv>()
   .patch("/admin/config", async (c) => {
     const body = await c.req.json<{
       passwordLoginEnabled?: unknown;
+      smsLoginEnabled?: unknown;
       perUserDailyQuota?: unknown;
       globalDailyQuota?: unknown;
       perUserRateLimit?: unknown;
@@ -44,6 +46,7 @@ const systemRoutes = new Hono<AuthEnv>()
 
     try {
       const passwordLoginEnabled = ensureBoolean(body.passwordLoginEnabled, "passwordLoginEnabled");
+      const smsLoginEnabled = ensureBoolean(body.smsLoginEnabled, "smsLoginEnabled");
       const maintenanceMode = ensureBoolean(body.maintenanceMode, "maintenanceMode");
       const perUserDailyQuota = ensureNumber(body.perUserDailyQuota, "perUserDailyQuota");
       const globalDailyQuota = ensureNumber(body.globalDailyQuota, "globalDailyQuota");
@@ -54,6 +57,7 @@ const systemRoutes = new Hono<AuthEnv>()
 
       const config = await updateAppConfig({
         passwordLoginEnabled,
+        smsLoginEnabled,
         maintenanceMode,
         perUserDailyQuota,
         globalDailyQuota,
@@ -68,6 +72,7 @@ const systemRoutes = new Hono<AuthEnv>()
     }
   })
   // 健康检查扩展：包含数据库与运行时信息
+  .use("/admin/health", requirePermission(PERMISSIONS.runOps))
   .get("/admin/health", async (c) => {
     let dbOk = false;
     let dbLatency = 0;
@@ -104,6 +109,7 @@ const systemRoutes = new Hono<AuthEnv>()
     });
   })
   // 仅管理员可见的环境变量概览（脱敏）
+  .use("/admin/env", requirePermission(PERMISSIONS.runOps))
   .get("/admin/env", async (c) => {
     const whitelist = [
       "DATABASE_URL",

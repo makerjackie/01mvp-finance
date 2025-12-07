@@ -5,6 +5,7 @@ const CACHE_TTL_MS = 30 * 1000;
 const DEFAULT_APP_CONFIG: Pick<
   AppConfig,
   | "passwordLoginEnabled"
+  | "smsLoginEnabled"
   | "perUserDailyQuota"
   | "globalDailyQuota"
   | "perUserRateLimit"
@@ -12,6 +13,7 @@ const DEFAULT_APP_CONFIG: Pick<
   | "maintenanceMode"
 > = {
   passwordLoginEnabled: true,
+  smsLoginEnabled: true,
   perUserDailyQuota: 1000,
   globalDailyQuota: 100000,
   perUserRateLimit: 60,
@@ -62,11 +64,15 @@ export async function getAppConfig(options?: { skipCache?: boolean }) {
 }
 
 export async function getPublicAppConfig(): Promise<
-  Pick<AppConfig, "passwordLoginEnabled" | "maintenanceMode" | "perUserDailyQuota" | "perUserRateLimit">
+  Pick<
+    AppConfig,
+    "passwordLoginEnabled" | "smsLoginEnabled" | "maintenanceMode" | "perUserDailyQuota" | "perUserRateLimit"
+  >
 > {
   const config = await getAppConfig();
   return {
     passwordLoginEnabled: config.passwordLoginEnabled,
+    smsLoginEnabled: config.smsLoginEnabled,
     maintenanceMode: config.maintenanceMode,
     perUserDailyQuota: config.perUserDailyQuota,
     perUserRateLimit: config.perUserRateLimit,
@@ -78,6 +84,7 @@ export async function updateAppConfig(
     Pick<
       AppConfig,
       | "passwordLoginEnabled"
+      | "smsLoginEnabled"
       | "perUserDailyQuota"
       | "globalDailyQuota"
       | "perUserRateLimit"
@@ -90,6 +97,7 @@ export async function updateAppConfig(
     where: { id: "global" },
     update: {
       passwordLoginEnabled: input.passwordLoginEnabled ?? undefined,
+      smsLoginEnabled: input.smsLoginEnabled ?? undefined,
       perUserDailyQuota: input.perUserDailyQuota ?? undefined,
       globalDailyQuota: input.globalDailyQuota ?? undefined,
       perUserRateLimit: input.perUserRateLimit ?? undefined,
@@ -100,6 +108,7 @@ export async function updateAppConfig(
     create: {
       id: "global",
       passwordLoginEnabled: input.passwordLoginEnabled ?? DEFAULT_APP_CONFIG.passwordLoginEnabled,
+      smsLoginEnabled: input.smsLoginEnabled ?? DEFAULT_APP_CONFIG.smsLoginEnabled,
       perUserDailyQuota: input.perUserDailyQuota ?? DEFAULT_APP_CONFIG.perUserDailyQuota,
       globalDailyQuota: input.globalDailyQuota ?? DEFAULT_APP_CONFIG.globalDailyQuota,
       perUserRateLimit: input.perUserRateLimit ?? DEFAULT_APP_CONFIG.perUserRateLimit,

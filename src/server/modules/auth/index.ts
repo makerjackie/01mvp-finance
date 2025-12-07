@@ -13,15 +13,30 @@ const isPasswordAuthPath = (pathname: string, method: string) => {
   );
 };
 
+const isSmsAuthPath = (pathname: string, method: string) => {
+  if (method !== "POST") return false;
+  return pathname.includes("/phone-number/");
+};
+
 // Forward every verb under /api/auth to Better Auth so hooks like get-session work.
 const authController = new Hono<AuthEnv>().all("/*", async (c) => {
   const pathname = new URL(c.req.url).pathname;
 
+  let config: Awaited<ReturnType<typeof getPublicAppConfig>> | null = null;
+
   if (isPasswordAuthPath(pathname, c.req.method)) {
-    const config = await getPublicAppConfig();
+    config = config ?? (await getPublicAppConfig());
 
     if (!config.passwordLoginEnabled) {
       return c.json({ message: "账户密码登录已关闭，请使用手机号验证码登录" }, 403);
+    }
+  }
+
+  if (isSmsAuthPath(pathname, c.req.method)) {
+    config = config ?? (await getPublicAppConfig());
+
+    if (!config.smsLoginEnabled) {
+      return c.json({ message: "短信登录已关闭，请改用密码登录" }, 403);
     }
   }
 

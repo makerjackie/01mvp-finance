@@ -26,7 +26,11 @@ type CreateFlagPayload = {
   rolloutPercentage: number;
 };
 
-export function AdminFeatureFlagsPanel() {
+type AdminFeatureFlagsPanelProps = {
+  canManage?: boolean;
+};
+
+export function AdminFeatureFlagsPanel({ canManage = true }: AdminFeatureFlagsPanelProps) {
   const [flags, setFlags] = useState<FeatureFlagItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
@@ -66,6 +70,7 @@ export function AdminFeatureFlagsPanel() {
   }, []);
 
   const handleCreate = () => {
+    if (!canManage) return;
     startTransition(async () => {
       try {
         const payload = {
@@ -98,6 +103,7 @@ export function AdminFeatureFlagsPanel() {
   };
 
   const handleUpdate = async (id: string, patch: Partial<FeatureFlagItem>) => {
+    if (!canManage) return;
     setWorkingId(id);
     startTransition(async () => {
       try {
@@ -122,6 +128,7 @@ export function AdminFeatureFlagsPanel() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canManage) return;
     if (!window.confirm("确认删除该开关？")) return;
     setWorkingId(id);
     startTransition(async () => {
@@ -157,17 +164,20 @@ export function AdminFeatureFlagsPanel() {
           <div>
             <CardTitle className="text-lg font-semibold">Feature Flag 面板</CardTitle>
             <p className="text-sm text-muted-foreground">支持全量、关闭和灰度百分比，便于快速试验。</p>
+            {!canManage && <p className="text-xs text-muted-foreground">当前账号仅可查看，修改需管理员授权。</p>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Input
               placeholder="flag key（必填）"
               value={form.key}
+              disabled={!canManage}
               onChange={(e) => setForm((prev) => ({ ...prev, key: e.target.value }))}
               className="w-40"
             />
             <Input
               placeholder="展示名称"
               value={form.name}
+              disabled={!canManage}
               onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
               className="w-40"
             />
@@ -178,6 +188,7 @@ export function AdminFeatureFlagsPanel() {
                 min={0}
                 max={100}
                 value={form.rolloutPercentage}
+                disabled={!canManage}
                 onChange={(e) =>
                   setForm((prev) => ({
                     ...prev,
@@ -187,7 +198,7 @@ export function AdminFeatureFlagsPanel() {
                 className="w-20 border-none bg-transparent px-1 py-1 text-sm focus-visible:ring-0"
               />
             </div>
-            <Button size="sm" onClick={handleCreate} disabled={isPending}>
+            <Button size="sm" onClick={handleCreate} disabled={isPending || !canManage}>
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               新建开关
             </Button>
@@ -244,7 +255,7 @@ export function AdminFeatureFlagsPanel() {
                     <Select
                       value={flag.status}
                       onValueChange={(value) => handleUpdate(flag.id, { status: value as FeatureFlagItem["status"] })}
-                      disabled={workingId === flag.id || isPending}
+                      disabled={workingId === flag.id || isPending || !canManage}
                     >
                       <SelectTrigger className="w-[150px]">
                         <SelectValue placeholder="选择状态" />
@@ -270,7 +281,7 @@ export function AdminFeatureFlagsPanel() {
                           })
                         }
                         className="h-9 w-20 border-none bg-transparent px-1 focus-visible:ring-0"
-                        disabled={workingId === flag.id || isPending}
+                        disabled={workingId === flag.id || isPending || !canManage}
                       />
                     </div>
 
@@ -278,7 +289,7 @@ export function AdminFeatureFlagsPanel() {
                       variant="destructive"
                       size="sm"
                       onClick={() => handleDelete(flag.id)}
-                      disabled={workingId === flag.id || isPending}
+                      disabled={workingId === flag.id || isPending || !canManage}
                       className="gap-1"
                     >
                       {workingId === flag.id ? (
