@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/server/prisma/generated/prisma/client";
 import { Message, UIMessage } from "ai";
 import { prisma } from "./db";
 

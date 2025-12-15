@@ -2,6 +2,7 @@
   "name": "01mvp-nextjs-template",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "packageManager": "bun@1.1.38",
   "scripts": {
     "postinstall": "bun run db:generate && simple-git-hooks",

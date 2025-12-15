@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/server/prisma/generated/prisma/client";
 import { adminMiddleware, requirePermission, type AuthEnv } from "@/server/middleware";
 import { prisma } from "@/server/lib/db";
 import { logger } from "@/server/lib/logger";

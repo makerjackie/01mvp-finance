@@ -1,4 +1,4 @@
-import type { AppConfig } from "@prisma/client";
+import type { AppConfig } from "@/server/prisma/generated/prisma/client";
 import { prisma } from "@/server/lib/db";
 
 const CACHE_TTL_MS = 30 * 1000;

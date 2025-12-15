@@ -1,4 +1,4 @@
-import type { FeatureFlag } from "@prisma/client";
+import type { FeatureFlag } from "@/server/prisma/generated/prisma/client";
 import { prisma } from "@/server/lib/db";
 
 const VALID_STATUS = ["on", "off", "rollout"] as const;
