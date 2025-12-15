@@ -1,6 +1,6 @@
 .PHONY: help build dev clean
 .PHONY: up down logs shell ps restart
-.PHONY: release deploy rollback prod-logs prod-shell
+.PHONY: release deploy prod-logs prod-shell
 
 # ========================================
 # Configuration
@@ -11,7 +11,7 @@ TAG ?= latest
 IMAGE_TAG ?= $(TAG)
 FULL_IMAGE = $(REGISTRY)/$(IMAGE_NAME):$(TAG)
 
-export HOST_PORT ?= 3006
+export HOST_PORT ?= 3000
 PLATFORM ?= linux/amd64
 
 # ========================================
@@ -23,12 +23,12 @@ help:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
 	@echo "🚀 开发命令"
-	@echo "  make dev          启动开发服务器 (pnpm dev)"
-	@echo "  make build        构建生产版本 (pnpm run build)"
+	@echo "  make dev          启动开发服务器 (bun dev)"
+	@echo "  make build        构建生产版本 (bun run build)"
 	@echo "  make clean        清理构建缓存"
 	@echo ""
 	@echo "🐳 本地 Docker"
-	@echo "  make up           构建并启动容器"
+	@echo "  make up           构建并启动容器 (app + postgres)"
 	@echo "  make down         停止并删除容器"
 	@echo "  make logs         查看容器日志"
 	@echo "  make shell        进入容器终端"
@@ -42,9 +42,6 @@ help:
 	@echo "  make deploy TAG=v1.2.0"
 	@echo "                    拉取镜像并部署到生产环境"
 	@echo ""
-	@echo "  make rollback TAG=v1.1.9"
-	@echo "                    回滚到指定版本（使用本地已有镜像）"
-	@echo ""
 	@echo "  make prod-logs    查看生产环境日志"
 	@echo "  make prod-shell   进入生产容器终端"
 	@echo ""
@@ -56,10 +53,10 @@ help:
 # Development Commands
 # ========================================
 dev:
-	pnpm dev
+	bun dev
 
 build:
-	pnpm run build
+	bun run build
 
 clean:
 	rm -rf .next node_modules/.cache
@@ -69,7 +66,7 @@ clean:
 # ========================================
 up:
 	@echo "🔨 构建并启动本地容器..."
-	@IMAGE=$(IMAGE_NAME):$(IMAGE_TAG) docker compose up -d --build
+	@docker compose up -d --build
 	@echo "✅ 容器已启动！访问 http://localhost:$(HOST_PORT)"
 
 down:
