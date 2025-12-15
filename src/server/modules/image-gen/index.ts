@@ -2,15 +2,13 @@ import { Hono, type Context } from "hono";
 import { nanoid } from "nanoid";
 import type { AspectRatio, Resolution } from "./types";
 import { sessionMiddleware, type AuthEnv } from "@/server/middleware";
-import { rateLimit } from "@/server/middleware/rate-limit";
+import { appDailyQuota, appGlobalDailyQuota, appGlobalRateLimit, appRateLimit } from "@/server/middleware/app-limits";
 import { getPublicUrl, writeFile } from "@/server/lib/storage";
 
-const imageGenRoutes = new Hono<AuthEnv>().use(sessionMiddleware).use(
-  rateLimit({
-    limit: 10,
-    windowMs: 60_000,
-  }),
-);
+const imageGenRoutes = new Hono<AuthEnv>()
+  .use(sessionMiddleware)
+  .use(appRateLimit({ cap: 10 }))
+  .use(appGlobalRateLimit({ cap: 600 }));
 
 interface GenerateImageRequest {
   prompt: string;
@@ -117,7 +115,7 @@ const persistInlineImage = async (c: Context<AuthEnv>, dataUrl: string) => {
   return persistBufferAndGetUrl(c, Buffer.from(data, "base64"), mimeType);
 };
 
-imageGenRoutes.post("/generate", async (c) => {
+imageGenRoutes.post("/generate", appDailyQuota(), appGlobalDailyQuota(), async (c) => {
   try {
     const body = await c.req.json<GenerateImageRequest>();
     const { prompt, referenceImages, aspectRatio, apiKey, baseUrl, useCustomKey } = body;

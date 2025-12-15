@@ -5,16 +5,12 @@ import { ai, allowedModels, defaultModel, isAllowedModel } from "@/server/lib/ai
 import { getChatSessionMessages, listChatSessions, saveChatHistory } from "@/server/lib/chat-history";
 import { logger } from "@/server/lib/logger";
 import { sessionMiddleware, type AuthEnv } from "@/server/middleware";
-import { rateLimit } from "@/server/middleware/rate-limit";
+import { appDailyQuota, appGlobalDailyQuota, appGlobalRateLimit, appRateLimit } from "@/server/middleware/app-limits";
 
 const chatRoutes = new Hono<AuthEnv>()
   .use(sessionMiddleware)
-  .use(
-    rateLimit({
-      limit: 30,
-      windowMs: 60_000,
-    }),
-  )
+  .use(appRateLimit({ cap: 30 }))
+  .use(appGlobalRateLimit({ cap: 1200 }))
   .get("/sessions", async (c) => {
     try {
       const userId = c.get("user")?.id ?? null;
@@ -47,7 +43,7 @@ const chatRoutes = new Hono<AuthEnv>()
     }
   })
   // 流式聊天
-  .post("/", async (c) => {
+  .post("/", appDailyQuota(), appGlobalDailyQuota(), async (c) => {
     try {
       const body = await c.req.json<{ messages: UIMessage[]; model?: string; id?: string }>();
       const { messages, model, id } = body;
