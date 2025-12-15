@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { requestLogger } from "./middleware/logger";
+import { maintenanceMiddleware } from "./middleware/maintenance";
 import authController from "./modules/auth";
 import chatRoutes from "./modules/chat";
 import privateRoutes from "./modules/private";
@@ -12,6 +13,7 @@ import type { AuthEnv } from "./middleware";
 export const app = new Hono<AuthEnv>()
   .basePath("/api")
   .use("*", requestLogger())
+  .use("*", maintenanceMiddleware)
   .get("/health", (c) => c.json({ status: "ok" }))
   .route("/auth", authController)
   .route("/chat", chatRoutes)
