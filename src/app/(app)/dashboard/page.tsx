@@ -33,7 +33,8 @@ export default async function DashboardPage() {
 
   const user = session.user;
   const displayName = getUserDisplayName(user);
-  const daysSinceJoin = Math.ceil((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+  const now = new Date();
+  const daysSinceJoin = Math.ceil((now.getTime() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24));
 
   return (
     <div className="space-y-8 pb-6">
