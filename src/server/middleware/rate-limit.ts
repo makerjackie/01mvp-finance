@@ -14,6 +14,22 @@ type Bucket = {
 };
 
 const buckets = new Map<string, Bucket>();
+const CLEANUP_INTERVAL_MS = 10_000;
+let lastCleanupAt = 0;
+
+const cleanupBuckets = (now: number) => {
+  for (const [key, bucket] of buckets.entries()) {
+    if (bucket.expiresAt <= now) {
+      buckets.delete(key);
+    }
+  }
+};
+
+const maybeCleanup = (now: number) => {
+  if (now - lastCleanupAt < CLEANUP_INTERVAL_MS) return;
+  lastCleanupAt = now;
+  cleanupBuckets(now);
+};
 
 const getIp = (c: Context<AuthEnv>) => {
   const forwarded = c.req.header("x-forwarded-for");
@@ -31,6 +47,7 @@ export const rateLimit = (options: RateLimitOptions) =>
     const identifier = keyFromCustom || keyFromUser || getIp(c) || "anonymous";
 
     const now = Date.now();
+    maybeCleanup(now);
     const existing = buckets.get(identifier);
 
     if (existing && existing.expiresAt > now && existing.count >= options.limit) {

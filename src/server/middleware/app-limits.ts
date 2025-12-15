@@ -11,6 +11,24 @@ type Bucket = {
 const minuteBuckets = new Map<string, Bucket>();
 const dailyBuckets = new Map<string, Bucket>();
 
+const CLEANUP_INTERVAL_MS = 10_000;
+let lastCleanupAt = 0;
+
+const cleanupBuckets = (buckets: Map<string, Bucket>, now: number) => {
+  for (const [key, bucket] of buckets.entries()) {
+    if (bucket.expiresAt <= now) {
+      buckets.delete(key);
+    }
+  }
+};
+
+const maybeCleanup = (now: number) => {
+  if (now - lastCleanupAt < CLEANUP_INTERVAL_MS) return;
+  lastCleanupAt = now;
+  cleanupBuckets(minuteBuckets, now);
+  cleanupBuckets(dailyBuckets, now);
+};
+
 const getIp = (c: Context<AuthEnv>) => {
   const forwarded = c.req.header("x-forwarded-for");
   if (forwarded) {
@@ -34,6 +52,7 @@ const enforceFixedWindow = ({
   windowMs: number;
 }) => {
   const now = Date.now();
+  maybeCleanup(now);
   const existing = buckets.get(identifier);
 
   if (existing && existing.expiresAt > now && existing.count >= limit) {
@@ -69,6 +88,7 @@ const getNextLocalMidnight = () => {
 
 const enforceDailyQuota = ({ identifier, limit }: { identifier: string; limit: number }) => {
   const now = Date.now();
+  maybeCleanup(now);
   const expiresAt = getNextLocalMidnight();
   const existing = dailyBuckets.get(identifier);
 
