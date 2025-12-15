@@ -3,8 +3,30 @@ import { getAppConfig, getPublicAppConfig, updateAppConfig } from "@/server/lib/
 import { requirePermission, type AuthEnv } from "@/server/middleware";
 import { prisma } from "@/server/lib/db";
 import { PERMISSIONS } from "@/lib/rbac";
+import { auth } from "@/server/lib/auth";
+import { evaluateFeatureFlag, listFeatureFlags } from "@/server/lib/feature-flags";
 
 const systemRoutes = new Hono<AuthEnv>()
+  // Feature Flags（公开读取 + 按用户灰度计算）
+  .get("/feature-flags", async (c) => {
+    const flags = await listFeatureFlags();
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    const identifier = session?.user?.id ?? c.req.header("x-forwarded-for") ?? c.req.header("x-real-ip") ?? "anonymous";
+
+    return c.json({
+      flags: flags.map((flag) => ({
+        id: flag.id,
+        key: flag.key,
+        name: flag.name,
+        description: flag.description,
+        tags: flag.tags,
+        status: flag.status,
+        rolloutPercentage: flag.rolloutPercentage,
+        enabled: evaluateFeatureFlag(flag, identifier),
+        updatedAt: flag.updatedAt,
+      })),
+    });
+  })
   // 公共配置（无需登录，用于登录页等场景）
   .get("/config", async (c) => {
     const config = await getPublicAppConfig();
