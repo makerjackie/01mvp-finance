@@ -8,6 +8,7 @@ import uploadRoutes from "./modules/upload";
 import imageGenRoutes from "./modules/image-gen";
 import systemRoutes from "./modules/system";
 import adminRoutes from "./modules/admin";
+import examplesRoutes from "./modules/examples";
 import type { AuthEnv } from "./middleware";
 
 export const app = new Hono<AuthEnv>()
@@ -21,7 +22,8 @@ export const app = new Hono<AuthEnv>()
   .route("/uploads", uploadRoutes)
   .route("/image-gen", imageGenRoutes)
   .route("/system", systemRoutes)
-  .route("/admin", adminRoutes);
+  .route("/admin", adminRoutes)
+  .route("/examples", examplesRoutes);
 
 export type AppType = typeof app;
 export default app;

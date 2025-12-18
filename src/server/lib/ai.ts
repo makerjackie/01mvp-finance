@@ -1,6 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 
-export const allowedModels = ["deepseek-chat", "gpt-4o-mini"] as const;
+export const allowedModels = ["deepseek-v3.2", "gemini-3-flash-preview", "deepseek-chat", "gpt-4o-mini"] as const;
 export type AllowedModel = (typeof allowedModels)[number];
 
 export const isAllowedModel = (model?: string): model is AllowedModel =>

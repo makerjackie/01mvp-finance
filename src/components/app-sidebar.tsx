@@ -16,6 +16,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ShieldCheck,
+  Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -59,6 +60,16 @@ const buildNavItems = (user?: AppUser) => {
           title: "文件上传",
           href: "/upload",
           icon: Upload,
+        },
+      ],
+    },
+    {
+      title: "更多工具",
+      items: [
+        {
+          title: "工具集",
+          href: "/examples",
+          icon: Wrench,
         },
       ],
     },
