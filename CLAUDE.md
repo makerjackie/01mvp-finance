@@ -5,35 +5,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ```bash
-bun install          # Install dependencies (uses bun as package manager)
-bun run dev          # Start development server with Turbopack
-bun run build        # Production build
-bun run lint         # ESLint (must have 0 warnings)
-bun run typecheck    # TypeScript check
-bun run format       # Format code with Biome
+pnpm install          # Install dependencies
+pnpm run dev          # Start development server with Turbopack
+pnpm run build        # Production build
+pnpm run lint         # ESLint (must have 0 warnings)
+pnpm run typecheck    # TypeScript check
+pnpm run format       # Format code with Biome
 ```
 
 ### Database (Prisma with PostgreSQL)
 
 ```bash
-bun run db:generate  # Generate Prisma client
-bun run db:push      # Push schema to database
-bun run db:studio    # Open Prisma Studio
+pnpm run db:generate  # Generate Prisma client
+pnpm run db:push      # Push schema to database
+pnpm run db:studio    # Open Prisma Studio
 ```
 
 ### Cloudflare Deployment
 
 ```bash
-bun run cf:build     # Build for Cloudflare Pages
-bun run cf:preview   # Local preview with Wrangler
-bun run cf:deploy    # Deploy to Cloudflare Pages
+pnpm run cf:build     # Build for Cloudflare Pages
+pnpm run cf:preview   # Local preview with Wrangler
+pnpm run cf:deploy    # Deploy to Cloudflare Pages
 ```
 
 ## Architecture Overview
 
 ### Tech Stack
 - **Framework**: Next.js 16 with App Router
-- **Runtime**: Bun
+- **Runtime**: Node.js
 - **Styling**: Tailwind CSS v4
 - **Database**: PostgreSQL via Prisma with pg adapter
 - **Auth**: Better Auth (supports phone number, email/password, username)

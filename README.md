@@ -1,6 +1,6 @@
 # 01MVP Template
 
-开箱即用的 Next.js + Hono + Better Auth + Prisma 模板，内置短信验证码/用户名密码登录、AI 对话示例、S3/本地存储封装，支持 Bun/Node 运行与 Docker standalone 部署。
+开箱即用的 Next.js + Hono + Better Auth + Prisma 模板，内置短信验证码/用户名密码登录、AI 对话示例、S3/本地存储封装，支持 Node.js + pnpm 运行与 Docker standalone 部署。
 
 ## 🎨 UI 设计规范
 
@@ -33,7 +33,7 @@
 - `lib/`：配置、auth 客户端、API 客户端、工具函数。
 - `server/`：Hono 路由、Better Auth 配置、Prisma schema（`server/prisma`）、存储与 AI/SMS 封装。
 - `public/`：静态资源。
-- `Dockerfile`：多阶段，Bun 构建 + Node 运行 `.next/standalone`。
+- `Dockerfile`：多阶段，pnpm 构建 + Node 运行 `.next/standalone`。
 
 ## 环境变量
 
@@ -52,10 +52,10 @@ cp .env.example .env.local
 ## 本地开发
 
 ```bash
-bun install
-bun run db:generate        # 生成 Prisma Client
-bun run db:push            # 同步 schema
-bun dev                    # http://localhost:3000
+pnpm install
+pnpm run db:generate        # 生成 Prisma Client
+pnpm run db:push            # 同步 schema
+pnpm dev                    # http://localhost:3000
 ```
 
 - 登录体验：默认短信验证码登录（需要 `TENCENT_*`），也可切换“密码登录”；用户名会自动转成 `{username}@local.test` 注册。  
@@ -81,18 +81,18 @@ bun dev                    # http://localhost:3000
 - 调整色板：`app/globals.css` 的 CSS 变量
 - 调用 API：直接用 `lib/api-client.ts`
 - 认证调用：`lib/auth-client.ts`
-- Lint：`bun run lint`
+- Lint：`pnpm run lint`
 
 ## 代码质量
 
-- 使用 Biome：`bun run format` 自动格式化，`bun run format:check` 在 pre-commit 钩子与 CI 中检查。
-- `bun run lint`（ESLint）、`bun run typecheck`、`bun run build` 均在 CI 流程执行，建议本地修改前先跑一遍。
+- 使用 Biome：`pnpm run format` 自动格式化，`pnpm run format:check` 在 pre-commit 钩子与 CI 中检查。
+- `pnpm run lint`（ESLint）、`pnpm run typecheck`、`pnpm run build` 均在 CI 流程执行，建议本地修改前先跑一遍。
 
 ## 构建与 Docker 部署（standalone）
 
 1. 生产构建（本地）：
    ```bash
-   bun run build
+   pnpm run build
    ```
    构建后会生成 `.next/standalone` 与静态资源。
 
@@ -102,7 +102,7 @@ bun dev                    # http://localhost:3000
    docker run -p 3000:3000 --env-file .env.production 01mvp-nextjs-template-standalone
    ```
 
-- Dockerfile 采用多阶段：Bun 安装依赖与构建，最终镜像使用 `node:22-slim` 运行 `.next/standalone`，非 root 用户，带基础健康检查。
+- Dockerfile 采用多阶段：pnpm 安装依赖与构建，最终镜像使用 `node:22-slim` 运行 `.next/standalone`，非 root 用户，带基础健康检查。
 - 健康检查路径：`/api/health`。
 - 部署时确保同样的环境变量（`DATABASE_URL`、`BETTER_AUTH_SECRET`、`NEXT_PUBLIC_SITE_URL`、`AI_API_KEY`、`TENCENT_*` 等）。
 
@@ -130,9 +130,9 @@ bun dev                    # http://localhost:3000
 > 适合纯前端或调用外部 API 的场景；项目内的 Prisma + PostgreSQL 依赖 Node 原生二进制，无法在 Cloudflare Pages Functions/Workers 上运行，完整功能仍建议保持 Docker/Node 部署。
 
 - 先登录 Cloudflare：`wrangler login`，并在 Pages 控制台创建项目。
-- 构建产物：`bun run cf:build`（基于 `@cloudflare/next-on-pages` 生成 `.vercel/output`）。
-- 本地预览：`bun run cf:preview`（`wrangler pages dev .vercel/output/static`）。
-- 部署上线：`bun run cf:deploy`（默认使用 `wrangler.toml` 的 `name`，可用 `-p <project>` 覆盖），在 Cloudflare Pages 设置好 `NEXT_PUBLIC_SITE_URL` 等环境变量。
+- 构建产物：`pnpm run cf:build`（基于 `@cloudflare/next-on-pages` 生成 `.vercel/output`）。
+- 本地预览：`pnpm run cf:preview`（`wrangler pages dev .vercel/output/static`）。
+- 部署上线：`pnpm run cf:deploy`（默认使用 `wrangler.toml` 的 `name`，可用 `-p <project>` 覆盖），在 Cloudflare Pages 设置好 `NEXT_PUBLIC_SITE_URL` 等环境变量。
 - 此配置只增加 Cloudflare 选项，不影响现有 Docker 镜像/Compose 流程。
 
 ## 常见问题
@@ -140,8 +140,8 @@ bun dev                    # http://localhost:3000
 - 短信收不到：确认 `TENCENT_*` 已配置，模板 ID、签名、短信 AppId 与手机号区号匹配。  
 - 登录 401：确保同域访问（cookie 生效），并已注册账号；如仍不通，清理浏览器 cookie 重试。  
 - AI 相关错误：检查 `AI_API_KEY`/`AI_API_ENDPOINT`/`AI_MODEL`，并确认模型在 `allowedModels` 白名单。  
-- 数据库 500：确认 `DATABASE_URL` 指向 PostgreSQL，Prisma Client 已生成（`bun run db:generate`）。  
-- Lint 报错：运行 `bun run lint`（只检查 `app/components/lib/server`，`.next` 已忽略）。
+- 数据库 500：确认 `DATABASE_URL` 指向 PostgreSQL，Prisma Client 已生成（`pnpm run db:generate`）。  
+- Lint 报错：运行 `pnpm run lint`（只检查 `app/components/lib/server`，`.next` 已忽略）。
 - 健康检查失败：确认 `/api/health` 可通，容器内端口为 3000。
 
 ## 想要自定义

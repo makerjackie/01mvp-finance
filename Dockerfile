@@ -1,21 +1,23 @@
-# 多阶段构建：Bun 安装 + 编译，Node 运行 standalone
+# 多阶段构建：pnpm 安装 + 编译，Node 运行 standalone
 
 FROM node:22-bullseye AS base
 WORKDIR /app
 
-# 安装 Bun（用于安装&构建），从官方镜像拷贝二进制避免线上 curl 脚本
-COPY --from=oven/bun:1 /usr/local/bin/bun /usr/local/bin/bun
+# 启用 pnpm（通过 corepack）
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
 
 # ---------- 依赖阶段 ----------
 FROM base AS deps
-COPY package.json bun.lockb ./
-RUN --mount=type=cache,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile --ignore-scripts # skip postinstall; prisma schema not copied yet
+COPY package.json pnpm-lock.yaml ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --ignore-scripts # skip postinstall; prisma schema not copied yet
 
 # 生成 Prisma Client（使用当前仓库的 schema）
 COPY src/server/prisma ./src/server/prisma
 RUN DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres" \
-    bun x prisma generate --schema=src/server/prisma/schema.prisma # dummy url satisfies prisma config
+    pnpm exec prisma generate --schema=src/server/prisma/schema.prisma # dummy url satisfies prisma config
 
 # ---------- 构建阶段 ----------
 FROM base AS builder
@@ -26,7 +28,7 @@ COPY . .
 
 RUN --mount=type=cache,target=/app/.next/cache \
     NEXT_TELEMETRY_DISABLED=1 \
-    bun run build
+    pnpm run build
 
 # ---------- 运行阶段 ----------
 FROM node:22-slim AS runner

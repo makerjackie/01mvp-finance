@@ -7,10 +7,10 @@
 - `src/lib`: config, typed clients (`api-client.ts`, `auth-client.ts`), utilities. Assets in `public`; scripts in `scripts/`.
 
 ## Build, Test, and Development Commands
-- `bun install` then `bun run db:generate` / `bun run db:push` to sync Prisma.  
-- `bun dev` (Turbopack), `bun run build` + `bun start` for production bundle.  
-- Quality gates: `bun run lint`, `bun run typecheck`, `bun run format:check`; `bun run format` fixes. Pre-commit uses `scripts/pre-commit.sh`.  
-- Docker/Compose helpers via `Makefile` (`make dev/build/up/down/logs`); Cloudflare Pages via `bun run cf:build|cf:preview|cf:deploy`.
+- `pnpm install` then `pnpm run db:generate` / `pnpm run db:push` to sync Prisma.  
+- `pnpm dev` (Turbopack), `pnpm run build` + `pnpm start` for production bundle.  
+- Quality gates: `pnpm run lint`, `pnpm run typecheck`, `pnpm run format:check`; `pnpm run format` fixes. Pre-commit uses `scripts/pre-commit.sh`.  
+- Docker/Compose helpers via `Makefile` (`make dev/build/up/down/logs`); Cloudflare Pages via `pnpm run cf:build|cf:preview|cf:deploy`.
 
 ## Coding Style & Naming Conventions
 - TypeScript + React, 2-space indent, double quotes, named exports for shared modules.  

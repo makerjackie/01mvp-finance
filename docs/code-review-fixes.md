@@ -159,13 +159,13 @@ if (!passwordRegex.test(newPassword)) {
 
 ### ✅ Lint 检查
 ```bash
-$ bun run lint
+$ pnpm run lint
 # 输出: 无错误，无警告
 ```
 
 ### ✅ 类型检查
 ```bash
-$ bun run typecheck
+$ pnpm run typecheck
 # 输出: 无类型错误
 ```
 

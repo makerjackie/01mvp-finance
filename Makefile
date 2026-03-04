@@ -23,8 +23,8 @@ help:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
 	@echo "🚀 开发命令"
-	@echo "  make dev          启动开发服务器 (bun dev)"
-	@echo "  make build        构建生产版本 (bun run build)"
+	@echo "  make dev          启动开发服务器 (pnpm dev)"
+	@echo "  make build        构建生产版本 (pnpm run build)"
 	@echo "  make clean        清理构建缓存"
 	@echo ""
 	@echo "🐳 本地 Docker"
@@ -53,10 +53,10 @@ help:
 # Development Commands
 # ========================================
 dev:
-	bun dev
+	pnpm dev
 
 build:
-	bun run build
+	pnpm run build
 
 clean:
 	rm -rf .next node_modules/.cache

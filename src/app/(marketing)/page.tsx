@@ -111,7 +111,7 @@ export default function Home() {
                 <span className="text-green-500">➜</span> <span className="text-blue-500">~</span> cd next-template
               </div>
               <div className="text-muted-foreground mt-2">
-                <span className="text-green-500">➜</span> <span className="text-blue-500">~</span> bun install && bun
+                <span className="text-green-500">➜</span> <span className="text-blue-500">~</span> pnpm install && pnpm
                 dev
               </div>
               <div className="text-emerald-500 mt-4">Ready in 135ms</div>
