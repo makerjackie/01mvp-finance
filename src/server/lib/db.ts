@@ -19,7 +19,16 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL is not set");
   }
 
-  const pool = prismaPool ?? globalForPrisma.pool ?? new Pool({ connectionString: databaseUrl });
+  // 在开发模式下重用全局连接池
+  const pool =
+    globalForPrisma.pool ??
+    new Pool({
+      connectionString: databaseUrl,
+      max: 10, // 限制最大连接数
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    });
+
   if (globalForPrisma.prisma) {
     prismaPool = pool;
     return globalForPrisma.prisma;

@@ -89,6 +89,3 @@ export const auth = betterAuth({
     }),
   ],
 });
-
-// 确保首个用户具备管理员权限（兼容已有数据）
-void ensureInitialAdmin();
