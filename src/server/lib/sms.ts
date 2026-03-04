@@ -2,6 +2,12 @@ import * as tencentcloud from "tencentcloud-sdk-nodejs";
 
 const SmsClient = tencentcloud.sms.v20210111.Client;
 type SendSmsParams = Parameters<InstanceType<typeof SmsClient>["SendSms"]>[0];
+const isDevelopment = process.env.NODE_ENV !== "production";
+
+const isDevSendSmsEnabled = () => {
+  const rawValue = process.env.DEV_SEND_SMS ?? process.env["dev-send-sms"] ?? "false";
+  return rawValue.toLowerCase() === "true";
+};
 
 const client = new SmsClient({
   credential: {
@@ -20,6 +26,11 @@ const client = new SmsClient({
 });
 
 export async function sendSms(phoneNumber: string, code: string) {
+  if (isDevelopment && !isDevSendSmsEnabled()) {
+    console.info(`[SMS OTP][DEV] phone=${phoneNumber} code=${code}`);
+    return { success: true };
+  }
+
   const appId = process.env.TENCENT_SMS_SDK_APP_ID;
   const signName = process.env.TENCENT_SMS_SIGN_NAME;
   const templateId = process.env.TENCENT_SMS_TEMPLATE_ID;
