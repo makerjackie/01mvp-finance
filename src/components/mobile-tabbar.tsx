@@ -36,7 +36,7 @@ export function MobileTabbar({ user }: MobileTabbarProps) {
     {
       label: "新建",
       icon: PlusCircle,
-      href: "/finance/submit?type=expense",
+      href: "/finance/submit",
       active: pathname === "/finance/submit",
     },
     {

@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Clock3, Eye, FilePlus2, Trash2 } from "lucide-react";
+import { Clock3, Eye, FilePlus2, Trash2 } from "lucide-react";
 import { TYPE_LABELS, STATUS_LABELS, getCategoryLabel } from "@/lib/finance-config";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
 
 interface FinanceRecord {
   id: string;
@@ -96,14 +97,7 @@ export default function MyRecordsPage() {
     <div className="space-y-3 md:space-y-5">
       <Card className="rounded-2xl border border-border/60 shadow-sm">
         <CardHeader className="space-y-2 px-4 py-4 sm:px-5">
-          <div>
-            <Button asChild variant="ghost" size="sm" className="h-8 rounded-lg px-2 text-muted-foreground">
-              <Link href="/finance">
-                <ArrowLeft className="h-3.5 w-3.5" />
-                返回
-              </Link>
-            </Button>
-          </div>
+          <FinanceBreadcrumb items={[{ label: "财务系统", href: "/finance" }, { label: "我的记录" }]} />
           <div className="space-y-1">
             <CardTitle className="text-xl font-semibold tracking-tight sm:text-2xl">我的申请记录</CardTitle>
             <CardDescription className="text-xs sm:text-sm">查看审核状态，待审核记录可继续修改或删除</CardDescription>
@@ -116,7 +110,7 @@ export default function MyRecordsPage() {
           <CardContent className="flex flex-col items-center gap-3 px-4 py-8 text-center sm:py-10">
             <p className="text-sm text-muted-foreground">暂无申请记录</p>
             <Button asChild size="sm" className="h-9 rounded-lg px-3">
-              <Link href="/finance/submit?type=expense">
+              <Link href="/finance/submit">
                 <FilePlus2 className="h-4 w-4" />
                 提交新申请
               </Link>

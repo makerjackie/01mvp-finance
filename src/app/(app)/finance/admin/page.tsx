@@ -15,7 +15,6 @@ import {
 } from "@tanstack/react-table";
 import {
   ArrowDownRight,
-  ArrowLeft,
   ArrowUpRight,
   Check,
   CheckCircle2,
@@ -34,6 +33,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
 
 interface FinanceRecord {
   id: string;
@@ -516,13 +516,8 @@ export default function AdminPage() {
     <div className="space-y-3 md:space-y-5">
       <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
         <CardHeader className="space-y-2 px-4 py-4 sm:px-5">
+          <FinanceBreadcrumb items={[{ label: "财务系统", href: "/finance" }, { label: "管理员后台" }]} />
           <div className="flex items-center justify-between gap-2">
-            <Button asChild variant="ghost" size="sm" className="h-8 rounded-lg px-2 text-muted-foreground">
-              <Link href="/finance">
-                <ArrowLeft className="h-3.5 w-3.5" />
-                返回
-              </Link>
-            </Button>
             <Badge variant="outline" className="rounded-full border-border/60 bg-muted/50 text-xs">
               Finance Admin
             </Badge>

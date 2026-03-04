@@ -13,6 +13,7 @@ import {
 } from "@/lib/finance-config";
 import { authClient } from "@/lib/auth-client";
 import { Card, CardContent } from "@/components/ui/card";
+import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
 
 type UploadedFile = {
   key: string;
@@ -74,8 +75,11 @@ export default function SubmitFinanceRecordPage() {
       <div className="container mx-auto p-4 sm:p-6 max-w-3xl">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-800">无效的申请类型</p>
-          <Link href="/finance/submit" className="text-blue-600 hover:underline mt-2 inline-block">
-            返回选择页面
+          <Link
+            href="/finance/submit"
+            className="mt-3 inline-flex items-center text-sm font-medium text-primary transition-colors hover:text-primary/80"
+          >
+            返回新建申请
           </Link>
         </div>
       </div>
@@ -106,9 +110,7 @@ function TypeSelectionPage() {
   return (
     <div className="container mx-auto p-4 sm:p-6 max-w-4xl">
       <div className="mb-4 sm:mb-6">
-        <Link href="/finance" className="text-blue-600 hover:underline mb-4 inline-block text-sm sm:text-base">
-          ← 返回首页
-        </Link>
+        <FinanceBreadcrumb items={[{ label: "财务系统", href: "/finance" }, { label: "新建申请" }]} />
         <h1 className="text-2xl sm:text-3xl font-bold mb-2">选择申请类型</h1>
         <p className="text-sm text-gray-600">请选择您要提交的申请类型</p>
       </div>
@@ -144,7 +146,13 @@ function TypeSelectionPage() {
 }
 
 // 表单组件
-function ApplicationForm({ applicationType, session }: { applicationType: FinanceApplicationType; session: SessionData }) {
+function ApplicationForm({
+  applicationType,
+  session,
+}: {
+  applicationType: FinanceApplicationType;
+  session: SessionData;
+}) {
   const router = useRouter();
   const config = getApplicationTypeConfig(applicationType)!;
 
@@ -445,9 +453,13 @@ function ApplicationForm({ applicationType, session }: { applicationType: Financ
   return (
     <div className="container mx-auto p-4 sm:p-6 max-w-3xl">
       <div className="mb-4 sm:mb-6">
-        <Link href="/finance/submit" className="text-blue-600 hover:underline mb-4 inline-block text-sm sm:text-base">
-          ← 返回选择页面
-        </Link>
+        <FinanceBreadcrumb
+          items={[
+            { label: "财务系统", href: "/finance" },
+            { label: "新建申请", href: "/finance/submit" },
+            { label: config.label },
+          ]}
+        />
         <h1 className="text-2xl sm:text-3xl font-bold mb-2">{config.label}</h1>
         <p className="text-sm text-gray-600">{config.description}</p>
       </div>

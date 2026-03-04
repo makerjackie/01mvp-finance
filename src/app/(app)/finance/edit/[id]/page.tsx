@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Loader2, Save, ShieldAlert } from "lucide-react";
+import { ExternalLink, Loader2, Save, ShieldAlert } from "lucide-react";
 import { FINANCE_CATEGORIES, TYPE_LABELS, getCategoryLabel, STATUS_LABELS } from "@/lib/finance-config";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
 
 type FinanceType = "income" | "expense";
 
@@ -216,14 +217,13 @@ export default function EditRecordPage() {
     <div className="space-y-3 md:space-y-5">
       <Card className="rounded-2xl border border-border/60 shadow-sm">
         <CardHeader className="space-y-2 px-4 py-4 sm:px-5">
-          <div>
-            <Button asChild variant="ghost" size="sm" className="h-8 rounded-lg px-2 text-muted-foreground">
-              <Link href="/finance/my-records">
-                <ArrowLeft className="h-3.5 w-3.5" />
-                返回
-              </Link>
-            </Button>
-          </div>
+          <FinanceBreadcrumb
+            items={[
+              { label: "财务系统", href: "/finance" },
+              { label: "我的记录", href: "/finance/my-records" },
+              { label: "编辑记录" },
+            ]}
+          />
 
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="space-y-1">

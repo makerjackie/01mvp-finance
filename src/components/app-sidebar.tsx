@@ -48,7 +48,7 @@ const buildNavItems = (user?: AppUser) => {
     },
     {
       title: "新建申请",
-      href: "/finance/submit?type=expense",
+      href: "/finance/submit",
       activePath: "/finance/submit",
       icon: PlusCircle,
     },
@@ -123,7 +123,7 @@ export function SidebarContent({
           isCollapsed ? "justify-center px-2" : "px-6 justify-between",
         )}
       >
-        {!isCollapsed && (
+        {!isCollapsed && !isMobile && (
           <Link
             href="/"
             className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity overflow-hidden"
@@ -144,7 +144,7 @@ export function SidebarContent({
         )}
 
         {isMobile && (
-          <Link href="/" className="flex items-center gap-2 font-semibold">
+          <Link href="/" className="flex items-center gap-2 font-semibold hover:opacity-80 transition-opacity">
             <Logo size={26} />
           </Link>
         )}
