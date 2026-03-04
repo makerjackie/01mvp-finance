@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { PlusCircle, ShoppingCart, Receipt, Users, ArrowRight } from "lucide-react";
+import { PlusCircle, ShoppingCart, Receipt, Users, ArrowRight, Loader2 } from "lucide-react";
 import {
   getApplicationTypeConfig,
   getAllApplicationTypes,
@@ -12,7 +12,11 @@ import {
   type FormField,
 } from "@/lib/finance-config";
 import { authClient } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
 
 type UploadedFile = {
@@ -72,8 +76,8 @@ export default function SubmitFinanceRecordPage() {
   // 验证申请类型
   if (!isValidApplicationType(applicationType)) {
     return (
-      <div className="container mx-auto p-4 sm:p-6 max-w-3xl">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+      <div className="mx-auto w-full max-w-3xl px-4 py-4 pb-24 sm:px-6 sm:py-6 sm:pb-10">
+        <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4">
           <p className="text-red-800">无效的申请类型</p>
           <Link
             href="/finance/submit"
@@ -108,11 +112,11 @@ function TypeSelectionPage() {
   };
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 max-w-4xl">
-      <div className="mb-4 sm:mb-6">
+    <div className="mx-auto w-full max-w-4xl px-4 py-4 pb-24 sm:px-6 sm:py-6 sm:pb-10">
+      <div className="mb-4 space-y-2 sm:mb-6">
         <FinanceBreadcrumb items={[{ label: "财务系统", href: "/finance" }, { label: "新建申请" }]} />
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">选择申请类型</h1>
-        <p className="text-sm text-gray-600">请选择您要提交的申请类型</p>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">选择申请类型</h1>
+        <p className="text-sm text-muted-foreground">请选择您要提交的申请类型</p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -289,16 +293,16 @@ function ApplicationForm({
   const renderField = (field: FormField) => {
     if (field.type === "auto") {
       return (
-        <div key={field.name}>
-          <label className="block text-sm font-medium mb-2">
+        <div key={field.name} className="space-y-2">
+          <Label className="text-sm font-medium">
             {field.label}
-            {field.required && <span className="text-red-500">*</span>}
-          </label>
-          <input
+            {field.required && <span className="text-destructive">*</span>}
+          </Label>
+          <Input
             type="text"
             value={formData[field.name] || ""}
             readOnly
-            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm sm:text-base"
+            className="h-11 rounded-xl border-border/60 bg-muted/50 text-sm shadow-sm"
           />
         </div>
       );
@@ -306,17 +310,17 @@ function ApplicationForm({
 
     if (field.type === "text") {
       return (
-        <div key={field.name}>
-          <label className="block text-sm font-medium mb-2">
+        <div key={field.name} className="space-y-2">
+          <Label className="text-sm font-medium">
             {field.label}
-            {field.required && <span className="text-red-500">*</span>}
-          </label>
-          <input
+            {field.required && <span className="text-destructive">*</span>}
+          </Label>
+          <Input
             type="text"
             required={field.required}
             value={formData[field.name] || ""}
             onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+            className="h-11 rounded-xl border-border/60 text-sm shadow-sm"
             placeholder={field.placeholder}
           />
         </div>
@@ -325,38 +329,37 @@ function ApplicationForm({
 
     if (field.type === "textarea") {
       return (
-        <div key={field.name}>
-          <label className="block text-sm font-medium mb-2">
+        <div key={field.name} className="space-y-2">
+          <Label className="text-sm font-medium">
             {field.label}
-            {field.required && <span className="text-red-500">*</span>}
-          </label>
-          <textarea
+            {field.required && <span className="text-destructive">*</span>}
+          </Label>
+          <Textarea
             required={field.required}
             value={formData[field.name] || ""}
             onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-            rows={4}
+            className="min-h-[112px] rounded-xl border-border/60 text-sm shadow-sm focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-0"
             placeholder={field.placeholder}
           />
-          {field.helpText && <p className="text-xs text-gray-500 mt-1">{field.helpText}</p>}
+          {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
         </div>
       );
     }
 
     if (field.type === "number") {
       return (
-        <div key={field.name}>
-          <label className="block text-sm font-medium mb-2">
+        <div key={field.name} className="space-y-2">
+          <Label className="text-sm font-medium">
             {field.label}
-            {field.required && <span className="text-red-500">*</span>}
-          </label>
-          <input
+            {field.required && <span className="text-destructive">*</span>}
+          </Label>
+          <Input
             type="number"
             step="0.01"
             required={field.required}
             value={formData[field.name] || ""}
             onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+            className="h-11 rounded-xl border-border/60 text-sm shadow-sm"
             placeholder={field.placeholder}
           />
         </div>
@@ -365,17 +368,17 @@ function ApplicationForm({
 
     if (field.type === "date") {
       return (
-        <div key={field.name}>
-          <label className="block text-sm font-medium mb-2">
+        <div key={field.name} className="space-y-2">
+          <Label className="text-sm font-medium">
             {field.label}
-            {field.required && <span className="text-red-500">*</span>}
-          </label>
-          <input
+            {field.required && <span className="text-destructive">*</span>}
+          </Label>
+          <Input
             type="date"
             required={field.required}
             value={formData[field.name] || ""}
             onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+            className="h-11 rounded-xl border-border/60 text-sm shadow-sm"
           />
         </div>
       );
@@ -383,16 +386,16 @@ function ApplicationForm({
 
     if (field.type === "select") {
       return (
-        <div key={field.name}>
-          <label className="block text-sm font-medium mb-2">
+        <div key={field.name} className="space-y-2">
+          <Label className="text-sm font-medium">
             {field.label}
-            {field.required && <span className="text-red-500">*</span>}
-          </label>
+            {field.required && <span className="text-destructive">*</span>}
+          </Label>
           <select
             required={field.required}
             value={formData[field.name] || ""}
             onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+            className="h-11 w-full rounded-xl border border-border/60 bg-background px-3 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           >
             <option value="">请选择</option>
             {field.options?.map((option) => (
@@ -401,40 +404,48 @@ function ApplicationForm({
               </option>
             ))}
           </select>
-          {field.helpText && <p className="text-xs text-gray-500 mt-1">{field.helpText}</p>}
+          {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
         </div>
       );
     }
 
     if (field.type === "file") {
       return (
-        <div key={field.name}>
-          <label className="block text-sm font-medium mb-2">
+        <div key={field.name} className="space-y-2">
+          <Label className="text-sm font-medium">
             {field.label}
-            {field.required && <span className="text-red-500">*</span>}
-          </label>
-          <div className="border-2 border-dashed border-gray-300 rounded-md p-4">
+            {field.required && <span className="text-destructive">*</span>}
+          </Label>
+          <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 p-4 sm:p-5">
             <input
               type="file"
               multiple
               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
               onChange={handleFileUpload}
               disabled={uploading}
-              className="w-full text-sm"
+              className="w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-primary-foreground hover:file:bg-primary/90"
             />
-            {field.helpText && <p className="text-xs text-gray-500 mt-2">{field.helpText}</p>}
+            {field.helpText && <p className="mt-2 text-xs text-muted-foreground">{field.helpText}</p>}
 
-            {uploading && <p className="text-sm text-blue-600 mt-2">上传中...</p>}
+            {uploading && (
+              <p className="mt-2 inline-flex items-center gap-1 text-sm text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                上传中...
+              </p>
+            )}
 
             {uploadedFiles.length > 0 && (
               <div className="mt-3 space-y-2">
                 {uploadedFiles.map((file) => (
-                  <div key={file.key} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                  <div
+                    key={file.key}
+                    className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5"
+                  >
                     <span className="text-sm truncate flex-1">{file.name}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveFile(file.key)}
-                      className="ml-2 text-red-600 hover:text-red-800 text-sm"
+                      className="ml-2 text-sm text-destructive transition-colors hover:text-destructive/80"
                     >
                       删除
                     </button>
@@ -451,8 +462,8 @@ function ApplicationForm({
   };
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 max-w-3xl">
-      <div className="mb-4 sm:mb-6">
+    <div className="mx-auto w-full max-w-3xl px-4 py-4 pb-24 sm:px-6 sm:py-6 sm:pb-10">
+      <div className="mb-4 space-y-2 sm:mb-6">
         <FinanceBreadcrumb
           items={[
             { label: "财务系统", href: "/finance" },
@@ -460,32 +471,42 @@ function ApplicationForm({
             { label: config.label },
           ]}
         />
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">{config.label}</h1>
-        <p className="text-sm text-gray-600">{config.description}</p>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{config.label}</h1>
+        <p className="text-sm text-muted-foreground">{config.description}</p>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 space-y-4 sm:space-y-6"
-      >
-        {config.fields.map((field) => renderField(field))}
+      <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
+        <CardContent className="space-y-5 p-4 sm:space-y-6 sm:p-6">
+          <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+            {config.fields.map((field) => renderField(field))}
 
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-2">
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex-1 bg-blue-600 text-white py-2.5 sm:py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm sm:text-base font-medium"
-          >
-            {loading ? "提交中..." : "提交申请"}
-          </button>
-          <Link
-            href="/finance/submit"
-            className="flex-1 bg-gray-200 text-gray-700 py-2.5 sm:py-2 px-4 rounded-md hover:bg-gray-300 text-center text-sm sm:text-base font-medium"
-          >
-            取消
-          </Link>
-        </div>
-      </form>
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+              <Button
+                asChild
+                type="button"
+                variant="outline"
+                className="h-11 w-full rounded-xl border-border/60 sm:w-auto sm:min-w-28"
+              >
+                <Link href="/finance/submit">取消</Link>
+              </Button>
+              <Button
+                type="submit"
+                disabled={loading}
+                className="h-11 w-full rounded-xl text-sm font-medium transition-all duration-200 active:scale-[0.98] sm:w-auto sm:min-w-40"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    提交中...
+                  </>
+                ) : (
+                  "提交申请"
+                )}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
