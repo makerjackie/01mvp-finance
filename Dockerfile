@@ -11,13 +11,10 @@ RUN corepack enable
 # ---------- 依赖阶段 ----------
 FROM base AS deps
 COPY package.json pnpm-lock.yaml ./
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm install --frozen-lockfile --ignore-scripts # skip postinstall; prisma schema not copied yet
-
-# 生成 Prisma Client（使用当前仓库的 schema）
 COPY src/server/prisma ./src/server/prisma
-RUN DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres" \
-    pnpm exec prisma generate --schema=src/server/prisma/schema.prisma # dummy url satisfies prisma config
+
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # ---------- 构建阶段 ----------
 FROM base AS builder
@@ -51,7 +48,6 @@ RUN groupadd --system --gid 1001 nodejs \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/src/server/prisma ./src/server/prisma
 
 USER nextjs
 
