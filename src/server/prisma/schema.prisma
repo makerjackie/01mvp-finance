@@ -32,6 +32,7 @@ model User {
   twoFactor           TwoFactor?
   memberships         Member[]
   invitations         Invitation[]   @relation("InvitationInviter")
+  financeRecords      FinanceRecord[] @relation("UserFinanceRecords")
 
   @@map("user")
 }
@@ -202,4 +203,63 @@ model FeatureFlag {
   updatedById       String?
 
   @@map("feature_flag")
+}
+
+// 财务记录表 - 统一存储所有类型的财务申请
+model FinanceRecord {
+  id              String   @id @default(cuid()) @map("_id")
+  userId          String
+  user            User     @relation("UserFinanceRecords", fields: [userId], references: [id], onDelete: Cascade)
+
+  // 记录类型：income(收入) | expense(支出)
+  type            String
+
+  // 类别
+  category        String                   // 收入类别或支出类别
+
+  // 通用字段
+  amount          Float                    // 金额
+  relatedProject  String?                  // 关联项目/活动名称
+  description     String                   // 详细说明/事由
+  attachments     String[]  @default([])   // 附件URL数组
+
+  // 收款/付款信息
+  recipientName   String?                  // 收款人/供应商姓名（对方户名）
+  recipientAccount String?                 // 收款账号/供应商账号（对方账号）
+  recipientBank   String?                  // 收款人开户行（对方开户行）
+  recipientIdCard String?                  // 收款人身份证（劳务类需要）
+
+  // 银行流水相关
+  transactionNo   String?                  // 流水号
+  transactionDate DateTime?                // 交易日期
+  summary         String?                  // 摘要
+  purpose         String?                  // 用途
+
+  // 支付相关
+  paymentStatus   String   @default("unpaid") // unpaid(未支付) | paid(已支付)
+  paymentDate     DateTime?                // 实际支付日期
+  paidBy          String?                  // 出纳/支付人ID
+  accountPeriod   String?                  // 账期（例如：2025-01）
+
+  // 税务相关
+  taxHandling     String?                  // 个人所得税处理方式：withhold(代扣代缴) | self(自行申报) | none(无需处理)
+
+  // 账目类型：是否为社区公开账目
+  isCommunity     Boolean  @default(true)  // true=社区账目（公开）, false=公司内部账目（仅管理员可见）
+
+  // 审批状态
+  status          String   @default("pending") // pending(待审核) | approved(已通过) | rejected(已拒绝)
+  reviewNote      String?                  // 审批备注
+  reviewedAt      DateTime?                // 审批时间
+  reviewedBy      String?                  // 审批人ID
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([category])
+  @@index([isCommunity])
+  @@map("finance_record")
 }

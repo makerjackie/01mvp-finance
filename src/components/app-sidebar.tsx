@@ -2,105 +2,86 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
+import * as React from "react";
+import type { User } from "better-auth";
 import {
-  LayoutDashboard,
-  MessageSquare,
-  User as UserIcon,
-  LogOut,
-  Sparkles,
   Menu,
-  CreditCard,
-  Upload,
-  ImageIcon,
   PanelLeftClose,
   PanelLeftOpen,
+  Wallet,
+  PlusCircle,
+  ClipboardList,
   ShieldCheck,
-  Wrench,
+  LogOut,
+  User as UserIcon,
+  MessageSquare,
+  ImageIcon,
+  Upload,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { authClient } from "@/lib/auth-client";
 import { Logo } from "@/components/logo";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import * as React from "react";
-import type { User } from "better-auth";
 import { canAccessAdmin } from "@/lib/rbac";
 
 type AppUser = User & { role?: string | null };
 
-// 导航菜单配置
+type NavItem = {
+  title: string;
+  href: string;
+  activePath: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
 const buildNavItems = (user?: AppUser) => {
-  const items = [
+  const items: NavItem[] = [
     {
-      title: "核心功能",
-      items: [
-        {
-          title: "功能中心",
-          href: "/features",
-          icon: Sparkles,
-        },
-        {
-          title: "AI 生图",
-          href: "/ai-image",
-          icon: ImageIcon,
-        },
-        {
-          title: "AI 对话",
-          href: "/chat",
-          icon: MessageSquare,
-        },
-        {
-          title: "控制台",
-          href: "/dashboard",
-          icon: LayoutDashboard,
-        },
-        {
-          title: "文件上传",
-          href: "/upload",
-          icon: Upload,
-        },
-      ],
+      title: "财务主页",
+      href: "/finance",
+      activePath: "/finance",
+      icon: Wallet,
     },
     {
-      title: "更多工具",
-      items: [
-        {
-          title: "工具集",
-          href: "/examples",
-          icon: Wrench,
-        },
-      ],
+      title: "新建申请",
+      href: "/finance/submit?type=expense",
+      activePath: "/finance/submit",
+      icon: PlusCircle,
     },
     {
-      title: "账户",
-      items: [
-        {
-          title: "个人中心",
-          href: "/me",
-          icon: UserIcon,
-        },
-        {
-          title: "订阅管理",
-          href: "/billing", // 假设的路径
-          icon: CreditCard,
-          disabled: true, // 暂未开发
-        },
-      ],
+      title: "我的记录",
+      href: "/finance/my-records",
+      activePath: "/finance/my-records",
+      icon: ClipboardList,
+    },
+    {
+      title: "AI 对话",
+      href: "/chat",
+      activePath: "/chat",
+      icon: MessageSquare,
+    },
+    {
+      title: "AI 生图",
+      href: "/ai-image",
+      activePath: "/ai-image",
+      icon: ImageIcon,
+    },
+    {
+      title: "文件上传",
+      href: "/upload",
+      activePath: "/upload",
+      icon: Upload,
     },
   ];
 
   if (canAccessAdmin(user)) {
     items.push({
-      title: "系统",
-      items: [
-        {
-          title: "后台管理",
-          href: "/admin",
-          icon: ShieldCheck,
-        },
-      ],
+      title: "审核后台",
+      href: "/finance/admin",
+      activePath: "/finance/admin",
+      icon: ShieldCheck,
     });
   }
 
@@ -129,7 +110,6 @@ export function SidebarContent({
     <div
       className={cn("flex h-full w-full flex-col bg-white dark:bg-neutral-900 border-r border-border/40", className)}
     >
-      {/* Sidebar Header */}
       <div
         className={cn(
           "flex h-14 items-center border-b border-border/40 transition-all duration-300",
@@ -145,7 +125,6 @@ export function SidebarContent({
           </Link>
         )}
 
-        {/* Toggle Button (Desktop only) */}
         {!isMobile && onToggle && (
           <Button
             variant="ghost"
@@ -157,7 +136,6 @@ export function SidebarContent({
           </Button>
         )}
 
-        {/* Mobile Logo */}
         {isMobile && (
           <Link href="/" className="flex items-center gap-2 font-semibold">
             <Logo size={26} />
@@ -165,76 +143,51 @@ export function SidebarContent({
         )}
       </div>
 
-      {/* Sidebar Content */}
       <div className="flex-1 overflow-y-auto py-4 px-3">
-        <nav className="space-y-6">
-          {navItems.map((group) => (
-            <div key={group.title} className={cn("px-0", isCollapsed ? "text-center" : "px-3")}>
-              {!isCollapsed && (
-                <h3 className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider px-2">
-                  {group.title}
-                </h3>
-              )}
-              <div className="space-y-1">
-                {group.items.map((item) => {
-                  const isActive = pathname === item.href;
-                  const Icon = item.icon;
+        <nav className={cn("space-y-1", isCollapsed ? "px-0" : "px-3")}>
+          {navItems.map((item) => {
+            const isActive = pathname === item.activePath || pathname.startsWith(`${item.activePath}/`);
+            const Icon = item.icon;
 
-                  const LinkContent = (
-                    <Link
-                      href={item.disabled ? "#" : item.href}
-                      className={cn(
-                        "group flex items-center rounded-md transition-all",
-                        isCollapsed ? "justify-center p-2" : "gap-3 px-3 py-2 text-sm font-medium",
-                        isActive
-                          ? "bg-primary/5 text-primary"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                        item.disabled && "opacity-50 cursor-not-allowed",
-                      )}
-                    >
-                      <Icon
-                        className={cn(
-                          "h-4 w-4 shrink-0",
-                          isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
-                        )}
-                      />
-                      {!isCollapsed && (
-                        <>
-                          <span className="truncate">{item.title}</span>
-                          {item.disabled && (
-                            <span className="ml-auto text-[10px] bg-muted px-1.5 py-0.5 rounded">Soon</span>
-                          )}
-                        </>
-                      )}
-                    </Link>
-                  );
+            const linkContent = (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "group flex items-center rounded-md transition-all",
+                  isCollapsed ? "justify-center p-2" : "gap-3 px-3 py-2 text-sm font-medium",
+                  isActive ? "bg-primary/5 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                <Icon
+                  className={cn(
+                    "h-4 w-4 shrink-0",
+                    isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
+                  )}
+                />
+                {!isCollapsed && <span className="truncate">{item.title}</span>}
+              </Link>
+            );
 
-                  if (isCollapsed) {
-                    return (
-                      <Tooltip key={item.href} delayDuration={0}>
-                        <TooltipTrigger asChild>{LinkContent}</TooltipTrigger>
-                        <TooltipContent side="right" className="flex items-center gap-2">
-                          {item.title}
-                          {item.disabled && <span className="text-[10px] bg-muted px-1 rounded">Soon</span>}
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  }
+            if (isCollapsed) {
+              return (
+                <Tooltip key={item.href} delayDuration={0}>
+                  <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
+                  <TooltipContent side="right">{item.title}</TooltipContent>
+                </Tooltip>
+              );
+            }
 
-                  return <React.Fragment key={item.href}>{LinkContent}</React.Fragment>;
-                })}
-              </div>
-            </div>
-          ))}
+            return linkContent;
+          })}
         </nav>
       </div>
 
-      {/* Sidebar Footer (User Profile) */}
       <div className="p-3 border-t border-border/40">
         {user ? (
           <div
             className={cn(
-              "flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group relative",
+              "flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group",
               isCollapsed && "justify-center",
             )}
           >
@@ -248,7 +201,6 @@ export function SidebarContent({
                   <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
                   <p className="truncate text-xs text-muted-foreground">{user.email}</p>
                 </div>
-                {/* 简单的退出按钮 (实际项目中可能是 Dropdown) */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -287,10 +239,6 @@ export function SidebarContent({
 export function DesktopSidebar({ user }: { user?: AppUser }) {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
 
-  const toggle = () => {
-    setIsCollapsed(!isCollapsed);
-  };
-
   return (
     <aside
       className={cn(
@@ -299,13 +247,12 @@ export function DesktopSidebar({ user }: { user?: AppUser }) {
       )}
     >
       <TooltipProvider>
-        <SidebarContent user={user} isCollapsed={isCollapsed} onToggle={toggle} />
+        <SidebarContent user={user} isCollapsed={isCollapsed} onToggle={() => setIsCollapsed((prev) => !prev)} />
       </TooltipProvider>
     </aside>
   );
 }
 
-// Mobile Drawer Component (reusing the same sidebar content)
 export function MobileSidebar({ user }: { user?: AppUser }) {
   return (
     <Sheet>
@@ -322,6 +269,4 @@ export function MobileSidebar({ user }: { user?: AppUser }) {
   );
 }
 
-// Re-export SidebarContent as AppSidebar for backward compatibility if needed,
-// but we will update layout.tsx to use DesktopSidebar.
 export const AppSidebar = SidebarContent;

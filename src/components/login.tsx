@@ -33,6 +33,8 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
   const [smsCode, setSmsCode] = useState("");
   const [smsSent, setSmsSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [needsName, setNeedsName] = useState(false);
+  const [realName, setRealName] = useState("");
 
   // 密码登录状态
   const [username, setUsername] = useState("");
@@ -140,6 +142,15 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
     setIsPending(true);
 
     try {
+      // 先检查手机号是否已注册
+      const checkRes = await fetch(`/api/auth/check-phone?phone=${phoneNumber}`);
+      const checkData = await checkRes.json();
+
+      // 如果是新用户，标记需要填写姓名
+      if (!checkData.exists) {
+        setNeedsName(true);
+      }
+
       const { data, error } = await authClient.phoneNumber.sendOtp({
         phoneNumber,
       });
@@ -180,6 +191,12 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
       return;
     }
 
+    // 如果需要填写姓名但未填写
+    if (needsName && !realName.trim()) {
+      setError("请填写您的真实姓名");
+      return;
+    }
+
     setError(null);
     setIsPending(true);
 
@@ -196,6 +213,19 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
       }
 
       if (data) {
+        // 如果是新用户且填写了真实姓名，更新用户信息
+        if (needsName && realName.trim()) {
+          try {
+            await fetch("/api/auth/update-profile", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: realName.trim() }),
+            });
+          } catch (err) {
+            console.error("更新姓名失败", err);
+          }
+        }
+
         toast.success("登录成功");
         // 等待一小段时间让session写入完成
         await new Promise((resolve) => setTimeout(resolve, 300));
@@ -263,7 +293,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
         // 等待更长时间让 cookie 完全写入
         await new Promise((resolve) => setTimeout(resolve, 500));
         // 使用 window.location.href 强制完全刷新页面
-        window.location.href = redirect ?? "/dashboard";
+        window.location.href = redirect ?? "/finance";
       } else {
         setError("登录失败，请重试");
         setIsPending(false);
@@ -401,23 +431,48 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
           </div>
 
           {smsSent && (
-            <div className="space-y-2 animate-slide-up">
-              <Label htmlFor="code">验证码</Label>
-              <Input
-                id="code"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                value={smsCode}
-                onChange={(e) => {
-                  setSmsCode(e.target.value.replace(/\D/g, ""));
-                  setError(null);
-                }}
-                placeholder="请输入 6 位验证码"
-                maxLength={6}
-                className="tracking-widest text-base"
-              />
-            </div>
+            <>
+              <div className="space-y-2 animate-slide-up">
+                <Label htmlFor="code">验证码</Label>
+                <Input
+                  id="code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={smsCode}
+                  onChange={(e) => {
+                    setSmsCode(e.target.value.replace(/\D/g, ""));
+                    setError(null);
+                  }}
+                  placeholder="请输入 6 位验证码"
+                  maxLength={6}
+                  className="tracking-widest text-base"
+                />
+              </div>
+
+              {needsName && (
+                <div className="space-y-2 animate-slide-up">
+                  <Label htmlFor="realName">
+                    真实姓名<span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="realName"
+                    type="text"
+                    autoComplete="name"
+                    value={realName}
+                    onChange={(e) => {
+                      setRealName(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="请输入您的真实姓名"
+                    maxLength={50}
+                    className="text-base"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">首次注册需要填写真实姓名，用于财务申请</p>
+                </div>
+              )}
+            </>
           )}
 
           {error && (

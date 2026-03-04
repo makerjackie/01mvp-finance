@@ -27,12 +27,14 @@ export function AppHeader({ user }: AppHeaderProps) {
     const isLast = index === segments.length - 1;
     // 简单的标题映射 (实际项目可以用更复杂的字典)
     const titleMap: Record<string, string> = {
+      finance: "财务系统",
+      submit: "新建申请",
+      "my-records": "我的记录",
+      edit: "编辑记录",
+      admin: "审核后台",
       chat: "AI 对话",
-      dashboard: "控制台",
-      me: "个人中心",
-      features: "功能中心",
+      "ai-image": "AI 生图",
       upload: "文件上传",
-      admin: "后台管理",
     };
     const title = titleMap[segment] || segment.charAt(0).toUpperCase() + segment.slice(1);
 

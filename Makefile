@@ -5,8 +5,8 @@
 # ========================================
 # Configuration
 # ========================================
-IMAGE_NAME ?= 01mvp-nextjs-template
-REGISTRY ?= ghcr.io/01mvp
+IMAGE_NAME ?= community-finance-system
+REGISTRY ?= ghcr.io/community-finance
 TAG ?= latest
 IMAGE_TAG ?= $(TAG)
 FULL_IMAGE = $(REGISTRY)/$(IMAGE_NAME):$(TAG)
@@ -19,7 +19,7 @@ PLATFORM ?= linux/amd64
 # ========================================
 help:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	@echo "📦 01MVP Template - Docker 部署管理"
+	@echo "📦 社区财务系统 - Docker 部署管理"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
 	@echo "🚀 开发命令"

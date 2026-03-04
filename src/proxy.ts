@@ -133,7 +133,7 @@ function handleRouting({
   request: NextRequest;
 }) {
   // 需要保护的路由列表
-  const protectedRoutes = ["/dashboard", "/me"];
+  const protectedRoutes = ["/finance"];
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
 
   // 公开路由（已登录用户不应访问）
@@ -149,7 +149,7 @@ function handleRouting({
 
   // 如果已登录访问登录/注册页，重定向到首页
   if (isAuthRoute && session?.user) {
-    const redirectTo = request.nextUrl.searchParams.get("redirect") || "/dashboard";
+    const redirectTo = request.nextUrl.searchParams.get("redirect") || "/finance";
     return NextResponse.redirect(new URL(redirectTo, request.url));
   }
 

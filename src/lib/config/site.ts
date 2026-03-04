@@ -1,28 +1,27 @@
 import { getPublicUrl } from "@/lib/utils";
 
 export const siteConfig = {
-  name: "01MVP Template",
-  description: "快速构建你的下一个产品",
-  tagline: "开箱即用的 Next.js 模板",
+  name: "社区财务系统",
+  description: "面向社区场景的财务申请、审批与统计系统",
+  tagline: "社区财务记录与审核平台",
   apiBase: getPublicUrl(),
   features: [
     {
-      title: "短信验证码登录",
-      description: "安全快捷的手机验证码登录，支持腾讯云短信",
+      title: "财务申请流程",
+      description: "支持收入登记与支出申请，统一记录与追踪审批状态",
     },
     {
-      title: "AI 智能对话",
-      description: "集成 OpenAI 兼容 API，流式响应，开箱即用",
+      title: "审核与统计",
+      description: "管理员可集中审核申请并查看收入、支出、余额等统计指标",
     },
     {
-      title: "S3 云存储",
-      description: "支持本地存储和 S3 兼容对象存储",
+      title: "多端可用",
+      description: "桌面端与移动端均可使用，便于社区成员随时提交与查询",
     },
   ],
   links: {
     signup: "/sign-up",
     signin: "/sign-in",
-    chat: "/chat",
-    dashboard: "/dashboard",
+    finance: "/finance",
   },
 };

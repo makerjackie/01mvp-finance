@@ -4,11 +4,11 @@ const matchRoute = (pathname: string | null, routes: string[]) => {
 };
 
 export const navigationConfig = {
-  // 需要隐藏 Tabbar 的沉浸式/深层任务页（聊天详情、个人设置等）
-  hideTabbarRoutes: ["/chat", "/me/edit", "/example-ui", "/ai-image"],
-  // 登录注册等页面无需 Tabbar，虽然不在 (app) 布局中，保留给组件做防御性判断
+  // 深层任务页隐藏 Tabbar，避免遮挡编辑与审核操作
+  hideTabbarRoutes: ["/chat", "/example-ui", "/ai-image", "/finance/edit", "/finance/admin"],
+  // 登录注册等页面无需 Tabbar
   authRoutes: ["/sign-in", "/sign-up"],
-  // 全屏/沉浸式页面（去除默认 Padding 和 MaxWidth）
+  // AI 对话与生图页使用沉浸式布局
   immersiveRoutes: ["/chat", "/example-ui", "/ai-image"],
 };
 

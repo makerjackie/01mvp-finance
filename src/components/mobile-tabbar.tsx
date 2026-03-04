@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, MessageSquare, User as UserIcon, LayoutDashboard, ImageIcon } from "lucide-react";
+import { Wallet, PlusCircle, ClipboardList } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { shouldHideTabbar } from "@/lib/config/navigation";
-
 import type { User } from "better-auth";
 
 type MobileTabbarProps = {
@@ -22,37 +21,29 @@ type TabItem = {
 
 export function MobileTabbar({ user }: MobileTabbarProps) {
   const pathname = usePathname();
-  const isAuthed = Boolean(user);
 
-  // 登录/注册、沉浸式页面隐藏 Tabbar
-  if (shouldHideTabbar(pathname)) {
+  if (!user || shouldHideTabbar(pathname)) {
     return null;
   }
 
   const tabs: TabItem[] = [
     {
-      label: isAuthed ? "控制台" : "首页",
-      icon: isAuthed ? LayoutDashboard : Home,
-      href: isAuthed ? "/dashboard" : "/",
-      active: isAuthed ? pathname.startsWith("/dashboard") : pathname === "/",
+      label: "主页",
+      icon: Wallet,
+      href: "/finance",
+      active: pathname === "/finance",
     },
     {
-      label: "生图",
-      icon: ImageIcon,
-      href: "/ai-image",
-      active: pathname === "/ai-image",
+      label: "新建",
+      icon: PlusCircle,
+      href: "/finance/submit?type=expense",
+      active: pathname === "/finance/submit",
     },
     {
-      label: "对话",
-      icon: MessageSquare,
-      href: "/chat",
-      active: pathname === "/chat",
-    },
-    {
-      label: "我的",
-      icon: UserIcon,
-      href: "/me",
-      active: pathname === "/me",
+      label: "记录",
+      icon: ClipboardList,
+      href: "/finance/my-records",
+      active: pathname === "/finance/my-records",
     },
   ];
 

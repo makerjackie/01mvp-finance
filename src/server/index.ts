@@ -2,13 +2,9 @@ import { Hono } from "hono";
 import { requestLogger } from "./middleware/logger";
 import { maintenanceMiddleware } from "./middleware/maintenance";
 import authController from "./modules/auth";
-import chatRoutes from "./modules/chat";
-import privateRoutes from "./modules/private";
-import uploadRoutes from "./modules/upload";
-import imageGenRoutes from "./modules/image-gen";
 import systemRoutes from "./modules/system";
-import adminRoutes from "./modules/admin";
-import examplesRoutes from "./modules/examples";
+import financeRoutes from "./modules/finance";
+import uploadRoutes from "./modules/upload";
 import type { AuthEnv } from "./middleware";
 
 export const app = new Hono<AuthEnv>()
@@ -17,13 +13,9 @@ export const app = new Hono<AuthEnv>()
   .use("*", maintenanceMiddleware)
   .get("/health", (c) => c.json({ status: "ok" }))
   .route("/auth", authController)
-  .route("/chat", chatRoutes)
-  .route("/private", privateRoutes)
-  .route("/uploads", uploadRoutes)
-  .route("/image-gen", imageGenRoutes)
   .route("/system", systemRoutes)
-  .route("/admin", adminRoutes)
-  .route("/examples", examplesRoutes);
+  .route("/finance", financeRoutes)
+  .route("/upload", uploadRoutes);
 
 export type AppType = typeof app;
 export default app;
