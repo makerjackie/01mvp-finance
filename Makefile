@@ -6,7 +6,7 @@
 # Configuration
 # ========================================
 IMAGE_NAME ?= 01mvp-nextjs-template
-REGISTRY ?= docker.cnb.cool/01mvp
+REGISTRY ?= ghcr.io/01mvp
 TAG ?= latest
 IMAGE_TAG ?= $(TAG)
 FULL_IMAGE = $(REGISTRY)/$(IMAGE_NAME):$(TAG)

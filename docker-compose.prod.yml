@@ -1,7 +1,7 @@
 services:
   app:
     # 生产环境使用远程镜像
-    image: ${IMAGE:-docker.cnb.cool/01mvp/01mvp-nextjs-template:latest}
+    image: ${IMAGE:-ghcr.io/01mvp/01mvp-nextjs-template:latest}
     # 平台架构
     platform: ${PLATFORM:-linux/amd64}
     # 使用生产环境变量文件

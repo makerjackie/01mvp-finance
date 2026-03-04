@@ -106,20 +106,13 @@ pnpm dev                    # http://localhost:3000
 - 健康检查路径：`/api/health`。
 - 部署时确保同样的环境变量（`DATABASE_URL`、`BETTER_AUTH_SECRET`、`NEXT_PUBLIC_SITE_URL`、`AI_API_KEY`、`TENCENT_*` 等）。
 
-## CNB 构建流水线（.cnb.yml）
-
-- CNB 平台自动构建并推送镜像到 `${CNB_DOCKER_REGISTRY:-cnb.cool}`；`main` 分支产出 `:latest`，`v*` 标签使用对应 tag，其余分支使用分支名作为 tag。
-- 构建前会尝试加载 `.env.build`（默认不提供）；需在构建阶段注入变量时再本地创建（不提交），如 `NEXT_PUBLIC_SITE_URL`、`S3_ENDPOINT`、`S3_BUCKET` 等。
-- 如需推送到私有仓库，设置 `CNB_TRIGGER_USER` 与 `CNB_TRIGGER_TOKEN` 以完成 `docker login`，可通过 `CNB_REPO_SLUG_LOWERCASE` 或直接传入 `IMAGE_TAG` 自定义仓库/镜像名。
-- 支持 buildx，如不存在则回退到普通 `docker build`。
-
 ## Docker Compose & Makefile 使用
 
-- 生产部署使用 `docker-compose.prod.yml`：默认镜像 `docker.cnb.cool/01mvp/01mvp-nextjs-template:latest`，读取 `.env.production`，`HOST_PORT`（默认 3000）决定对外端口，`PLATFORM` 默认为 `linux/amd64`。
+- 生产部署使用 `docker-compose.prod.yml`：默认镜像 `ghcr.io/01mvp/01mvp-nextjs-template:latest`，读取 `.env.production`，`HOST_PORT`（默认 3000）决定对外端口，`PLATFORM` 默认为 `linux/amd64`。
 - 运行时环境变量（S3 访问参数、域名/站点 URL 等）应放在 `.env.production` 或通过 `docker compose -f docker-compose.prod.yml ... --env-file ...` 注入，以便随时变更而无需重新构建镜像。
 - 服务器快速拉起示例：
   ```bash
-  HOST_PORT=3000 IMAGE=docker.cnb.cool/01mvp/01mvp-nextjs-template:v1.0.0 docker compose -f docker-compose.prod.yml up -d
+  HOST_PORT=3000 IMAGE=ghcr.io/01mvp/01mvp-nextjs-template:v1.0.0 docker compose -f docker-compose.prod.yml up -d
   docker compose -f docker-compose.prod.yml logs -f app
   ```
 - `Makefile` 封装本地与生产命令：`make dev/build/clean`，`make up/down/logs/shell/restart/ps` 管理本地 compose；`make release TAG=v1.2.0` 构建并推送镜像；`make deploy TAG=v1.2.0` 拉起生产 compose；`make prod-logs`/`make prod-shell` 便于运维。
