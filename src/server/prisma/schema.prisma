@@ -175,7 +175,7 @@ model ChatSession {
 // 应用配置（全局仅一条）
 model AppConfig {
   id                   String   @id @default("global")
-  passwordLoginEnabled Boolean  @default(true)
+  passwordLoginEnabled Boolean  @default(false)
   smsLoginEnabled      Boolean  @default(true)
   perUserDailyQuota    Int      @default(1000)
   globalDailyQuota     Int      @default(100000)

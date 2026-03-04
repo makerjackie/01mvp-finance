@@ -79,12 +79,14 @@ export function AdminConfigPanel({ initialConfig, lastUpdated, canManage = true 
       title: "短信验证码登录",
       description: "使用手机号 + 验证码完成注册与登录。",
       enabled: config.smsLoginEnabled,
+      locked: false,
     },
     {
       key: "passwordLoginEnabled" as const,
-      title: "用户名/密码登录",
-      description: "支持用户名+密码登录，适合桌面端和稳定场景。",
-      enabled: config.passwordLoginEnabled,
+      title: "用户名/密码登录（已下线）",
+      description: "密码登录已关闭，系统仅支持手机号验证码登录。",
+      enabled: false,
+      locked: true,
     },
   ];
 
@@ -119,7 +121,7 @@ export function AdminConfigPanel({ initialConfig, lastUpdated, canManage = true 
             <Switch
               checked={option.enabled}
               onCheckedChange={(checked) => handleToggle(option.key, checked)}
-              disabled={isPending || !canManage}
+              disabled={isPending || !canManage || option.locked}
             />
           </div>
         ))}

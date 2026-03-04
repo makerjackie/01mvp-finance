@@ -23,7 +23,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
   const [authMethod, setAuthMethod] = useState<AuthMethod>("sms");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [passwordLoginEnabled, setPasswordLoginEnabled] = useState(true);
+  const [passwordLoginEnabled, setPasswordLoginEnabled] = useState(false);
   const [smsLoginEnabled, setSmsLoginEnabled] = useState(true);
   const [configLoading, setConfigLoading] = useState(true);
   const lockedMessage = "当前已关闭所有登录方式，请联系管理员开启登录入口";
@@ -50,7 +50,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // 获取后台配置（密码登录开关）
+  // 获取后台配置（仅短信登录开关）
   useEffect(() => {
     let cancelled = false;
 
@@ -60,17 +60,12 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
         const data = await res.json();
 
         if (!cancelled && data?.config) {
-          setPasswordLoginEnabled(Boolean(data.config.passwordLoginEnabled));
+          // 密码登录已下线，前后端统一固定关闭。
+          setPasswordLoginEnabled(false);
           setSmsLoginEnabled(Boolean(data.config.smsLoginEnabled));
-          if (!data.config.smsLoginEnabled && data.config.passwordLoginEnabled) {
-            setAuthMethod("password");
-          }
-          if (!data.config.passwordLoginEnabled && data.config.smsLoginEnabled) {
-            setAuthMethod("sms");
-          }
         }
       } catch {
-        // 保持默认开启状态，避免阻塞登录
+        // 网络异常时保留默认短信登录，避免阻塞登录
       } finally {
         if (!cancelled) {
           setConfigLoading(false);
@@ -111,7 +106,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
       return;
     }
     if (method === "sms" && !smsLoginEnabled) {
-      toast.error("当前已关闭短信登录，请使用密码登录");
+      toast.error("当前已关闭短信登录，请联系管理员");
       return;
     }
     if (method === "password" && !passwordLoginEnabled) {
@@ -130,7 +125,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
       return;
     }
     if (!smsLoginEnabled) {
-      setError("当前已关闭短信登录，请使用密码登录或联系管理员");
+      setError("当前已关闭短信登录，请联系管理员");
       return;
     }
     if (!phoneNumber || !/^1\d{10}$/.test(phoneNumber)) {
@@ -174,7 +169,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
   const handleSmsLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!smsLoginEnabled) {
-      setError("当前已关闭短信登录，请使用密码登录或联系管理员");
+      setError("当前已关闭短信登录，请联系管理员");
       return;
     }
     if (noAuthAvailable) {
@@ -316,7 +311,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
         ? "欢迎回来"
         : "创建账号";
   const headingDescription = noAuthAvailable
-    ? "请联系管理员开启密码或短信登录后再尝试。"
+    ? "请联系管理员开启短信登录后再尝试。"
     : authMethod === "sms"
       ? "未注册手机号验证后自动创建账号"
       : mode === "signin"
@@ -347,21 +342,23 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
           <Smartphone className="h-4 w-4" />
           验证码登录
         </button>
-        <button
-          type="button"
-          onClick={() => handleAuthMethodChange("password")}
-          disabled={noAuthAvailable || (!passwordLoginEnabled && !configLoading)}
-          className={cn(
-            "flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
-            authMethod === "password"
-              ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/5"
-              : "text-muted-foreground hover:text-foreground",
-            (!passwordLoginEnabled || noAuthAvailable) && "opacity-50 cursor-not-allowed",
-          )}
-        >
-          <KeyRound className="h-4 w-4" />
-          密码登录
-        </button>
+        {passwordLoginEnabled && (
+          <button
+            type="button"
+            onClick={() => handleAuthMethodChange("password")}
+            disabled={noAuthAvailable || (!passwordLoginEnabled && !configLoading)}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
+              authMethod === "password"
+                ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+                : "text-muted-foreground hover:text-foreground",
+              (!passwordLoginEnabled || noAuthAvailable) && "opacity-50 cursor-not-allowed",
+            )}
+          >
+            <KeyRound className="h-4 w-4" />
+            密码登录
+          </button>
+        )}
       </div>
 
       {noAuthAvailable && !configLoading && (
@@ -369,7 +366,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
           <ShieldOff className="mt-0.5 h-4 w-4" />
           <div className="space-y-1">
             <p className="text-sm font-semibold leading-none">登录入口已关闭</p>
-            <p className="text-xs text-destructive/80">请联系管理员开启至少一种登录方式后再尝试。</p>
+            <p className="text-xs text-destructive/80">请联系管理员开启短信登录后再尝试。</p>
           </div>
         </div>
       )}
@@ -379,7 +376,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
           <ShieldOff className="mt-0.5 h-4 w-4" />
           <div className="space-y-1">
             <p className="text-sm font-semibold leading-none">密码登录已关闭</p>
-            <p className="text-xs text-amber-800/80">请使用手机号验证码登录，管理员可在后台重新开启。</p>
+            <p className="text-xs text-amber-800/80">当前仅支持手机号验证码登录。</p>
           </div>
         </div>
       )}
@@ -389,7 +386,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
           <ShieldOff className="mt-0.5 h-4 w-4" />
           <div className="space-y-1">
             <p className="text-sm font-semibold leading-none">短信登录已关闭</p>
-            <p className="text-xs text-amber-800/80">请改用密码登录，或联系管理员开启短信验证码登录。</p>
+            <p className="text-xs text-amber-800/80">请联系管理员开启短信验证码登录。</p>
           </div>
         </div>
       )}
@@ -508,7 +505,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
             </Link>
           </p>
         </form>
-      ) : (
+      ) : passwordLoginEnabled ? (
         <form onSubmit={handlePasswordLogin} className="space-y-5 animate-fade-in">
           {mode === "signup" && (
             <div className="space-y-2">
@@ -611,7 +608,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
             </Link>
           </p>
         </form>
-      )}
+      ) : null}
 
       <div className="mt-8 text-center text-sm">
         <span className="text-muted-foreground">{mode === "signin" ? "还没有账号？" : "已经有账号？"}</span>

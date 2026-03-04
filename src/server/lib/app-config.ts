@@ -12,7 +12,7 @@ const DEFAULT_APP_CONFIG: Pick<
   | "globalRateLimit"
   | "maintenanceMode"
 > = {
-  passwordLoginEnabled: true,
+  passwordLoginEnabled: false,
   smsLoginEnabled: true,
   perUserDailyQuota: 1000,
   globalDailyQuota: 100000,
@@ -29,6 +29,7 @@ const shouldUseCache = () => cachedConfig && Date.now() - cacheTimestamp < CACHE
 const normalizeConfig = (config: AppConfig): AppConfig => ({
   ...DEFAULT_APP_CONFIG,
   ...config,
+  passwordLoginEnabled: false,
 });
 
 async function readConfigFromDB() {
@@ -96,7 +97,7 @@ export async function updateAppConfig(
   const config = await prisma.appConfig.upsert({
     where: { id: "global" },
     update: {
-      passwordLoginEnabled: input.passwordLoginEnabled ?? undefined,
+      passwordLoginEnabled: false,
       smsLoginEnabled: input.smsLoginEnabled ?? undefined,
       perUserDailyQuota: input.perUserDailyQuota ?? undefined,
       globalDailyQuota: input.globalDailyQuota ?? undefined,
@@ -107,7 +108,7 @@ export async function updateAppConfig(
     },
     create: {
       id: "global",
-      passwordLoginEnabled: input.passwordLoginEnabled ?? DEFAULT_APP_CONFIG.passwordLoginEnabled,
+      passwordLoginEnabled: false,
       smsLoginEnabled: input.smsLoginEnabled ?? DEFAULT_APP_CONFIG.smsLoginEnabled,
       perUserDailyQuota: input.perUserDailyQuota ?? DEFAULT_APP_CONFIG.perUserDailyQuota,
       globalDailyQuota: input.globalDailyQuota ?? DEFAULT_APP_CONFIG.globalDailyQuota,
