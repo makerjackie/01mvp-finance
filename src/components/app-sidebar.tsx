@@ -36,6 +36,8 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
 };
 
+const showAiSidebarItems = process.env.NEXT_PUBLIC_ENABLE_AI_SIDEBAR === "true";
+
 const buildNavItems = (user?: AppUser) => {
   const items: NavItem[] = [
     {
@@ -56,25 +58,30 @@ const buildNavItems = (user?: AppUser) => {
       activePath: "/finance/my-records",
       icon: ClipboardList,
     },
-    {
-      title: "AI 对话",
-      href: "/chat",
-      activePath: "/chat",
-      icon: MessageSquare,
-    },
-    {
-      title: "AI 生图",
-      href: "/ai-image",
-      activePath: "/ai-image",
-      icon: ImageIcon,
-    },
-    {
-      title: "文件上传",
-      href: "/upload",
-      activePath: "/upload",
-      icon: Upload,
-    },
   ];
+
+  if (showAiSidebarItems) {
+    items.push(
+      {
+        title: "AI 对话",
+        href: "/chat",
+        activePath: "/chat",
+        icon: MessageSquare,
+      },
+      {
+        title: "AI 生图",
+        href: "/ai-image",
+        activePath: "/ai-image",
+        icon: ImageIcon,
+      },
+      {
+        title: "文件上传",
+        href: "/upload",
+        activePath: "/upload",
+        icon: Upload,
+      },
+    );
+  }
 
   if (canAccessAdmin(user)) {
     items.push({

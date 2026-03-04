@@ -14,22 +14,50 @@ import {
 import { authClient } from "@/lib/auth-client";
 import { Card, CardContent } from "@/components/ui/card";
 
+type UploadedFile = {
+  key: string;
+  url: string;
+  name: string;
+};
+
+type SessionData = {
+  user?: {
+    name?: string | null;
+  };
+} | null;
+
+type FinanceCreatePayload = {
+  type: "income" | "expense";
+  category: FinanceApplicationType;
+  attachments: UploadedFile[];
+  subcategory?: string;
+  amount?: number;
+  transactionDate?: string;
+  relatedProject?: string;
+  description?: string;
+  recipientName?: string;
+  recipientAccount?: string;
+  recipientBank?: string;
+  recipientIdCard?: string;
+  summary?: string;
+  taxHandling?: string;
+};
+
+const LEGACY_TYPE_MAPPING: Record<string, FinanceApplicationType> = {
+  income: "income_registration",
+  expense: "procurement",
+};
+
 export default function SubmitFinanceRecordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = authClient.useSession();
   const typeParam = searchParams.get("type");
 
-  // 旧类型到新类型的映射（向后兼容）
-  const legacyTypeMapping: Record<string, FinanceApplicationType> = {
-    income: "income_registration",
-    expense: "procurement",
-  };
-
   // 如果是旧类型，自动重定向到新类型
   useEffect(() => {
-    if (typeParam && legacyTypeMapping[typeParam]) {
-      router.replace(`/finance/submit?type=${legacyTypeMapping[typeParam]}`);
+    if (typeParam && LEGACY_TYPE_MAPPING[typeParam]) {
+      router.replace(`/finance/submit?type=${LEGACY_TYPE_MAPPING[typeParam]}`);
     }
   }, [typeParam, router]);
 
@@ -38,7 +66,7 @@ export default function SubmitFinanceRecordPage() {
     return <TypeSelectionPage />;
   }
 
-  const applicationType = (legacyTypeMapping[typeParam] || typeParam) as FinanceApplicationType;
+  const applicationType = (LEGACY_TYPE_MAPPING[typeParam] || typeParam) as FinanceApplicationType;
 
   // 验证申请类型
   if (!isValidApplicationType(applicationType)) {
@@ -61,7 +89,7 @@ export default function SubmitFinanceRecordPage() {
 function TypeSelectionPage() {
   const allTypes = getAllApplicationTypes();
 
-  const iconMap: Record<string, any> = {
+  const iconMap: Record<string, typeof PlusCircle> = {
     PlusCircle: PlusCircle,
     ShoppingCart: ShoppingCart,
     Receipt: Receipt,
@@ -116,22 +144,18 @@ function TypeSelectionPage() {
 }
 
 // 表单组件
-function ApplicationForm({ applicationType, session }: { applicationType: FinanceApplicationType; session: any }) {
+function ApplicationForm({ applicationType, session }: { applicationType: FinanceApplicationType; session: SessionData }) {
   const router = useRouter();
-  const config = getApplicationTypeConfig(applicationType);
-
-  if (!config) {
-    return null;
-  }
+  const config = getApplicationTypeConfig(applicationType)!;
 
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<Array<{ key: string; url: string; name: string }>>([]);
-  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [formData, setFormData] = useState<Record<string, string>>({});
 
   // 初始化表单数据
   useEffect(() => {
-    const initialData: Record<string, any> = {};
+    const initialData: Record<string, string> = {};
     config.fields.forEach((field) => {
       if (field.type === "auto") {
         if (field.autoValue === "date") {
@@ -152,10 +176,10 @@ function ApplicationForm({ applicationType, session }: { applicationType: Financ
 
     try {
       // 构建提交数据
-      const payload: any = {
+      const payload: FinanceCreatePayload = {
         type: config.dbType,
         category: applicationType,
-        attachments: uploadedFiles.map((f) => ({ key: f.key, url: f.url, name: f.name })),
+        attachments: uploadedFiles,
       };
 
       // 映射表单字段到数据库字段
@@ -164,7 +188,7 @@ function ApplicationForm({ applicationType, session }: { applicationType: Financ
           return;
         }
 
-        const value = formData[field.name];
+        const value = formData[field.name] || "";
 
         if (field.name === "subcategory") {
           payload.subcategory = value || undefined;
@@ -191,13 +215,17 @@ function ApplicationForm({ applicationType, session }: { applicationType: Financ
         }
       });
 
+      if (!payload.description) {
+        payload.description = `${config.label}申请`;
+      }
+
       const res = await fetch("/api/finance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as { success?: boolean; error?: string };
 
       if (result.success) {
         alert("提交成功！");
@@ -221,18 +249,19 @@ function ApplicationForm({ applicationType, session }: { applicationType: Financ
 
     try {
       for (const file of Array.from(files)) {
-        const formData = new FormData();
-        formData.append("file", file);
+        const uploadFormData = new FormData();
+        uploadFormData.append("file", file);
 
         const res = await fetch("/api/upload", {
           method: "POST",
-          body: formData,
+          body: uploadFormData,
         });
 
-        const result = await res.json();
+        const result = (await res.json()) as { success?: boolean; data?: UploadedFile; error?: string };
 
-        if (result.success) {
-          setUploadedFiles((prev) => [...prev, result.data]);
+        if (result.success && result.data) {
+          const uploadedFile = result.data;
+          setUploadedFiles((prev) => [...prev, uploadedFile]);
         } else {
           alert(`上传失败: ${result.error}`);
         }

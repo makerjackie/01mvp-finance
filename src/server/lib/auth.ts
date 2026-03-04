@@ -61,7 +61,9 @@ export const auth = betterAuth({
   },
   advanced: {
     cookiePrefix: "better-auth",
-    generateId: () => crypto.randomUUID(),
+    database: {
+      generateId: () => crypto.randomUUID(),
+    },
   },
   plugins: [
     organization(),

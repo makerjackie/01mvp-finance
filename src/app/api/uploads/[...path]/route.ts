@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readBinary } from "@/server/lib/storage";
 
-export async function GET(request: NextRequest, { params }: { params: { path: string[] } }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   try {
-    const filePath = params.path.join("/");
+    const { path } = await context.params;
+    const filePath = path.join("/");
     const buffer = await readBinary(filePath);
 
     // 根据文件扩展名设置Content-Type
@@ -23,7 +24,10 @@ export async function GET(request: NextRequest, { params }: { params: { path: st
 
     const contentType = contentTypeMap[ext || ""] || "application/octet-stream";
 
-    return new NextResponse(buffer, {
+    const bytes = Uint8Array.from(buffer);
+    const body = new Blob([bytes]);
+
+    return new NextResponse(body, {
       headers: {
         "Content-Type": contentType,
         "Cache-Control": "public, max-age=31536000, immutable",

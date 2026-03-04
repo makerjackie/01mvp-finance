@@ -143,7 +143,7 @@ export default function MyRecordsPage() {
                         "bg-muted text-foreground",
                     )}
                   >
-                    {STATUS_LABELS[record.status].label}
+                    {STATUS_LABELS[record.status]?.label || record.status}
                   </Badge>
                 </div>
 

@@ -56,7 +56,7 @@ interface FinanceRecord {
   reviewedAt?: string;
   recipientName?: string;
   recipientAccount?: string;
-  attachments?: any[];
+  attachments?: unknown[];
 }
 
 interface Stats {
