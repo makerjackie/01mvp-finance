@@ -4,7 +4,6 @@ import { admin, organization, twoFactor, username, phoneNumber } from "better-au
 import { prisma } from "./db";
 import { sendSms } from "./sms";
 import { getBaseUrl, getPublicUrl } from "@/lib/utils";
-import { ensureInitialAdmin } from "@/server/lib/user";
 
 const normalizeOrigin = (value?: string | null) => {
   if (!value) return null;

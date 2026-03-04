@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Prisma } from "@/server/prisma/generated/prisma/client";
 import { prisma } from "@/server/lib/db";
 import { auth } from "@/server/lib/auth";
 
@@ -152,7 +153,7 @@ app.put("/:id", async (c) => {
     }
   }
 
-  const updateData: any = {};
+  const updateData: Prisma.FinanceRecordUpdateInput = {};
   if (data.type !== undefined) updateData.type = data.type;
   if (data.category !== undefined) updateData.category = data.category;
   if (data.subcategory !== undefined) updateData.subcategory = data.subcategory;

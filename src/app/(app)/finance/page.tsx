@@ -1,16 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowRight,
-  ChartColumnBig,
-  ClipboardList,
-  PlusCircle,
-  Receipt,
-  Shield,
-  ShoppingCart,
-  Users,
-} from "lucide-react";
+import { ArrowRight, ClipboardList, PlusCircle, Shield } from "lucide-react";
 import { auth } from "@/server/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

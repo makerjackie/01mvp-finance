@@ -8,7 +8,6 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 let prismaClient: PrismaClient | undefined;
-let prismaPool: Pool | undefined;
 
 type PrismaClientKey = keyof PrismaClient;
 type PrismaClientValue = PrismaClient[PrismaClientKey];
@@ -30,7 +29,6 @@ function createPrismaClient() {
     });
 
   if (globalForPrisma.prisma) {
-    prismaPool = pool;
     return globalForPrisma.prisma;
   }
 
@@ -62,8 +60,6 @@ function createPrismaClient() {
       },
     },
   });
-
-  prismaPool = pool;
 
   if (process.env.NODE_ENV !== "production") {
     globalForPrisma.prisma = client as PrismaClient;
