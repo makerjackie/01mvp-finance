@@ -1,7 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import {
+  AlertTriangle,
+  ArrowDownCircle,
+  ArrowRight,
+  ArrowUpCircle,
+  BarChart3,
+  CircleDollarSign,
+  ShieldCheck,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface CommunityStats {
   totalIncome: number;
@@ -9,9 +22,23 @@ interface CommunityStats {
   balance: number;
 }
 
+const cnyFormatter = new Intl.NumberFormat("zh-CN", {
+  style: "currency",
+  currency: "CNY",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
 export default function CommunityFinancePage() {
   const [stats, setStats] = useState<CommunityStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
     fetchStats();
@@ -19,136 +46,198 @@ export default function CommunityFinancePage() {
 
   const fetchStats = async () => {
     try {
+      setError(null);
       const res = await fetch("/api/finance/public/stats");
-      const result = await res.json();
-      if (result.success) {
-        setStats(result.data);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch stats: ${res.status}`);
       }
+      const result = await res.json();
+      if (result.success && result.data) {
+        setStats(result.data);
+        setLastUpdated(new Date());
+        return;
+      }
+
+      throw new Error("Invalid stats response");
     } catch (error) {
       console.error(error);
+      setError("数据加载失败，请稍后重试。");
     } finally {
       setLoading(false);
     }
   };
 
+  const statsCards = stats
+    ? [
+        {
+          title: "总收入",
+          value: cnyFormatter.format(stats.totalIncome),
+          description: "已审核通过的社区收入",
+          icon: ArrowUpCircle,
+          valueClassName: "text-emerald-600",
+          iconClassName: "text-emerald-600",
+        },
+        {
+          title: "总支出",
+          value: cnyFormatter.format(stats.totalExpense),
+          description: "已审核通过的社区支出",
+          icon: ArrowDownCircle,
+          valueClassName: "text-rose-600",
+          iconClassName: "text-rose-600",
+        },
+        {
+          title: "当前余额",
+          value: cnyFormatter.format(stats.balance),
+          description: "收入减去支出的净额",
+          icon: CircleDollarSign,
+          valueClassName: stats.balance >= 0 ? "text-primary" : "text-amber-600",
+          iconClassName: stats.balance >= 0 ? "text-primary" : "text-amber-600",
+        },
+      ]
+    : [];
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <p className="text-lg text-gray-600">加载中...</p>
+      <div className="min-h-screen bg-gray-50/50">
+        <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-8 md:py-8">
+          <div className="space-y-4">
+            <Skeleton className="h-6 w-28" />
+            <Skeleton className="h-10 w-full max-w-xl" />
+            <Skeleton className="h-5 w-full max-w-2xl" />
+          </div>
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+            {[1, 2, 3].map((item) => (
+              <Card key={item} className="rounded-xl border border-border/60 bg-white shadow-sm">
+                <CardHeader className="pb-2">
+                  <Skeleton className="h-5 w-16" />
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Skeleton className="h-8 w-40" />
+                  <Skeleton className="h-4 w-32" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-8 sm:py-12 max-w-4xl">
-        {/* 头部 */}
-        <div className="text-center mb-8 sm:mb-12">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-3 sm:mb-4">社区财务公开</h1>
-          <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
-            透明公开的社区财务数据，让每一笔收支都清晰可见
-          </p>
-        </div>
+    <div className="relative min-h-screen bg-gray-50/50">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-linear-to-b from-primary/6 to-transparent"
+      />
 
-        {/* 统计卡片 */}
-        {stats && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
-            {/* 总收入 */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 sm:p-8 border-t-4 border-green-500 transform hover:scale-105 transition-transform">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-3xl sm:text-4xl">💰</div>
-                <div className="text-xs sm:text-sm font-medium text-gray-500 bg-green-50 px-3 py-1 rounded-full">
-                  收入
-                </div>
-              </div>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-green-600 mb-2">
-                ¥{stats.totalIncome.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-              <p className="text-xs sm:text-sm text-gray-500">社区总收入</p>
+      <div className="relative mx-auto w-full max-w-5xl px-4 py-6 pb-10 md:px-8 md:py-8">
+        <div className="space-y-6">
+          <header className="space-y-3">
+            <Badge variant="outline" className="rounded-full border-border/60 bg-white/80 px-3 py-1 text-xs">
+              Community Finance
+            </Badge>
+            <div className="space-y-2">
+              <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">社区财务公开</h1>
+              <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
+                本页展示社区已审核通过的收入、支出与余额汇总，方便成员快速了解财务状态。
+              </p>
             </div>
+          </header>
 
-            {/* 总支出 */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 sm:p-8 border-t-4 border-red-500 transform hover:scale-105 transition-transform">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-3xl sm:text-4xl">💸</div>
-                <div className="text-xs sm:text-sm font-medium text-gray-500 bg-red-50 px-3 py-1 rounded-full">
-                  支出
-                </div>
+          <Card className="rounded-xl border border-amber-200/90 bg-amber-50/70 shadow-sm">
+            <CardContent className="flex items-start gap-3 p-4 md:p-5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                <AlertTriangle className="h-4 w-4" />
               </div>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-red-600 mb-2">
-                ¥{stats.totalExpense.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-amber-900">Beta 测试说明</p>
+                <p className="text-xs leading-relaxed text-amber-800 md:text-sm">
+                  当前系统仍处于 Beta 测试版本，数据可能存在错误或延迟，仅供参考，请勿作为最终财务凭证。
+                </p>
               </div>
-              <p className="text-xs sm:text-sm text-gray-500">社区总支出</p>
-            </div>
+            </CardContent>
+          </Card>
 
-            {/* 当前余额 */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 sm:p-8 border-t-4 border-blue-500 transform hover:scale-105 transition-transform sm:col-span-1 col-span-1">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-3xl sm:text-4xl">💵</div>
-                <div className="text-xs sm:text-sm font-medium text-gray-500 bg-blue-50 px-3 py-1 rounded-full">
-                  余额
+          {error ? (
+            <Card className="rounded-xl border border-destructive/20 bg-destructive/5 shadow-sm">
+              <CardContent className="p-4 text-sm text-destructive md:p-5">{error}</CardContent>
+            </Card>
+          ) : (
+            <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {statsCards.map((card) => {
+                const Icon = card.icon;
+
+                return (
+                  <Card
+                    key={card.title}
+                    className="rounded-xl border border-border/60 bg-white shadow-sm transition-all duration-200 hover:shadow-md"
+                  >
+                    <CardHeader className="space-y-3 pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">{card.title}</CardTitle>
+                        <Icon className={`h-4 w-4 ${card.iconClassName}`} />
+                      </div>
+                      <p className={`text-2xl font-semibold tracking-tight ${card.valueClassName}`}>{card.value}</p>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-xs text-muted-foreground">{card.description}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </section>
+          )}
+
+          <Card className="rounded-2xl border border-border/60 bg-white shadow-sm">
+            <CardHeader className="space-y-2 pb-3">
+              <CardTitle className="text-lg font-semibold md:text-xl">公开机制说明</CardTitle>
+              <CardDescription>账目仅统计已审核通过的数据，确保公开口径一致。</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 pt-0 md:grid-cols-3">
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-4">
+                <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                  <ShieldCheck className="h-4 w-4" />
                 </div>
+                <p className="text-sm font-medium">审核后公开</p>
+                <p className="mt-1 text-xs text-muted-foreground">仅展示审核通过记录，避免中间状态干扰。</p>
               </div>
-              <div
-                className={`text-2xl sm:text-3xl md:text-4xl font-bold mb-2 ${
-                  stats.balance >= 0 ? "text-blue-600" : "text-orange-600"
-                }`}
-              >
-                ¥{stats.balance.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-4">
+                <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                  <BarChart3 className="h-4 w-4" />
+                </div>
+                <p className="text-sm font-medium">实时汇总</p>
+                <p className="mt-1 text-xs text-muted-foreground">收入、支出、余额自动统计，减少人工整理成本。</p>
               </div>
-              <p className="text-xs sm:text-sm text-gray-500">当前余额</p>
-            </div>
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-4">
+                <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700">
+                  <CircleDollarSign className="h-4 w-4" />
+                </div>
+                <p className="text-sm font-medium">统一口径</p>
+                <p className="mt-1 text-xs text-muted-foreground">所有金额均以人民币展示，保留两位小数。</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button asChild className="h-11 rounded-xl shadow-sm transition-all duration-200 active:scale-[0.98]">
+              <Link href="/finance">
+                进入财务系统
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className="h-11 rounded-xl border-border/60 bg-white shadow-sm transition-all duration-200 active:scale-[0.98]"
+            >
+              <Link href="/">返回首页</Link>
+            </Button>
           </div>
-        )}
 
-        {/* 说明卡片 */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 sm:p-8 mb-6 sm:mb-8">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">关于社区财务</h2>
-          <div className="space-y-3 sm:space-y-4 text-sm sm:text-base text-gray-600">
-            <div className="flex items-start gap-3">
-              <div className="text-xl sm:text-2xl mt-1">✅</div>
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">透明公开</h3>
-                <p>所有社区财务数据实时更新，确保每一笔收支都公开透明</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="text-xl sm:text-2xl mt-1">🔒</div>
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">审核机制</h3>
-                <p>所有财务申请都需要经过管理员审核，确保资金使用合理</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="text-xl sm:text-2xl mt-1">📊</div>
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">实时统计</h3>
-                <p>数据实时更新，展示的是已审核通过的社区账目统计</p>
-              </div>
-            </div>
+          <div className="rounded-xl border border-border/60 bg-white/90 px-4 py-3 text-xs text-muted-foreground shadow-sm md:text-sm">
+            <p>数据更新时间：{lastUpdated ? dateTimeFormatter.format(lastUpdated) : "暂无"}</p>
+            <p className="mt-1">说明：仅展示已审核通过的社区账目数据。</p>
           </div>
-        </div>
-
-        {/* 操作按钮 */}
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-          <Link
-            href="/finance"
-            className="inline-flex items-center justify-center px-6 sm:px-8 py-3 sm:py-4 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl text-sm sm:text-base"
-          >
-            进入财务系统
-          </Link>
-          <Link
-            href="/"
-            className="inline-flex items-center justify-center px-6 sm:px-8 py-3 sm:py-4 bg-white text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors shadow-lg hover:shadow-xl text-sm sm:text-base"
-          >
-            返回首页
-          </Link>
-        </div>
-
-        {/* 页脚 */}
-        <div className="text-center mt-8 sm:mt-12 text-xs sm:text-sm text-gray-500">
-          <p>数据更新时间：{new Date().toLocaleString("zh-CN")}</p>
-          <p className="mt-2">仅展示已审核通过的社区账目数据</p>
         </div>
       </div>
     </div>
