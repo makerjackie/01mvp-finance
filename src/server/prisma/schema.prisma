@@ -216,6 +216,7 @@ model FinanceRecord {
 
   // 类别
   category        String                   // 收入类别或支出类别
+  subcategory     String?                  // 子类别（如：入门活动、进阶活动等）
 
   // 通用字段
   amount          Float                    // 金额

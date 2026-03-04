@@ -376,9 +376,7 @@ export default function AdminPage() {
     {
       accessorKey: "category",
       header: "类别",
-      cell: ({ row }) => (
-        <div className="text-sm whitespace-nowrap">{getCategoryLabel(row.original.type, row.original.category)}</div>
-      ),
+      cell: ({ row }) => <div className="text-sm whitespace-nowrap">{getCategoryLabel(row.original.category)}</div>,
     },
     {
       accessorKey: "amount",
@@ -752,7 +750,7 @@ export default function AdminPage() {
                         </p>
                         <p className="text-muted-foreground">
                           分类：
-                          <span className="text-foreground">{getCategoryLabel(record.type, record.category)}</span>
+                          <span className="text-foreground">{getCategoryLabel(record.category)}</span>
                         </p>
                         <p className="text-muted-foreground">
                           账目：<span className="text-foreground">{record.isCommunity ? "社区" : "公司"}</span>

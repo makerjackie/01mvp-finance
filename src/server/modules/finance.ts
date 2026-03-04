@@ -27,6 +27,7 @@ app.post("/", async (c) => {
     data: {
       type: data.type,
       category: data.category,
+      subcategory: data.subcategory || null,
       amount: Number(data.amount),
       relatedProject: data.relatedProject || null,
       description: data.description,
@@ -154,6 +155,7 @@ app.put("/:id", async (c) => {
   const updateData: any = {};
   if (data.type !== undefined) updateData.type = data.type;
   if (data.category !== undefined) updateData.category = data.category;
+  if (data.subcategory !== undefined) updateData.subcategory = data.subcategory;
   if (data.amount !== undefined) updateData.amount = Number(data.amount);
   if (data.relatedProject !== undefined) updateData.relatedProject = data.relatedProject;
   if (data.description !== undefined) updateData.description = data.description;

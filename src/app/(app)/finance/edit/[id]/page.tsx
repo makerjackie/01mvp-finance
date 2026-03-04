@@ -147,7 +147,7 @@ export default function EditRecordPage() {
           ← 返回我的记录
         </Link>
         <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-          {TYPE_LABELS[record.type]} - {getCategoryLabel(record.type, record.category)}
+          {TYPE_LABELS[record.type]} - {getCategoryLabel(record.category)}
         </h1>
         <p className="text-xs sm:text-sm text-gray-600">
           提交时间：{new Date(record.createdAt).toLocaleString("zh-CN")}

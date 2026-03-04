@@ -1,60 +1,195 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { FINANCE_CATEGORIES, TYPE_LABELS } from "@/lib/finance-config";
+import { PlusCircle, ShoppingCart, Receipt, Users, ArrowRight } from "lucide-react";
+import {
+  getApplicationTypeConfig,
+  getAllApplicationTypes,
+  isValidApplicationType,
+  type FinanceApplicationType,
+  type FormField,
+} from "@/lib/finance-config";
+import { authClient } from "@/lib/auth-client";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function SubmitFinanceRecordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const type = (searchParams.get("type") || "income") as "income" | "expense";
-  const typeLabel = TYPE_LABELS[type];
-  const categories = FINANCE_CATEGORIES[type];
+  const { data: session } = authClient.useSession();
+  const typeParam = searchParams.get("type");
+
+  // 旧类型到新类型的映射（向后兼容）
+  const legacyTypeMapping: Record<string, FinanceApplicationType> = {
+    income: "income_registration",
+    expense: "procurement",
+  };
+
+  // 如果是旧类型，自动重定向到新类型
+  useEffect(() => {
+    if (typeParam && legacyTypeMapping[typeParam]) {
+      router.replace(`/finance/submit?type=${legacyTypeMapping[typeParam]}`);
+    }
+  }, [typeParam, router]);
+
+  // 如果没有 type 参数，显示类型选择页面
+  if (!typeParam) {
+    return <TypeSelectionPage />;
+  }
+
+  const applicationType = (legacyTypeMapping[typeParam] || typeParam) as FinanceApplicationType;
+
+  // 验证申请类型
+  if (!isValidApplicationType(applicationType)) {
+    return (
+      <div className="container mx-auto p-4 sm:p-6 max-w-3xl">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800">无效的申请类型</p>
+          <Link href="/finance/submit" className="text-blue-600 hover:underline mt-2 inline-block">
+            返回选择页面
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return <ApplicationForm applicationType={applicationType} session={session} />;
+}
+
+// 类型选择页面组件
+function TypeSelectionPage() {
+  const allTypes = getAllApplicationTypes();
+
+  const iconMap: Record<string, any> = {
+    PlusCircle: PlusCircle,
+    ShoppingCart: ShoppingCart,
+    Receipt: Receipt,
+    Users: Users,
+  };
+
+  const colorMap: Record<string, string> = {
+    emerald: "text-emerald-600",
+    blue: "text-blue-600",
+    purple: "text-purple-600",
+    orange: "text-orange-600",
+  };
+
+  return (
+    <div className="container mx-auto p-4 sm:p-6 max-w-4xl">
+      <div className="mb-4 sm:mb-6">
+        <Link href="/finance" className="text-blue-600 hover:underline mb-4 inline-block text-sm sm:text-base">
+          ← 返回首页
+        </Link>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">选择申请类型</h1>
+        <p className="text-sm text-gray-600">请选择您要提交的申请类型</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {allTypes.map((type) => {
+          const Icon = iconMap[type.icon];
+          const colorClass = colorMap[type.color];
+
+          return (
+            <Link key={type.key} href={`/finance/submit?type=${type.key}`} className="group">
+              <Card className="h-full rounded-xl border border-border/60 bg-card shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.99]">
+                <CardContent className="px-4 py-4 sm:px-5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold">{type.label}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{type.description}</p>
+                    </div>
+                    {Icon && <Icon className={`h-4 w-4 ${colorClass}`} />}
+                  </div>
+                  <div className="mt-3 inline-flex items-center text-xs text-muted-foreground transition-colors group-hover:text-foreground">
+                    去申请
+                    <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// 表单组件
+function ApplicationForm({ applicationType, session }: { applicationType: FinanceApplicationType; session: any }) {
+  const router = useRouter();
+  const config = getApplicationTypeConfig(applicationType);
+
+  if (!config) {
+    return null;
+  }
 
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ key: string; url: string; name: string }>>([]);
-  const [formData, setFormData] = useState({
-    category: "",
-    amount: "",
-    relatedProject: "",
-    description: "",
-    recipientName: "",
-    recipientAccount: "",
-    recipientBank: "",
-    recipientIdCard: "",
-    transactionNo: "",
-    transactionDate: "",
-    summary: "",
-    purpose: "",
-    accountPeriod: "",
-    taxHandling: "",
-  });
+  const [formData, setFormData] = useState<Record<string, any>>({});
+
+  // 初始化表单数据
+  useEffect(() => {
+    const initialData: Record<string, any> = {};
+    config.fields.forEach((field) => {
+      if (field.type === "auto") {
+        if (field.autoValue === "date") {
+          initialData[field.name] = new Date().toISOString().split("T")[0];
+        } else if (field.autoValue === "userName") {
+          initialData[field.name] = session?.user?.name || "";
+        }
+      } else {
+        initialData[field.name] = "";
+      }
+    });
+    setFormData(initialData);
+  }, [config, session]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // 构建提交数据
       const payload: any = {
-        type,
-        category: formData.category,
-        amount: parseFloat(formData.amount),
-        relatedProject: formData.relatedProject || undefined,
-        description: formData.description,
-        recipientName: formData.recipientName || undefined,
-        recipientAccount: formData.recipientAccount || undefined,
-        recipientBank: formData.recipientBank || undefined,
-        recipientIdCard: formData.recipientIdCard || undefined,
-        transactionNo: formData.transactionNo || undefined,
-        transactionDate: formData.transactionDate || undefined,
-        summary: formData.summary || undefined,
-        purpose: formData.purpose || undefined,
-        accountPeriod: formData.accountPeriod || undefined,
-        taxHandling: formData.taxHandling || undefined,
+        type: config.dbType,
+        category: applicationType,
         attachments: uploadedFiles.map((f) => ({ key: f.key, url: f.url, name: f.name })),
       };
+
+      // 映射表单字段到数据库字段
+      config.fields.forEach((field) => {
+        if (field.name === "attachments") {
+          return;
+        }
+
+        const value = formData[field.name];
+
+        if (field.name === "subcategory") {
+          payload.subcategory = value || undefined;
+        } else if (field.name === "amount") {
+          payload.amount = value ? parseFloat(value) : undefined;
+        } else if (field.name === "transactionDate") {
+          payload.transactionDate = value || undefined;
+        } else if (field.name === "relatedProject") {
+          payload.relatedProject = value || undefined;
+        } else if (field.name === "description") {
+          payload.description = value || undefined;
+        } else if (field.name === "recipientName") {
+          payload.recipientName = value || undefined;
+        } else if (field.name === "recipientAccount") {
+          payload.recipientAccount = value || undefined;
+        } else if (field.name === "recipientBank") {
+          payload.recipientBank = value || undefined;
+        } else if (field.name === "recipientIdCard") {
+          payload.recipientIdCard = value || undefined;
+        } else if (field.name === "summary") {
+          payload.summary = value || undefined;
+        } else if (field.name === "taxHandling") {
+          payload.taxHandling = value || undefined;
+        }
+      });
 
       const res = await fetch("/api/finance", {
         method: "POST",
@@ -114,218 +249,133 @@ export default function SubmitFinanceRecordPage() {
     setUploadedFiles((prev) => prev.filter((f) => f.key !== key));
   };
 
-  return (
-    <div className="container mx-auto p-4 sm:p-6 max-w-3xl">
-      <div className="mb-4 sm:mb-6">
-        <Link href="/finance" className="text-blue-600 hover:underline mb-4 inline-block text-sm sm:text-base">
-          ← 返回首页
-        </Link>
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-          {type === "income" ? "💰" : "💸"} {typeLabel}登记
-        </h1>
-      </div>
-
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 space-y-4 sm:space-y-6"
-      >
-        {/* 类别选择 */}
-        <div>
+  const renderField = (field: FormField) => {
+    if (field.type === "auto") {
+      return (
+        <div key={field.name}>
           <label className="block text-sm font-medium mb-2">
-            {typeLabel}类别<span className="text-red-500">*</span>
+            {field.label}
+            {field.required && <span className="text-red-500">*</span>}
           </label>
-          <select
-            required
-            value={formData.category}
-            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-          >
-            <option value="">请选择类别</option>
-            {categories.map((cat) => (
-              <option key={cat.value} value={cat.value}>
-                {cat.label}
-              </option>
-            ))}
-          </select>
+          <input
+            type="text"
+            value={formData[field.name] || ""}
+            readOnly
+            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm sm:text-base"
+          />
         </div>
+      );
+    }
 
-        {/* 金额 */}
-        <div>
+    if (field.type === "text") {
+      return (
+        <div key={field.name}>
           <label className="block text-sm font-medium mb-2">
-            金额（元）<span className="text-red-500">*</span>
+            {field.label}
+            {field.required && <span className="text-red-500">*</span>}
+          </label>
+          <input
+            type="text"
+            required={field.required}
+            value={formData[field.name] || ""}
+            onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+            placeholder={field.placeholder}
+          />
+        </div>
+      );
+    }
+
+    if (field.type === "textarea") {
+      return (
+        <div key={field.name}>
+          <label className="block text-sm font-medium mb-2">
+            {field.label}
+            {field.required && <span className="text-red-500">*</span>}
+          </label>
+          <textarea
+            required={field.required}
+            value={formData[field.name] || ""}
+            onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+            rows={4}
+            placeholder={field.placeholder}
+          />
+          {field.helpText && <p className="text-xs text-gray-500 mt-1">{field.helpText}</p>}
+        </div>
+      );
+    }
+
+    if (field.type === "number") {
+      return (
+        <div key={field.name}>
+          <label className="block text-sm font-medium mb-2">
+            {field.label}
+            {field.required && <span className="text-red-500">*</span>}
           </label>
           <input
             type="number"
             step="0.01"
-            required
-            value={formData.amount}
-            onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+            required={field.required}
+            value={formData[field.name] || ""}
+            onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-            placeholder="请输入金额"
+            placeholder={field.placeholder}
           />
         </div>
+      );
+    }
 
-        {/* 关联项目 */}
-        <div>
-          <label className="block text-sm font-medium mb-2">关联项目/活动名称</label>
-          <input
-            type="text"
-            value={formData.relatedProject}
-            onChange={(e) => setFormData({ ...formData, relatedProject: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-            placeholder="例：2024年度年会"
-          />
-        </div>
-
-        {/* 详细说明 */}
-        <div>
+    if (field.type === "date") {
+      return (
+        <div key={field.name}>
           <label className="block text-sm font-medium mb-2">
-            详细说明<span className="text-red-500">*</span>
+            {field.label}
+            {field.required && <span className="text-red-500">*</span>}
           </label>
-          <textarea
-            required
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          <input
+            type="date"
+            required={field.required}
+            value={formData[field.name] || ""}
+            onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-            rows={4}
-            placeholder="请详细描述事由"
           />
         </div>
+      );
+    }
 
-        {/* 收款人信息（支出类型需要） */}
-        {type === "expense" && (
-          <>
-            <div>
-              <label className="block text-sm font-medium mb-2">收款人/供应商名称</label>
-              <input
-                type="text"
-                value={formData.recipientName}
-                onChange={(e) => setFormData({ ...formData, recipientName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                placeholder="请输入收款人或供应商名称"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">收款账号</label>
-              <input
-                type="text"
-                value={formData.recipientAccount}
-                onChange={(e) => setFormData({ ...formData, recipientAccount: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                placeholder="银行卡号或支付宝账号"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">收款人开户行</label>
-              <input
-                type="text"
-                value={formData.recipientBank}
-                onChange={(e) => setFormData({ ...formData, recipientBank: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                placeholder="例：招商银行股份有限公司"
-              />
-            </div>
-
-            {/* 工资类需要身份证 */}
-            {formData.category === "salary" && (
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  收款人身份证号<span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.recipientIdCard}
-                  onChange={(e) => setFormData({ ...formData, recipientIdCard: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                  placeholder="请输入身份证号"
-                />
-              </div>
-            )}
-          </>
-        )}
-
-        {/* 银行流水信息（可选） */}
-        <div className="border-t pt-4">
-          <h3 className="text-sm font-medium mb-3 text-gray-700">银行流水信息（可选）</h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">流水号</label>
-              <input
-                type="text"
-                value={formData.transactionNo}
-                onChange={(e) => setFormData({ ...formData, transactionNo: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                placeholder="银行流水号"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">交易日期</label>
-              <input
-                type="date"
-                value={formData.transactionDate}
-                onChange={(e) => setFormData({ ...formData, transactionDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">摘要</label>
-              <input
-                type="text"
-                value={formData.summary}
-                onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                placeholder="例：跨行转账"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">用途</label>
-              <input
-                type="text"
-                value={formData.purpose}
-                onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                placeholder="例：往来款"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">账期</label>
-              <input
-                type="month"
-                value={formData.accountPeriod}
-                onChange={(e) => setFormData({ ...formData, accountPeriod: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-              />
-            </div>
-
-            {type === "expense" && formData.category === "salary" && (
-              <div>
-                <label className="block text-sm font-medium mb-2">个人所得税处理</label>
-                <select
-                  value={formData.taxHandling}
-                  onChange={(e) => setFormData({ ...formData, taxHandling: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                >
-                  <option value="">请选择</option>
-                  <option value="withhold">代扣代缴</option>
-                  <option value="self">自行申报</option>
-                  <option value="none">无需处理</option>
-                </select>
-              </div>
-            )}
-          </div>
+    if (field.type === "select") {
+      return (
+        <div key={field.name}>
+          <label className="block text-sm font-medium mb-2">
+            {field.label}
+            {field.required && <span className="text-red-500">*</span>}
+          </label>
+          <select
+            required={field.required}
+            value={formData[field.name] || ""}
+            onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+          >
+            <option value="">请选择</option>
+            {field.options?.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {field.helpText && <p className="text-xs text-gray-500 mt-1">{field.helpText}</p>}
         </div>
+      );
+    }
 
-        {/* 附件上传 */}
-        <div>
-          <label className="block text-sm font-medium mb-2">附件上传</label>
+    if (field.type === "file") {
+      return (
+        <div key={field.name}>
+          <label className="block text-sm font-medium mb-2">
+            {field.label}
+            {field.required && <span className="text-red-500">*</span>}
+          </label>
           <div className="border-2 border-dashed border-gray-300 rounded-md p-4">
             <input
               type="file"
@@ -335,7 +385,7 @@ export default function SubmitFinanceRecordPage() {
               disabled={uploading}
               className="w-full text-sm"
             />
-            <p className="text-xs text-gray-500 mt-2">支持图片、PDF、Word、Excel文件，单个文件最大10MB</p>
+            {field.helpText && <p className="text-xs text-gray-500 mt-2">{field.helpText}</p>}
 
             {uploading && <p className="text-sm text-blue-600 mt-2">上传中...</p>}
 
@@ -357,8 +407,28 @@ export default function SubmitFinanceRecordPage() {
             )}
           </div>
         </div>
+      );
+    }
 
-        {/* 提交按钮 */}
+    return null;
+  };
+
+  return (
+    <div className="container mx-auto p-4 sm:p-6 max-w-3xl">
+      <div className="mb-4 sm:mb-6">
+        <Link href="/finance/submit" className="text-blue-600 hover:underline mb-4 inline-block text-sm sm:text-base">
+          ← 返回选择页面
+        </Link>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">{config.label}</h1>
+        <p className="text-sm text-gray-600">{config.description}</p>
+      </div>
+
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 space-y-4 sm:space-y-6"
+      >
+        {config.fields.map((field) => renderField(field))}
+
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-2">
           <button
             type="submit"
@@ -368,7 +438,7 @@ export default function SubmitFinanceRecordPage() {
             {loading ? "提交中..." : "提交申请"}
           </button>
           <Link
-            href="/finance"
+            href="/finance/submit"
             className="flex-1 bg-gray-200 text-gray-700 py-2.5 sm:py-2 px-4 rounded-md hover:bg-gray-300 text-center text-sm sm:text-base font-medium"
           >
             取消

@@ -1,7 +1,16 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, ChartColumnBig, ClipboardList, PlusCircle, Shield } from "lucide-react";
+import {
+  ArrowRight,
+  ChartColumnBig,
+  ClipboardList,
+  PlusCircle,
+  Receipt,
+  Shield,
+  ShoppingCart,
+  Users,
+} from "lucide-react";
 import { auth } from "@/server/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,33 +48,15 @@ export default async function FinancePage() {
       </Card>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Link href="/finance/submit?type=income" className="group">
+        <Link href="/finance/submit" className="group">
           <Card className="h-full rounded-xl border border-border/60 bg-card shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.99]">
             <CardContent className="px-4 py-4 sm:px-5">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-semibold">收入登记</p>
-                  <p className="mt-1 text-xs text-muted-foreground">登记项目收入、服务收入等</p>
+                  <p className="text-sm font-semibold">新建申请</p>
+                  <p className="mt-1 text-xs text-muted-foreground">收入登记、采购支出、费用报销、劳务结算</p>
                 </div>
-                <PlusCircle className="h-4 w-4 text-emerald-600" />
-              </div>
-              <div className="mt-3 inline-flex items-center text-xs text-muted-foreground transition-colors group-hover:text-foreground">
-                去登记
-                <ArrowRight className="ml-1 h-3.5 w-3.5" />
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/finance/submit?type=expense" className="group">
-          <Card className="h-full rounded-xl border border-border/60 bg-card shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.99]">
-            <CardContent className="px-4 py-4 sm:px-5">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold">支出申请</p>
-                  <p className="mt-1 text-xs text-muted-foreground">申请物料费、交通费、工资等</p>
-                </div>
-                <ChartColumnBig className="h-4 w-4 text-blue-600" />
+                <PlusCircle className="h-4 w-4 text-blue-600" />
               </div>
               <div className="mt-3 inline-flex items-center text-xs text-muted-foreground transition-colors group-hover:text-foreground">
                 去申请
