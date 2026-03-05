@@ -18,6 +18,7 @@ import {
   ImageIcon,
   Upload,
   ScrollText,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,12 @@ const buildNavItems = (user?: AppUser) => {
         icon: ShieldCheck,
       },
       {
+        title: "项目统计",
+        href: "/finance/admin/project-stats",
+        activePath: "/finance/admin/project-stats",
+        icon: BarChart3,
+      },
+      {
         title: "审计日志",
         href: "/admin/audit-logs",
         activePath: "/admin/audit-logs",
@@ -122,6 +129,10 @@ export function SidebarContent({
 }: SidebarContentProps) {
   const pathname = usePathname();
   const navItems = buildNavItems(user);
+  const activeHref =
+    navItems
+      .filter((item) => pathname === item.activePath || pathname.startsWith(`${item.activePath}/`))
+      .sort((a, b) => b.activePath.length - a.activePath.length)[0]?.href || null;
 
   return (
     <div
@@ -163,7 +174,7 @@ export function SidebarContent({
       <div className="flex-1 overflow-y-auto py-4 px-3">
         <nav className={cn("space-y-1", isCollapsed ? "px-0" : "px-3")}>
           {navItems.map((item) => {
-            const isActive = pathname === item.activePath || pathname.startsWith(`${item.activePath}/`);
+            const isActive = item.href === activeHref;
             const Icon = item.icon;
 
             const linkContent = (

@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
+import { FinanceProjectSelector } from "@/components/finance-project-selector";
 
 type FinanceType = "income" | "expense";
 
@@ -350,11 +351,15 @@ export default function EditRecordPage() {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">关联项目/活动名称</Label>
-                <Input
-                  disabled={!canEdit}
+                <FinanceProjectSelector
                   value={formData.relatedProject}
-                  onChange={(e) => updateField("relatedProject", e.target.value)}
-                  className="h-9 border-border/60 text-xs disabled:opacity-60"
+                  onChange={(value) => updateField("relatedProject", value)}
+                  applicationType={formData.category}
+                  subcategory={formData.category}
+                  disabled={!canEdit}
+                  className="space-y-1.5"
+                  inputClassName="h-9 rounded-md text-xs shadow-none"
+                  showHint={false}
                 />
               </div>
             </div>

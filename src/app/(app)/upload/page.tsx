@@ -28,7 +28,9 @@ export default async function UploadPage() {
         <ul className="list-disc space-y-1 pl-5">
           <li>仅支持图片（PNG/JPG/GIF/WebP/SVG），单文件最大 5MB。</li>
           <li>成功后会返回直链地址，可用于头像、富文本等场景。</li>
-          <li>接口复用 <code className="font-mono">auth</code> session，需要登录后才能上传。</li>
+          <li>
+            接口复用 <code className="font-mono">auth</code> session，需要登录后才能上传。
+          </li>
         </ul>
       </div>
     </div>

@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
+import { FinanceProjectSelector } from "@/components/finance-project-selector";
 
 type UploadedFile = {
   key: string;
@@ -364,6 +365,25 @@ function ApplicationForm({
             value={formData[field.name] || ""}
             readOnly
             className="h-11 rounded-xl border-border/60 bg-muted/50 text-sm shadow-sm"
+          />
+        </div>
+      );
+    }
+
+    if (field.name === "relatedProject") {
+      return (
+        <div key={field.name} className="space-y-2">
+          <Label className="text-sm font-medium">
+            {field.label}
+            {field.required && <span className="text-destructive">*</span>}
+          </Label>
+          <FinanceProjectSelector
+            value={formData[field.name] || ""}
+            onChange={(value) => setFormData({ ...formData, [field.name]: value })}
+            applicationType={applicationType}
+            subcategory={formData.subcategory}
+            required={field.required}
+            placeholder={field.placeholder}
           />
         </div>
       );

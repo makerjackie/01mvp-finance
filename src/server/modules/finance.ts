@@ -64,6 +64,59 @@ const normalizeAttachmentUrls = (value: unknown): string[] | null => {
   return urls;
 };
 
+const ensureProjectByName = async ({
+  name,
+  subcategory,
+  applicationType,
+  userId,
+}: {
+  name: string;
+  subcategory?: string | null;
+  applicationType?: string | null;
+  userId: string;
+}) => {
+  const normalizedName = normalizeProjectName(name);
+  if (!normalizedName) return null;
+
+  const normalizedKey = toProjectNormalizedName(normalizedName);
+  if (!normalizedKey) return null;
+
+  const inferredCategory = inferProjectCategory({
+    subcategory,
+    applicationType,
+  });
+
+  const existing = await prisma.project.findUnique({
+    where: {
+      normalizedName: normalizedKey,
+    },
+  });
+
+  if (existing) {
+    if (existing.category === "other" && inferredCategory !== "other") {
+      const updated = await prisma.project.update({
+        where: {
+          id: existing.id,
+        },
+        data: {
+          category: inferredCategory,
+        },
+      });
+      return updated;
+    }
+    return existing;
+  }
+
+  return prisma.project.create({
+    data: {
+      name: normalizedName,
+      normalizedName: normalizedKey,
+      category: inferredCategory,
+      createdById: userId,
+    },
+  });
+};
+
 // 获取项目目录（用于关联项目搜索）
 app.get("/projects", async (c) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -100,7 +153,7 @@ app.get("/projects", async (c) => {
       id: project.id,
       name: project.name,
       category: project.category,
-      categoryLabel: PROJECT_CATEGORY_LABELS[project.category as ProjectCategory] || PROJECT_CATEGORY_LABELS.other,
+      categoryLabel: PROJECT_CATEGORY_LABELS[resolveProjectCategory(project.category)],
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     })),
@@ -155,7 +208,7 @@ app.post("/projects", async (c) => {
         id: project.id,
         name: project.name,
         category: project.category,
-        categoryLabel: PROJECT_CATEGORY_LABELS[project.category as ProjectCategory] || PROJECT_CATEGORY_LABELS.other,
+        categoryLabel: PROJECT_CATEGORY_LABELS[resolveProjectCategory(project.category)],
         created: false,
       },
     });
@@ -189,7 +242,7 @@ app.post("/projects", async (c) => {
       id: project.id,
       name: project.name,
       category: project.category,
-      categoryLabel: PROJECT_CATEGORY_LABELS[project.category as ProjectCategory] || PROJECT_CATEGORY_LABELS.other,
+      categoryLabel: PROJECT_CATEGORY_LABELS[resolveProjectCategory(project.category)],
       created: true,
     },
   });
@@ -224,13 +277,30 @@ app.post("/", async (c) => {
     return c.json({ error: "附件格式无效" }, 400);
   }
 
+  const rawRelatedProject = typeof data.relatedProject === "string" ? data.relatedProject : "";
+  const normalizedRelatedProject = normalizeProjectName(rawRelatedProject);
+  let relatedProject: string | null = normalizedRelatedProject || null;
+
+  if (normalizedRelatedProject) {
+    const project = await ensureProjectByName({
+      name: normalizedRelatedProject,
+      subcategory: typeof data.subcategory === "string" ? data.subcategory : null,
+      applicationType: typeof data.category === "string" ? data.category : null,
+      userId: session.user.id,
+    });
+
+    if (project?.name) {
+      relatedProject = project.name;
+    }
+  }
+
   const record = await prisma.financeRecord.create({
     data: {
       type: data.type,
       category: data.category,
       subcategory: data.subcategory || null,
       amount,
-      relatedProject: data.relatedProject || null,
+      relatedProject,
       description: data.description,
       attachments: attachmentUrls,
       recipientName: data.recipientName || null,
@@ -402,7 +472,34 @@ app.put("/:id", async (c) => {
     }
     updateData.amount = amount;
   }
-  if (data.relatedProject !== undefined) updateData.relatedProject = data.relatedProject;
+  if (data.relatedProject !== undefined) {
+    const normalizedRelatedProject = normalizeProjectName(
+      typeof data.relatedProject === "string" ? data.relatedProject : "",
+    );
+
+    if (!normalizedRelatedProject) {
+      updateData.relatedProject = null;
+    } else {
+      const project = await ensureProjectByName({
+        name: normalizedRelatedProject,
+        subcategory:
+          typeof data.subcategory === "string"
+            ? data.subcategory
+            : typeof record.subcategory === "string"
+              ? record.subcategory
+              : null,
+        applicationType:
+          typeof data.category === "string"
+            ? data.category
+            : typeof record.category === "string"
+              ? record.category
+              : null,
+        userId: session.user.id,
+      });
+
+      updateData.relatedProject = project?.name || normalizedRelatedProject;
+    }
+  }
   if (data.description !== undefined) updateData.description = data.description;
   if (data.recipientName !== undefined) updateData.recipientName = data.recipientName;
   if (data.recipientAccount !== undefined) updateData.recipientAccount = data.recipientAccount;
@@ -745,6 +842,197 @@ app.get("/admin/stats", async (c) => {
       pendingCount,
       approvedCount,
       rejectedCount,
+    },
+  });
+});
+
+// 管理员：按项目类别查看统计
+app.get("/admin/project-stats", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.user || session.user.role !== "admin") {
+    return c.json({ error: "无权访问" }, 403);
+  }
+
+  const scope = c.req.query("scope");
+  const scopeFilter = scope === "community" ? { isCommunity: true } : scope === "company" ? { isCommunity: false } : {};
+
+  const [projects, approvedRecords] = await Promise.all([
+    prisma.project.findMany({
+      where: {
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        normalizedName: true,
+        category: true,
+      },
+    }),
+    prisma.financeRecord.findMany({
+      where: {
+        status: "approved",
+        relatedProject: {
+          not: null,
+        },
+        ...scopeFilter,
+      },
+      select: {
+        id: true,
+        type: true,
+        amount: true,
+        relatedProject: true,
+      },
+    }),
+  ]);
+
+  const categoryStatsMap = new Map<
+    ProjectCategory,
+    {
+      category: ProjectCategory;
+      label: string;
+      projectCount: number;
+      recordCount: number;
+      totalIncome: number;
+      totalExpense: number;
+      balance: number;
+    }
+  >();
+
+  for (const category of PROJECT_CATEGORY_VALUES) {
+    categoryStatsMap.set(category, {
+      category,
+      label: PROJECT_CATEGORY_LABELS[category],
+      projectCount: 0,
+      recordCount: 0,
+      totalIncome: 0,
+      totalExpense: 0,
+      balance: 0,
+    });
+  }
+
+  const projectLookup = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      category: ProjectCategory;
+    }
+  >();
+
+  for (const project of projects) {
+    const category = resolveProjectCategory(project.category);
+    const bucket = categoryStatsMap.get(category);
+    if (bucket) {
+      bucket.projectCount += 1;
+    }
+
+    projectLookup.set(project.normalizedName, {
+      id: project.id,
+      name: project.name,
+      category,
+    });
+  }
+
+  const projectStatsMap = new Map<
+    string,
+    {
+      projectId: string | null;
+      name: string;
+      category: ProjectCategory;
+      categoryLabel: string;
+      recordCount: number;
+      totalIncome: number;
+      totalExpense: number;
+      balance: number;
+    }
+  >();
+
+  let totalIncome = 0;
+  let totalExpense = 0;
+  let unmatchedProjectCount = 0;
+  let trackedRecords = 0;
+
+  for (const record of approvedRecords) {
+    if (!record.relatedProject) continue;
+
+    const normalizedProjectName = toProjectNormalizedName(record.relatedProject);
+    if (!normalizedProjectName) continue;
+    trackedRecords += 1;
+
+    const linkedProject = projectLookup.get(normalizedProjectName);
+    const category = linkedProject?.category ?? "other";
+    const displayName = linkedProject?.name || normalizeProjectName(record.relatedProject);
+    const categoryBucket = categoryStatsMap.get(category);
+
+    if (categoryBucket) {
+      categoryBucket.recordCount += 1;
+    }
+
+    const projectBucket = projectStatsMap.get(normalizedProjectName) || {
+      projectId: linkedProject?.id || null,
+      name: displayName,
+      category,
+      categoryLabel: PROJECT_CATEGORY_LABELS[category],
+      recordCount: 0,
+      totalIncome: 0,
+      totalExpense: 0,
+      balance: 0,
+    };
+
+    projectBucket.recordCount += 1;
+
+    if (record.type === "income") {
+      projectBucket.totalIncome += record.amount;
+      totalIncome += record.amount;
+      if (categoryBucket) {
+        categoryBucket.totalIncome += record.amount;
+      }
+    } else {
+      projectBucket.totalExpense += record.amount;
+      totalExpense += record.amount;
+      if (categoryBucket) {
+        categoryBucket.totalExpense += record.amount;
+      }
+    }
+
+    projectBucket.balance = projectBucket.totalIncome - projectBucket.totalExpense;
+    projectStatsMap.set(normalizedProjectName, projectBucket);
+  }
+
+  for (const [normalizedName, stats] of projectStatsMap.entries()) {
+    if (!projectLookup.has(normalizedName) && stats.category === "other") {
+      unmatchedProjectCount += 1;
+    }
+  }
+
+  const categoryStats = Array.from(categoryStatsMap.values()).map((item) => ({
+    ...item,
+    balance: item.totalIncome - item.totalExpense,
+  }));
+
+  const projectStats = Array.from(projectStatsMap.values()).sort((a, b) => {
+    if (b.recordCount !== a.recordCount) {
+      return b.recordCount - a.recordCount;
+    }
+    return Math.abs(b.balance) - Math.abs(a.balance);
+  });
+
+  return c.json({
+    success: true,
+    data: {
+      scope: scope === "community" || scope === "company" ? scope : "all",
+      summary: {
+        totalProjects: projects.length,
+        involvedProjects: projectStats.length,
+        trackedRecords,
+        unmatchedProjectCount,
+        totalIncome,
+        totalExpense,
+        balance: totalIncome - totalExpense,
+      },
+      categories: categoryStats,
+      projects: projectStats,
     },
   });
 });
