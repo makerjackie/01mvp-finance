@@ -66,9 +66,31 @@
   * 锚点：长内容加 `id` 与 `scroll-margin-top`，配合 Sidebar/Rail 平滑滚动。
 * **实现建议**：提取 `ExampleLayout`/`LayoutShell` 组件，包含容器宽度、内边距、可选 Sidebar Slot。页面仅传入导航数据与内容，避免重复样式散落。
 
+### E. 财务提交页优先级（`/finance/submit`）
+* **核心入口排序**：提交类型/申请类型的第一位固定为 **报销**，并作为默认选项（在业务允许时）。
+* **快捷入口排序**：财务相关入口按使用频率排序，首位展示“报销申请”，其余入口再按业务优先级补充。
+* **降低决策成本**：报销入口使用高辨识度图标与明确文案，用户应可在 1 次点击内进入报销提交流程。
+
 ---
 
 ## 3. UI 组件规范 (Component Specs)
+
+### 字体系统 (Typography)
+为提升移动端可读性，默认字体基线升级为 **16px**，采用当前主流移动端信息密度：
+
+| 文本层级 | 推荐字号/行高（Mobile） | 建议字重 | Tailwind |
+| :--- | :--- | :--- | :--- |
+| 页面主标题（H1） | 24 / 32 | 700 | `text-2xl leading-8` |
+| 区块标题（H2） | 20 / 28 | 600 | `text-xl leading-7` |
+| 卡片标题（H3） | 18 / 26 | 600 | `text-lg leading-7` |
+| 正文（Body） | 16 / 24 | 400 | `text-base leading-6` |
+| 次级正文（Secondary） | 14 / 22 | 400 | `text-sm leading-6` |
+| 按钮/输入/主导航文案 | 16 / 24 | 500 | `text-base leading-6` |
+| 说明/注释（Caption） | 12 / 18 | 400 | `text-xs leading-5` |
+
+* **移动端下限**：正文不低于 `14px`，默认使用 `16px`；仅注释类信息使用 `12px`。
+* **表单可用性**：`input/select/textarea` 字号不低于 `16px`（避免 iOS 自动放大）。
+* **层级比例**：标题与正文保持约 `1.125 ~ 1.25` 的缩放梯度，避免“满屏小字”或层级断裂。
 
 ### 颜色系统 (Colors)
 *   **背景**：
@@ -112,6 +134,7 @@ We are building a "Hybrid App Shell" AI tool.
    - Use `lucide-react` icons.
 4. **Mobile Optimization**:
    - Ensure touch targets are at least 44px.
+   - Use `text-base` (16px) as the default body/input font size on mobile.
    - Bottom padding `pb-24` to account for the floating TabBar.
 ```
 
