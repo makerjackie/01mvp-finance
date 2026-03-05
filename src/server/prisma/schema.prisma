@@ -215,6 +215,8 @@ model Project {
   name           String
   normalizedName String   @unique
   category       String
+  settlementMode String   @default("cost_only") // cost_only(仅覆盖成本) | profit_share(盈利分成)
+  communitySharePercent Int @default(20) // 社区收入分成占比，配合 profit_share 使用
   isActive       Boolean  @default(true)
   createdById    String?
   createdAt      DateTime @default(now())

@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2, PlusCircle, Search } from "lucide-react";
-import { inferProjectCategory, PROJECT_CATEGORY_LABELS, toProjectNormalizedName } from "@/lib/project-categories";
+import {
+  DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT,
+  getSettlementDescription,
+  inferProjectCategory,
+  inferProjectSettlementConfig,
+  PROJECT_CATEGORY_LABELS,
+  PROJECT_SETTLEMENT_MODE_LABELS,
+  type ProjectSettlementMode,
+  toProjectNormalizedName,
+} from "@/lib/project-categories";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,6 +21,10 @@ type ProjectItem = {
   name: string;
   category: string;
   categoryLabel: string;
+  settlementMode: ProjectSettlementMode;
+  settlementModeLabel: string;
+  communitySharePercent: number;
+  settlementDescription: string;
 };
 
 type SearchResponse = {
@@ -28,6 +41,10 @@ type CreateResponse = {
     name: string;
     category: string;
     categoryLabel: string;
+    settlementMode: ProjectSettlementMode;
+    settlementModeLabel: string;
+    communitySharePercent: number;
+    settlementDescription: string;
     created: boolean;
   };
 };
@@ -68,8 +85,21 @@ export function FinanceProjectSelector({
     () => inferProjectCategory({ subcategory, applicationType }),
     [subcategory, applicationType],
   );
+  const inferredSettlement = useMemo(
+    () => inferProjectSettlementConfig({ subcategory, applicationType }),
+    [subcategory, applicationType],
+  );
+  const [selectedSettlementMode, setSelectedSettlementMode] = useState<ProjectSettlementMode>(
+    inferredSettlement.settlementMode,
+  );
+  const [communitySharePercent, setCommunitySharePercent] = useState(inferredSettlement.communitySharePercent);
 
   const normalizedCurrentValue = useMemo(() => toProjectNormalizedName(value), [value]);
+
+  useEffect(() => {
+    setSelectedSettlementMode(inferredSettlement.settlementMode);
+    setCommunitySharePercent(inferredSettlement.communitySharePercent);
+  }, [inferredSettlement.settlementMode, inferredSettlement.communitySharePercent]);
 
   useEffect(() => {
     if (!open || disabled) {
@@ -136,6 +166,10 @@ export function FinanceProjectSelector({
     setErrorMessage(null);
 
     try {
+      const normalizedSharePercent = Number.isFinite(communitySharePercent)
+        ? Math.max(0, Math.min(100, Math.round(communitySharePercent)))
+        : DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT;
+
       const res = await fetch("/api/finance/projects", {
         method: "POST",
         headers: {
@@ -146,6 +180,8 @@ export function FinanceProjectSelector({
           category: inferredCategory,
           subcategory,
           applicationType,
+          settlementMode: selectedSettlementMode,
+          communitySharePercent: normalizedSharePercent,
         }),
       });
 
@@ -222,10 +258,18 @@ export function FinanceProjectSelector({
                             active ? "bg-primary/10 text-primary" : "hover:bg-muted/70",
                           )}
                         >
-                          <span className="truncate text-sm font-medium">{item.name}</span>
-                          <span className="ml-2 shrink-0 rounded-full border border-border/60 bg-muted/60 px-2 py-0.5 text-[10px] text-muted-foreground">
-                            {item.categoryLabel}
-                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{item.name}</p>
+                            <p className="truncate text-[11px] text-muted-foreground">{item.settlementDescription}</p>
+                          </div>
+                          <div className="ml-2 flex shrink-0 items-center gap-1">
+                            <span className="rounded-full border border-border/60 bg-muted/60 px-2 py-0.5 text-[10px] text-muted-foreground">
+                              {item.categoryLabel}
+                            </span>
+                            <span className="rounded-full border border-border/60 bg-muted/60 px-2 py-0.5 text-[10px] text-muted-foreground">
+                              {item.settlementModeLabel}
+                            </span>
+                          </div>
                         </button>
                       );
                     })}
@@ -236,12 +280,58 @@ export function FinanceProjectSelector({
 
                 {canCreate && (
                   <div className="border-t border-border/60 p-1">
+                    <div className="space-y-1 rounded-lg bg-muted/30 px-2.5 py-2">
+                      <p className="text-[11px] font-medium text-muted-foreground">新建项目结算配置</p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {(["cost_only", "profit_share"] as ProjectSettlementMode[]).map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              setSelectedSettlementMode(mode);
+                            }}
+                            className={cn(
+                              "rounded-md border px-2 py-1 text-[11px] transition-colors",
+                              selectedSettlementMode === mode
+                                ? "border-primary/40 bg-primary/10 text-primary"
+                                : "border-border/60 bg-background text-muted-foreground hover:text-foreground",
+                            )}
+                          >
+                            {PROJECT_SETTLEMENT_MODE_LABELS[mode]}
+                          </button>
+                        ))}
+                      </div>
+
+                      {selectedSettlementMode === "profit_share" && (
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                          <span>社区分成</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={communitySharePercent}
+                            onChange={(event) => setCommunitySharePercent(Number(event.target.value || 0))}
+                            onMouseDown={(event) => event.stopPropagation()}
+                            className="h-7 w-16 rounded-md border-border/60 bg-background px-2 text-[11px]"
+                          />
+                          <span>
+                            %（默认 20%，团队 {100 - Math.max(0, Math.min(100, communitySharePercent || 0))}%）
+                          </span>
+                        </div>
+                      )}
+
+                      <p className="text-[11px] text-muted-foreground">
+                        {getSettlementDescription(selectedSettlementMode, communitySharePercent)}
+                      </p>
+                    </div>
+
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       disabled={creating}
-                      className="h-8 w-full justify-start gap-2 rounded-lg border-dashed border-border/60 text-xs"
+                      className="mt-1 h-8 w-full justify-start gap-2 rounded-lg border-dashed border-border/60 text-xs"
                       onMouseDown={(event) => {
                         event.preventDefault();
                         void handleCreate();
@@ -272,6 +362,7 @@ export function FinanceProjectSelector({
       {showHint && (
         <p className="text-xs text-muted-foreground">
           支持搜索已有项目；若没有匹配项，可一键新建并归类到“{PROJECT_CATEGORY_LABELS[inferredCategory]}”。
+          可设置为“仅覆盖成本”或“盈利分成”（默认社区 20% / 团队 80%）。
         </p>
       )}
 

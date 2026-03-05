@@ -5,13 +5,20 @@ import { auth } from "@/server/lib/auth";
 import { notifyAdmins, createNotification } from "@/server/lib/notification";
 import { createAuditLog } from "@/server/lib/audit";
 import {
+  clampCommunitySharePercent,
+  DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT,
+  getSettlementDescription,
+  inferProjectSettlementConfig,
   inferProjectCategory,
   isProjectCategory,
+  isProjectSettlementMode,
   normalizeProjectName,
   PROJECT_CATEGORY_LABELS,
   PROJECT_CATEGORY_VALUES,
+  PROJECT_SETTLEMENT_MODE_LABELS,
   toProjectNormalizedName,
   type ProjectCategory,
+  type ProjectSettlementMode,
 } from "@/lib/project-categories";
 
 const app = new Hono();
@@ -19,6 +26,8 @@ const app = new Hono();
 const PROJECT_SEARCH_MAX_LIMIT = 30;
 
 const resolveProjectCategory = (value: unknown): ProjectCategory => (isProjectCategory(value) ? value : "other");
+const resolveSettlementMode = (value: unknown): ProjectSettlementMode =>
+  isProjectSettlementMode(value) ? value : "cost_only";
 
 const parsePositiveAmount = (value: unknown): number | null => {
   const amount = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
@@ -69,11 +78,15 @@ const ensureProjectByName = async ({
   subcategory,
   applicationType,
   userId,
+  settlementMode,
+  communitySharePercent,
 }: {
   name: string;
   subcategory?: string | null;
   applicationType?: string | null;
   userId: string;
+  settlementMode?: ProjectSettlementMode;
+  communitySharePercent?: number;
 }) => {
   const normalizedName = normalizeProjectName(name);
   if (!normalizedName) return null;
@@ -85,6 +98,14 @@ const ensureProjectByName = async ({
     subcategory,
     applicationType,
   });
+  const inferredSettlement = inferProjectSettlementConfig({
+    subcategory,
+    applicationType,
+  });
+  const targetSettlementMode = settlementMode || inferredSettlement.settlementMode;
+  const targetCommunitySharePercent = clampCommunitySharePercent(
+    communitySharePercent ?? inferredSettlement.communitySharePercent,
+  );
 
   const existing = await prisma.project.findUnique({
     where: {
@@ -93,13 +114,21 @@ const ensureProjectByName = async ({
   });
 
   if (existing) {
-    if (existing.category === "other" && inferredCategory !== "other") {
+    const shouldUpdateCategory = existing.category === "other" && inferredCategory !== "other";
+    const shouldUpdateSettlementMode = existing.settlementMode !== targetSettlementMode && settlementMode !== undefined;
+    const shouldUpdateSharePercent =
+      existing.communitySharePercent !== targetCommunitySharePercent &&
+      (communitySharePercent !== undefined || shouldUpdateSettlementMode);
+
+    if (shouldUpdateCategory || shouldUpdateSettlementMode || shouldUpdateSharePercent) {
       const updated = await prisma.project.update({
         where: {
           id: existing.id,
         },
         data: {
-          category: inferredCategory,
+          ...(shouldUpdateCategory ? { category: inferredCategory } : {}),
+          ...(shouldUpdateSettlementMode ? { settlementMode: targetSettlementMode } : {}),
+          ...(shouldUpdateSharePercent ? { communitySharePercent: targetCommunitySharePercent } : {}),
         },
       });
       return updated;
@@ -112,6 +141,8 @@ const ensureProjectByName = async ({
       name: normalizedName,
       normalizedName: normalizedKey,
       category: inferredCategory,
+      settlementMode: targetSettlementMode,
+      communitySharePercent: targetCommunitySharePercent,
       createdById: userId,
     },
   });
@@ -154,6 +185,13 @@ app.get("/projects", async (c) => {
       name: project.name,
       category: project.category,
       categoryLabel: PROJECT_CATEGORY_LABELS[resolveProjectCategory(project.category)],
+      settlementMode: resolveSettlementMode(project.settlementMode),
+      settlementModeLabel: PROJECT_SETTLEMENT_MODE_LABELS[resolveSettlementMode(project.settlementMode)],
+      communitySharePercent: clampCommunitySharePercent(project.communitySharePercent),
+      settlementDescription: getSettlementDescription(
+        resolveSettlementMode(project.settlementMode),
+        clampCommunitySharePercent(project.communitySharePercent),
+      ),
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     })),
@@ -181,8 +219,18 @@ app.post("/projects", async (c) => {
     subcategory: typeof data?.subcategory === "string" ? data.subcategory : undefined,
     applicationType: typeof data?.applicationType === "string" ? data.applicationType : undefined,
   });
+  const inferredSettlement = inferProjectSettlementConfig({
+    subcategory: typeof data?.subcategory === "string" ? data.subcategory : undefined,
+    applicationType: typeof data?.applicationType === "string" ? data.applicationType : undefined,
+  });
 
   const requestedCategory = isProjectCategory(data?.category) ? data.category : inferredCategory;
+  const requestedSettlementMode: ProjectSettlementMode = isProjectSettlementMode(data?.settlementMode)
+    ? data.settlementMode
+    : inferredSettlement.settlementMode;
+  const requestedCommunitySharePercent = clampCommunitySharePercent(
+    data?.communitySharePercent ?? inferredSettlement.communitySharePercent,
+  );
   const normalizedName = toProjectNormalizedName(name);
 
   const existing = await prisma.project.findUnique({
@@ -193,14 +241,29 @@ app.post("/projects", async (c) => {
 
   if (existing) {
     const shouldUpdateCategory = existing.category === "other" && requestedCategory !== "other";
+    const shouldUpdateSettlementMode = existing.settlementMode !== requestedSettlementMode;
+    const shouldUpdateSharePercent = existing.communitySharePercent !== requestedCommunitySharePercent;
     const project = shouldUpdateCategory
       ? await prisma.project.update({
           where: { id: existing.id },
           data: {
             category: requestedCategory,
+            settlementMode: requestedSettlementMode,
+            communitySharePercent: requestedCommunitySharePercent,
           },
         })
-      : existing;
+      : shouldUpdateSettlementMode || shouldUpdateSharePercent
+        ? await prisma.project.update({
+            where: { id: existing.id },
+            data: {
+              settlementMode: requestedSettlementMode,
+              communitySharePercent: requestedCommunitySharePercent,
+            },
+          })
+        : existing;
+
+    const resolvedSettlementMode = resolveSettlementMode(project.settlementMode);
+    const resolvedSharePercent = clampCommunitySharePercent(project.communitySharePercent);
 
     return c.json({
       success: true,
@@ -209,6 +272,10 @@ app.post("/projects", async (c) => {
         name: project.name,
         category: project.category,
         categoryLabel: PROJECT_CATEGORY_LABELS[resolveProjectCategory(project.category)],
+        settlementMode: resolvedSettlementMode,
+        settlementModeLabel: PROJECT_SETTLEMENT_MODE_LABELS[resolvedSettlementMode],
+        communitySharePercent: resolvedSharePercent,
+        settlementDescription: getSettlementDescription(resolvedSettlementMode, resolvedSharePercent),
         created: false,
       },
     });
@@ -219,6 +286,8 @@ app.post("/projects", async (c) => {
       name,
       normalizedName,
       category: requestedCategory,
+      settlementMode: requestedSettlementMode,
+      communitySharePercent: requestedCommunitySharePercent,
       createdById: session.user.id,
     },
   });
@@ -243,7 +312,79 @@ app.post("/projects", async (c) => {
       name: project.name,
       category: project.category,
       categoryLabel: PROJECT_CATEGORY_LABELS[resolveProjectCategory(project.category)],
+      settlementMode: requestedSettlementMode,
+      settlementModeLabel: PROJECT_SETTLEMENT_MODE_LABELS[requestedSettlementMode],
+      communitySharePercent: requestedCommunitySharePercent,
+      settlementDescription: getSettlementDescription(requestedSettlementMode, requestedCommunitySharePercent),
       created: true,
+    },
+  });
+});
+
+// 管理员：更新项目结算配置
+app.put("/admin/projects/:id/config", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.user || session.user.role !== "admin") {
+    return c.json({ error: "无权操作" }, 403);
+  }
+
+  const projectId = c.req.param("id");
+  const data = await c.req.json();
+
+  const project = await prisma.project.findUnique({
+    where: {
+      id: projectId,
+    },
+  });
+
+  if (!project) {
+    return c.json({ error: "项目不存在" }, 404);
+  }
+
+  const settlementMode: ProjectSettlementMode | null = isProjectSettlementMode(data?.settlementMode)
+    ? data.settlementMode
+    : null;
+  if (!settlementMode) {
+    return c.json({ error: "无效的结算模式" }, 400);
+  }
+
+  const communitySharePercent = clampCommunitySharePercent(
+    data?.communitySharePercent ?? DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT,
+  );
+
+  const updated = await prisma.project.update({
+    where: { id: projectId },
+    data: {
+      settlementMode,
+      communitySharePercent,
+    },
+  });
+
+  await createAuditLog({
+    userId: session.user.id,
+    userName: session.user.name || "Unknown",
+    action: "update",
+    resource: "project",
+    resourceId: projectId,
+    changes: {
+      settlementMode,
+      communitySharePercent,
+    },
+    req: c.req.raw,
+  });
+
+  return c.json({
+    success: true,
+    data: {
+      id: updated.id,
+      name: updated.name,
+      category: updated.category,
+      categoryLabel: PROJECT_CATEGORY_LABELS[resolveProjectCategory(updated.category)],
+      settlementMode,
+      settlementModeLabel: PROJECT_SETTLEMENT_MODE_LABELS[settlementMode],
+      communitySharePercent,
+      settlementDescription: getSettlementDescription(settlementMode, communitySharePercent),
     },
   });
 });
@@ -867,6 +1008,8 @@ app.get("/admin/project-stats", async (c) => {
         name: true,
         normalizedName: true,
         category: true,
+        settlementMode: true,
+        communitySharePercent: true,
       },
     }),
     prisma.financeRecord.findMany({
@@ -917,11 +1060,15 @@ app.get("/admin/project-stats", async (c) => {
       id: string;
       name: string;
       category: ProjectCategory;
+      settlementMode: ProjectSettlementMode;
+      communitySharePercent: number;
     }
   >();
 
   for (const project of projects) {
     const category = resolveProjectCategory(project.category);
+    const settlementMode = resolveSettlementMode(project.settlementMode);
+    const communitySharePercent = clampCommunitySharePercent(project.communitySharePercent);
     const bucket = categoryStatsMap.get(category);
     if (bucket) {
       bucket.projectCount += 1;
@@ -931,6 +1078,8 @@ app.get("/admin/project-stats", async (c) => {
       id: project.id,
       name: project.name,
       category,
+      settlementMode,
+      communitySharePercent,
     });
   }
 
@@ -941,10 +1090,16 @@ app.get("/admin/project-stats", async (c) => {
       name: string;
       category: ProjectCategory;
       categoryLabel: string;
+      settlementMode: ProjectSettlementMode;
+      settlementModeLabel: string;
+      communitySharePercent: number;
+      settlementDescription: string;
       recordCount: number;
       totalIncome: number;
       totalExpense: number;
       balance: number;
+      communityShareIncome: number;
+      teamShareIncome: number;
     }
   >();
 
@@ -952,6 +1107,8 @@ app.get("/admin/project-stats", async (c) => {
   let totalExpense = 0;
   let unmatchedProjectCount = 0;
   let trackedRecords = 0;
+  let estimatedCommunityShareIncome = 0;
+  let estimatedTeamShareIncome = 0;
 
   for (const record of approvedRecords) {
     if (!record.relatedProject) continue;
@@ -963,6 +1120,8 @@ app.get("/admin/project-stats", async (c) => {
     const linkedProject = projectLookup.get(normalizedProjectName);
     const category = linkedProject?.category ?? "other";
     const displayName = linkedProject?.name || normalizeProjectName(record.relatedProject);
+    const settlementMode = linkedProject?.settlementMode ?? "cost_only";
+    const communitySharePercent = linkedProject?.communitySharePercent ?? DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT;
     const categoryBucket = categoryStatsMap.get(category);
 
     if (categoryBucket) {
@@ -974,10 +1133,16 @@ app.get("/admin/project-stats", async (c) => {
       name: displayName,
       category,
       categoryLabel: PROJECT_CATEGORY_LABELS[category],
+      settlementMode,
+      settlementModeLabel: PROJECT_SETTLEMENT_MODE_LABELS[settlementMode],
+      communitySharePercent,
+      settlementDescription: getSettlementDescription(settlementMode, communitySharePercent),
       recordCount: 0,
       totalIncome: 0,
       totalExpense: 0,
       balance: 0,
+      communityShareIncome: 0,
+      teamShareIncome: 0,
     };
 
     projectBucket.recordCount += 1;
@@ -987,6 +1152,18 @@ app.get("/admin/project-stats", async (c) => {
       totalIncome += record.amount;
       if (categoryBucket) {
         categoryBucket.totalIncome += record.amount;
+      }
+
+      if (projectBucket.settlementMode === "profit_share") {
+        const communityIncomePart = (record.amount * projectBucket.communitySharePercent) / 100;
+        const teamIncomePart = record.amount - communityIncomePart;
+        projectBucket.communityShareIncome += communityIncomePart;
+        projectBucket.teamShareIncome += teamIncomePart;
+        estimatedCommunityShareIncome += communityIncomePart;
+        estimatedTeamShareIncome += teamIncomePart;
+      } else {
+        projectBucket.communityShareIncome += record.amount;
+        estimatedCommunityShareIncome += record.amount;
       }
     } else {
       projectBucket.totalExpense += record.amount;
@@ -1018,6 +1195,33 @@ app.get("/admin/project-stats", async (c) => {
     return Math.abs(b.balance) - Math.abs(a.balance);
   });
 
+  const projectCatalog = projects
+    .map((project) => {
+      const settlementMode = resolveSettlementMode(project.settlementMode);
+      const communitySharePercent = clampCommunitySharePercent(project.communitySharePercent);
+      const statsKey = project.normalizedName;
+      const recordStats = projectStatsMap.get(statsKey);
+
+      return {
+        id: project.id,
+        name: project.name,
+        category: resolveProjectCategory(project.category),
+        categoryLabel: PROJECT_CATEGORY_LABELS[resolveProjectCategory(project.category)],
+        settlementMode,
+        settlementModeLabel: PROJECT_SETTLEMENT_MODE_LABELS[settlementMode],
+        communitySharePercent,
+        settlementDescription: getSettlementDescription(settlementMode, communitySharePercent),
+        recordCount: recordStats?.recordCount || 0,
+        totalIncome: recordStats?.totalIncome || 0,
+      };
+    })
+    .sort((a, b) => {
+      if (b.recordCount !== a.recordCount) {
+        return b.recordCount - a.recordCount;
+      }
+      return b.totalIncome - a.totalIncome;
+    });
+
   return c.json({
     success: true,
     data: {
@@ -1030,9 +1234,12 @@ app.get("/admin/project-stats", async (c) => {
         totalIncome,
         totalExpense,
         balance: totalIncome - totalExpense,
+        estimatedCommunityShareIncome,
+        estimatedTeamShareIncome,
       },
       categories: categoryStats,
       projects: projectStats,
+      catalog: projectCatalog,
     },
   });
 });

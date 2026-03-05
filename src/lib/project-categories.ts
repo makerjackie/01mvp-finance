@@ -12,6 +12,10 @@ export const PROJECT_CATEGORY_VALUES = [
 
 export type ProjectCategory = (typeof PROJECT_CATEGORY_VALUES)[number];
 
+export const PROJECT_SETTLEMENT_MODE_VALUES = ["cost_only", "profit_share"] as const;
+
+export type ProjectSettlementMode = (typeof PROJECT_SETTLEMENT_MODE_VALUES)[number];
+
 export const PROJECT_CATEGORY_LABELS: Record<ProjectCategory, string> = {
   entry_activity: "入门活动",
   advanced_activity: "进阶活动",
@@ -26,6 +30,13 @@ export const PROJECT_CATEGORY_OPTIONS = PROJECT_CATEGORY_VALUES.map((value) => (
   value,
   label: PROJECT_CATEGORY_LABELS[value],
 }));
+
+export const PROJECT_SETTLEMENT_MODE_LABELS: Record<ProjectSettlementMode, string> = {
+  cost_only: "仅覆盖成本",
+  profit_share: "盈利分成",
+};
+
+export const DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT = 20;
 
 const SUBCATEGORY_TO_PROJECT_CATEGORY: Record<string, ProjectCategory> = {
   entry_activity: "entry_activity",
@@ -52,6 +63,15 @@ const APPLICATION_TYPE_TO_CATEGORY: Record<FinanceApplicationType, ProjectCatego
 export const isProjectCategory = (value: unknown): value is ProjectCategory =>
   typeof value === "string" && PROJECT_CATEGORY_VALUES.includes(value as ProjectCategory);
 
+export const isProjectSettlementMode = (value: unknown): value is ProjectSettlementMode =>
+  typeof value === "string" && PROJECT_SETTLEMENT_MODE_VALUES.includes(value as ProjectSettlementMode);
+
+export const clampCommunitySharePercent = (value: unknown): number => {
+  const numeric = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isFinite(numeric)) return DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT;
+  return Math.min(100, Math.max(0, Math.round(numeric)));
+};
+
 export const normalizeProjectName = (name: string) => name.trim().replace(/\s+/g, " ");
 
 export const toProjectNormalizedName = (name: string) => normalizeProjectName(name).toLocaleLowerCase("zh-CN");
@@ -74,4 +94,38 @@ export const inferProjectCategory = ({
   }
 
   return "other";
+};
+
+export const inferProjectSettlementConfig = ({
+  subcategory,
+}: {
+  subcategory?: string | null;
+  applicationType?: FinanceApplicationType | string | null;
+}): {
+  settlementMode: ProjectSettlementMode;
+  communitySharePercent: number;
+} => {
+  const normalizedSubcategory = typeof subcategory === "string" ? subcategory.trim() : "";
+
+  if (normalizedSubcategory === "project_profit_share") {
+    return {
+      settlementMode: "profit_share",
+      communitySharePercent: DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT,
+    };
+  }
+
+  return {
+    settlementMode: "cost_only",
+    communitySharePercent: DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT,
+  };
+};
+
+export const getSettlementDescription = (settlementMode: ProjectSettlementMode, communitySharePercent: number) => {
+  if (settlementMode === "profit_share") {
+    const community = clampCommunitySharePercent(communitySharePercent);
+    const team = 100 - community;
+    return `分成规则：社区 ${community}% / 项目团队 ${team}%`;
+  }
+
+  return "仅覆盖成本，不做利润分成";
 };

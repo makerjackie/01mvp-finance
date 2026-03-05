@@ -2,11 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, BarChart3, FolderKanban, Layers, RefreshCcw, Wallet } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, BarChart3, FolderKanban, Layers, RefreshCcw, Save, Wallet } from "lucide-react";
 import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT,
+  PROJECT_SETTLEMENT_MODE_LABELS,
+  type ProjectSettlementMode,
+} from "@/lib/project-categories";
 import { cn } from "@/lib/utils";
 
 type Scope = "all" | "company" | "community";
@@ -26,10 +32,29 @@ type ProjectStat = {
   name: string;
   category: string;
   categoryLabel: string;
+  settlementMode: ProjectSettlementMode;
+  settlementModeLabel: string;
+  communitySharePercent: number;
+  settlementDescription: string;
   recordCount: number;
   totalIncome: number;
   totalExpense: number;
   balance: number;
+  communityShareIncome: number;
+  teamShareIncome: number;
+};
+
+type ProjectCatalogItem = {
+  id: string;
+  name: string;
+  category: string;
+  categoryLabel: string;
+  settlementMode: ProjectSettlementMode;
+  settlementModeLabel: string;
+  communitySharePercent: number;
+  settlementDescription: string;
+  recordCount: number;
+  totalIncome: number;
 };
 
 type ProjectStatsData = {
@@ -42,15 +67,23 @@ type ProjectStatsData = {
     totalIncome: number;
     totalExpense: number;
     balance: number;
+    estimatedCommunityShareIncome: number;
+    estimatedTeamShareIncome: number;
   };
   categories: CategoryStat[];
   projects: ProjectStat[];
+  catalog: ProjectCatalogItem[];
 };
 
 type StatsResponse = {
   success?: boolean;
   error?: string;
   data?: ProjectStatsData;
+};
+
+type UpdateProjectConfigResponse = {
+  success?: boolean;
+  error?: string;
 };
 
 const formatCurrency = (value: number) =>
@@ -70,6 +103,16 @@ export default function ProjectStatsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ProjectStatsData | null>(null);
+  const [savingProjectId, setSavingProjectId] = useState<string | null>(null);
+  const [configDrafts, setConfigDrafts] = useState<
+    Record<
+      string,
+      {
+        settlementMode: ProjectSettlementMode;
+        communitySharePercent: number;
+      }
+    >
+  >({});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -94,7 +137,18 @@ export default function ProjectStatsPage() {
           return;
         }
 
-        setData(result.data);
+        const statsData = result.data;
+        setData(statsData);
+        setConfigDrafts((prev) => {
+          const next = { ...prev };
+          for (const item of statsData.catalog) {
+            next[item.id] = {
+              settlementMode: next[item.id]?.settlementMode || item.settlementMode,
+              communitySharePercent: next[item.id]?.communitySharePercent ?? item.communitySharePercent,
+            };
+          }
+          return next;
+        });
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           return;
@@ -120,6 +174,60 @@ export default function ProjectStatsPage() {
       (item) => item.projectCount > 0 || item.recordCount > 0 || item.totalIncome > 0 || item.totalExpense > 0,
     );
   }, [data]);
+
+  const handleSaveProjectConfig = async (projectId: string) => {
+    const draft = configDrafts[projectId];
+    if (!draft) return;
+
+    setSavingProjectId(projectId);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/finance/admin/projects/${projectId}/config`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          settlementMode: draft.settlementMode,
+          communitySharePercent: draft.communitySharePercent,
+        }),
+      });
+
+      const result = (await res.json()) as UpdateProjectConfigResponse;
+      if (!res.ok || !result.success) {
+        setError(result.error || "项目配置保存失败");
+        return;
+      }
+
+      const params = new URLSearchParams();
+      if (scope !== "all") {
+        params.set("scope", scope);
+      }
+      const refreshed = await fetch(
+        `/api/finance/admin/project-stats${params.toString() ? `?${params.toString()}` : ""}`,
+      );
+      const refreshedResult = (await refreshed.json()) as StatsResponse;
+      if (refreshed.ok && refreshedResult.success && refreshedResult.data) {
+        const refreshedData = refreshedResult.data;
+        setData(refreshedData);
+        setConfigDrafts((prev) => {
+          const next = { ...prev };
+          for (const item of refreshedData.catalog) {
+            next[item.id] = {
+              settlementMode: item.settlementMode,
+              communitySharePercent: item.communitySharePercent,
+            };
+          }
+          return next;
+        });
+      }
+    } catch {
+      setError("项目配置保存失败");
+    } finally {
+      setSavingProjectId(null);
+    }
+  };
 
   return (
     <div className="space-y-3 md:space-y-5">
@@ -194,7 +302,7 @@ export default function ProjectStatsPage() {
         </Card>
       ) : data ? (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
             <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
               <CardContent className="px-3 py-3">
                 <p className="text-[11px] text-muted-foreground">项目总数</p>
@@ -234,6 +342,22 @@ export default function ProjectStatsPage() {
                 <p className="text-[11px] text-muted-foreground">净结余</p>
                 <p className="mt-1 text-sm font-semibold text-primary sm:text-base">
                   {formatCurrency(data.summary.balance)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
+              <CardContent className="px-3 py-3">
+                <p className="text-[11px] text-muted-foreground">社区应得收入</p>
+                <p className="mt-1 text-sm font-semibold text-emerald-600 sm:text-base">
+                  {formatCurrency(data.summary.estimatedCommunityShareIncome)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
+              <CardContent className="px-3 py-3">
+                <p className="text-[11px] text-muted-foreground">团队分成收入</p>
+                <p className="mt-1 text-sm font-semibold text-blue-600 sm:text-base">
+                  {formatCurrency(data.summary.estimatedTeamShareIncome)}
                 </p>
               </CardContent>
             </Card>
@@ -353,7 +477,7 @@ export default function ProjectStatsPage() {
                 </div>
               ) : (
                 <div className="max-h-[420px] overflow-auto">
-                  <table className="w-full min-w-[820px] border-separate border-spacing-0">
+                  <table className="w-full min-w-[1060px] border-separate border-spacing-0">
                     <thead>
                       <tr>
                         <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
@@ -361,6 +485,9 @@ export default function ProjectStatsPage() {
                         </th>
                         <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                           类别
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          结算配置
                         </th>
                         <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
                           记录数
@@ -374,6 +501,12 @@ export default function ProjectStatsPage() {
                         <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
                           净额
                         </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                          社区应得
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                          团队分成
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -386,6 +519,10 @@ export default function ProjectStatsPage() {
                               {item.categoryLabel}
                             </span>
                           </td>
+                          <td className="border-b border-border/40 px-3 py-2 text-xs text-muted-foreground">
+                            <p className="font-medium text-foreground">{item.settlementModeLabel}</p>
+                            <p>{item.settlementDescription}</p>
+                          </td>
                           <td className="border-b border-border/40 px-3 py-2 text-right text-sm">{item.recordCount}</td>
                           <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-emerald-600">
                             {formatCurrency(item.totalIncome)}
@@ -396,8 +533,139 @@ export default function ProjectStatsPage() {
                           <td className="border-b border-border/40 px-3 py-2 text-right text-sm font-semibold">
                             {formatCurrency(item.balance)}
                           </td>
+                          <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-emerald-600">
+                            {formatCurrency(item.communityShareIncome)}
+                          </td>
+                          <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-blue-600">
+                            {formatCurrency(item.teamShareIncome)}
+                          </td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border border-border/60 shadow-sm">
+            <CardHeader className="px-4 py-3 sm:px-5">
+              <CardTitle className="text-base">项目结算配置</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                支持配置“仅覆盖成本”与“盈利分成”。盈利分成默认规则：社区 20% / 项目团队 80%。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 px-3 pb-3 pt-0 sm:px-4 sm:pb-4">
+              {data.catalog.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+                  暂无可配置项目
+                </div>
+              ) : (
+                <div className="max-h-[420px] overflow-auto">
+                  <table className="w-full min-w-[980px] border-separate border-spacing-0">
+                    <thead>
+                      <tr>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          项目
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          类别
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          结算模式
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          社区分成%
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          说明
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                          操作
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.catalog.map((item) => {
+                        const draft = configDrafts[item.id] || {
+                          settlementMode: item.settlementMode,
+                          communitySharePercent: item.communitySharePercent,
+                        };
+
+                        const previewPercent =
+                          draft.settlementMode === "profit_share"
+                            ? Math.max(0, Math.min(100, Number(draft.communitySharePercent || 0)))
+                            : DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT;
+
+                        return (
+                          <tr key={item.id}>
+                            <td className="border-b border-border/40 px-3 py-2 text-sm">
+                              <p className="font-medium">{item.name}</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                记录 {item.recordCount} · 收入 {formatCurrency(item.totalIncome)}
+                              </p>
+                            </td>
+                            <td className="border-b border-border/40 px-3 py-2 text-xs text-muted-foreground">
+                              {item.categoryLabel}
+                            </td>
+                            <td className="border-b border-border/40 px-3 py-2">
+                              <select
+                                value={draft.settlementMode}
+                                onChange={(event) =>
+                                  setConfigDrafts((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...draft,
+                                      settlementMode: event.target.value as ProjectSettlementMode,
+                                    },
+                                  }))
+                                }
+                                className="h-8 rounded-md border border-border/60 bg-background px-2 text-xs"
+                              >
+                                <option value="cost_only">{PROJECT_SETTLEMENT_MODE_LABELS.cost_only}</option>
+                                <option value="profit_share">{PROJECT_SETTLEMENT_MODE_LABELS.profit_share}</option>
+                              </select>
+                            </td>
+                            <td className="border-b border-border/40 px-3 py-2">
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={draft.communitySharePercent}
+                                disabled={draft.settlementMode !== "profit_share"}
+                                onChange={(event) =>
+                                  setConfigDrafts((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...draft,
+                                      communitySharePercent: Number(event.target.value || 0),
+                                    },
+                                  }))
+                                }
+                                className="h-8 w-20 border-border/60 text-xs disabled:opacity-50"
+                              />
+                            </td>
+                            <td className="border-b border-border/40 px-3 py-2 text-xs text-muted-foreground">
+                              {draft.settlementMode === "profit_share"
+                                ? `社区 ${previewPercent}% / 团队 ${100 - previewPercent}%`
+                                : "仅覆盖成本，不分成"}
+                            </td>
+                            <td className="border-b border-border/40 px-3 py-2 text-right">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 gap-1 rounded-lg text-xs"
+                                disabled={savingProjectId === item.id}
+                                onClick={() => void handleSaveProjectConfig(item.id)}
+                              >
+                                <Save className="h-3.5 w-3.5" />
+                                {savingProjectId === item.id ? "保存中..." : "保存"}
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
