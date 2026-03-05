@@ -404,9 +404,16 @@ export function getApplicationTypeConfig(type: FinanceApplicationType): Applicat
   return APPLICATION_TYPES[type];
 }
 
+const APPLICATION_TYPE_DISPLAY_ORDER: FinanceApplicationType[] = [
+  "reimbursement",
+  "income_registration",
+  "procurement",
+  "labor_settlement",
+];
+
 // 获取所有申请类型列表
 export function getAllApplicationTypes(): ApplicationTypeConfig[] {
-  return Object.values(APPLICATION_TYPES);
+  return APPLICATION_TYPE_DISPLAY_ORDER.map((type) => APPLICATION_TYPES[type]);
 }
 
 // 获取类别标签（支持新旧类别）
