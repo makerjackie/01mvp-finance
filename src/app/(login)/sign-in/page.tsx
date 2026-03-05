@@ -4,7 +4,7 @@ import { Login } from "@/components/login";
 export default function SignInPage() {
   return (
     <Suspense fallback={<div>加载中...</div>}>
-      <Login mode="signin" />
+      <Login />
     </Suspense>
   );
 }

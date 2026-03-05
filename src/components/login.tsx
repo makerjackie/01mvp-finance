@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Smartphone, KeyRound, ShieldOff } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
@@ -10,38 +10,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { siteConfig } from "@/lib/config/site";
-import { cn } from "@/lib/utils";
 
-type Mode = "signin" | "signup";
-type AuthMethod = "sms" | "password";
+type Step = "phone" | "verify";
 
-export function Login({ mode = "signin" }: { mode?: Mode }) {
+export function Login() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect");
 
-  // 默认使用短信验证码登录
-  const [authMethod, setAuthMethod] = useState<AuthMethod>("sms");
+  const [step, setStep] = useState<Step>("phone");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [passwordLoginEnabled, setPasswordLoginEnabled] = useState(false);
-  const [smsLoginEnabled, setSmsLoginEnabled] = useState(true);
-  const [configLoading, setConfigLoading] = useState(true);
-  const lockedMessage = "当前已关闭所有登录方式，请联系管理员开启登录入口";
 
-  // 短信登录状态
   const [phoneNumber, setPhoneNumber] = useState("");
   const [smsCode, setSmsCode] = useState("");
-  const [smsSent, setSmsSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [needsName, setNeedsName] = useState(false);
   const [realName, setRealName] = useState("");
 
-  // 密码登录状态
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-
-  // 倒计时定时器
   useEffect(() => {
     if (!countdown) return;
     const timer = setInterval(() => {
@@ -50,84 +35,8 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // 获取后台配置（仅短信登录开关）
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchConfig = async () => {
-      try {
-        const res = await fetch("/api/system/config", { cache: "no-store" });
-        const data = await res.json();
-
-        if (!cancelled && data?.config) {
-          // 密码登录已下线，前后端统一固定关闭。
-          setPasswordLoginEnabled(false);
-          setSmsLoginEnabled(Boolean(data.config.smsLoginEnabled));
-        }
-      } catch {
-        // 网络异常时保留默认短信登录，避免阻塞登录
-      } finally {
-        if (!cancelled) {
-          setConfigLoading(false);
-        }
-      }
-    };
-
-    fetchConfig();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // 后台关闭密码登录时自动切回短信模式
-  useEffect(() => {
-    if (!passwordLoginEnabled && authMethod === "password" && smsLoginEnabled) {
-      setAuthMethod("sms");
-    }
-    if (!smsLoginEnabled && authMethod === "sms" && passwordLoginEnabled) {
-      setAuthMethod("password");
-    }
-  }, [authMethod, passwordLoginEnabled, smsLoginEnabled]);
-
-  const noAuthAvailable = !passwordLoginEnabled && !smsLoginEnabled;
-
-  useEffect(() => {
-    if (noAuthAvailable) {
-      setError(lockedMessage);
-    } else if (error === lockedMessage) {
-      setError(null);
-    }
-  }, [error, lockedMessage, noAuthAvailable]);
-
-  const handleAuthMethodChange = (method: AuthMethod) => {
-    if (noAuthAvailable) {
-      toast.error(lockedMessage);
-      return;
-    }
-    if (method === "sms" && !smsLoginEnabled) {
-      toast.error("当前已关闭短信登录，请联系管理员");
-      return;
-    }
-    if (method === "password" && !passwordLoginEnabled) {
-      toast.error("当前已关闭密码登录，请使用短信验证码登录");
-      return;
-    }
-
-    setAuthMethod(method);
-    setError(null);
-  };
-
-  // 发送验证码
-  const handleSendSms = async () => {
-    if (noAuthAvailable) {
-      setError(lockedMessage);
-      return;
-    }
-    if (!smsLoginEnabled) {
-      setError("当前已关闭短信登录，请联系管理员");
-      return;
-    }
+  const handleSendSms = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     if (!phoneNumber || !/^1\d{10}$/.test(phoneNumber)) {
       setError("请输入有效的手机号");
       return;
@@ -137,11 +46,9 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
     setIsPending(true);
 
     try {
-      // 先检查手机号是否已注册
       const checkRes = await fetch(`/api/auth/check-phone?phone=${phoneNumber}`);
       const checkData = await checkRes.json();
 
-      // 如果是新用户，标记需要填写姓名
       if (!checkData.exists) {
         setNeedsName(true);
       }
@@ -151,7 +58,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
       });
 
       if (data) {
-        setSmsSent(true);
+        setStep("verify");
         setSmsCode("");
         toast.success("验证码已发送");
         setCountdown(60);
@@ -165,28 +72,14 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
     }
   };
 
-  // 短信验证码登录
-  const handleSmsLogin = async (e: FormEvent<HTMLFormElement>) => {
+  const handleVerify = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!smsLoginEnabled) {
-      setError("当前已关闭短信登录，请联系管理员");
-      return;
-    }
-    if (noAuthAvailable) {
-      setError(lockedMessage);
-      return;
-    }
-    if (!phoneNumber || !/^1\d{10}$/.test(phoneNumber)) {
-      setError("请输入有效的手机号");
-      return;
-    }
 
     if (!smsCode || smsCode.length !== 6) {
       setError("请填写 6 位验证码");
       return;
     }
 
-    // 如果需要填写姓名但未填写
     if (needsName && !realName.trim()) {
       setError("请填写您的真实姓名");
       return;
@@ -208,7 +101,6 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
       }
 
       if (data) {
-        // 如果是新用户且填写了真实姓名，更新用户信息
         if (needsName && realName.trim()) {
           try {
             await fetch("/api/auth/update-profile", {
@@ -222,9 +114,7 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
         }
 
         toast.success("登录成功");
-        // 等待一小段时间让session写入完成
         await new Promise((resolve) => setTimeout(resolve, 300));
-        // 使用window.location.href强制完全刷新页面
         window.location.href = redirect ?? "/";
       } else {
         setError("验证失败，请重试");
@@ -236,167 +126,41 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
     }
   };
 
-  // 用户名密码登录
-  const handlePasswordLogin = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleResend = async () => {
     setError(null);
-
-    if (noAuthAvailable) {
-      setError(lockedMessage);
-      return;
-    }
-    if (!passwordLoginEnabled) {
-      setError("当前已关闭密码登录，请使用短信验证码登录");
-      return;
-    }
-
-    const trimmedUsername = username.trim();
-    if (!trimmedUsername) {
-      setError("请填写用户名");
-      return;
-    }
-
-    const normalizedUsername = trimmedUsername.toLowerCase();
-    const generatedEmail = `${normalizedUsername}@local.test`;
-
     setIsPending(true);
 
     try {
-      let result;
-      if (mode === "signin") {
-        result = await authClient.signIn.username({
-          username: normalizedUsername,
-          password,
-        });
-      } else {
-        result = await authClient.signUp.email({
-          email: generatedEmail,
-          password,
-          name: name || trimmedUsername,
-          username: normalizedUsername,
-        });
-      }
+      const { data, error } = await authClient.phoneNumber.sendOtp({
+        phoneNumber,
+      });
 
-      if (result.error) {
-        setError(result.error.message ?? "登录失败");
-        setIsPending(false);
-        return;
-      }
-
-      if (result.data) {
-        toast.success(mode === "signin" ? "登录成功" : "注册成功");
-        // 等待更长时间让 cookie 完全写入
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        // 使用 window.location.href 强制完全刷新页面
-        window.location.href = redirect ?? "/finance";
+      if (data) {
+        toast.success("验证码已重新发送");
+        setCountdown(60);
       } else {
-        setError("登录失败，请重试");
-        setIsPending(false);
+        setError(error?.message || "发送失败");
       }
     } catch {
       setError("网络错误，请重试");
+    } finally {
       setIsPending(false);
     }
   };
 
-  const switchHref = `${mode === "signin" ? siteConfig.links.signup : siteConfig.links.signin}${
-    redirect ? `?redirect=${redirect}` : ""
-  }`;
-
-  const headingTitle = noAuthAvailable
-    ? "登录入口已暂时关闭"
-    : authMethod === "sms"
-      ? "手机号登录"
-      : mode === "signin"
-        ? "欢迎回来"
-        : "创建账号";
-  const headingDescription = noAuthAvailable
-    ? "请联系管理员开启短信登录后再尝试。"
-    : authMethod === "sms"
-      ? "未注册手机号验证后自动创建账号"
-      : mode === "signin"
-        ? `登录您的 ${siteConfig.name} 账号`
-        : `注册 ${siteConfig.name} 账号，开始使用`;
-
   return (
     <div className="w-full p-6 sm:p-8">
-      <div className="mb-8 space-y-2 text-center">
-        <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{headingTitle}</h2>
-        <p className="text-sm text-muted-foreground">{headingDescription}</p>
-      </div>
-
-      {/* 登录方式切换 */}
-      <div className="mb-8 flex rounded-xl bg-muted p-1">
-        <button
-          type="button"
-          onClick={() => handleAuthMethodChange("sms")}
-          disabled={!smsLoginEnabled && !configLoading}
-          className={cn(
-            "flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
-            authMethod === "sms"
-              ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/5"
-              : "text-muted-foreground hover:text-foreground",
-            !smsLoginEnabled && "opacity-50 cursor-not-allowed",
-          )}
-        >
-          <Smartphone className="h-4 w-4" />
-          验证码登录
-        </button>
-        {passwordLoginEnabled && (
-          <button
-            type="button"
-            onClick={() => handleAuthMethodChange("password")}
-            disabled={noAuthAvailable || (!passwordLoginEnabled && !configLoading)}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
-              authMethod === "password"
-                ? "bg-background text-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/5"
-                : "text-muted-foreground hover:text-foreground",
-              (!passwordLoginEnabled || noAuthAvailable) && "opacity-50 cursor-not-allowed",
-            )}
-          >
-            <KeyRound className="h-4 w-4" />
-            密码登录
-          </button>
-        )}
-      </div>
-
-      {noAuthAvailable && !configLoading && (
-        <div className="mb-6 flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-destructive">
-          <ShieldOff className="mt-0.5 h-4 w-4" />
-          <div className="space-y-1">
-            <p className="text-sm font-semibold leading-none">登录入口已关闭</p>
-            <p className="text-xs text-destructive/80">请联系管理员开启短信登录后再尝试。</p>
+      {step === "phone" ? (
+        <>
+          <div className="mb-8 space-y-2 text-center">
+            <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">手机号登录</h2>
+            <p className="text-sm text-muted-foreground">未注册手机号验证后自动创建账号</p>
           </div>
-        </div>
-      )}
 
-      {!passwordLoginEnabled && !configLoading && (
-        <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
-          <ShieldOff className="mt-0.5 h-4 w-4" />
-          <div className="space-y-1">
-            <p className="text-sm font-semibold leading-none">密码登录已关闭</p>
-            <p className="text-xs text-amber-800/80">当前仅支持手机号验证码登录。</p>
-          </div>
-        </div>
-      )}
-
-      {!smsLoginEnabled && !configLoading && (
-        <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
-          <ShieldOff className="mt-0.5 h-4 w-4" />
-          <div className="space-y-1">
-            <p className="text-sm font-semibold leading-none">短信登录已关闭</p>
-            <p className="text-xs text-amber-800/80">请联系管理员开启短信验证码登录。</p>
-          </div>
-        </div>
-      )}
-
-      {authMethod === "sms" && smsLoginEnabled ? (
-        <form onSubmit={handleSmsLogin} className="space-y-5 animate-fade-in">
-          <div className="space-y-2">
-            <Label htmlFor="phone">手机号</Label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
+          <form onSubmit={handleSendSms} className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="phone">手机号</Label>
+              <div className="relative">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground select-none">
                   +86
                 </span>
@@ -413,209 +177,135 @@ export function Login({ mode = "signin" }: { mode?: Mode }) {
                   placeholder="请输入手机号"
                   maxLength={11}
                   className="pl-12 text-base"
+                  autoFocus
                 />
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleSendSms}
-                disabled={isPending || countdown > 0 || !smsLoginEnabled || noAuthAvailable}
-                className="shrink-0 px-4 min-w-[110px]"
-              >
-                {countdown > 0 ? `${countdown}s` : "获取验证码"}
-              </Button>
             </div>
+
+            {error && (
+              <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                {error}
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" size="lg" disabled={isPending}>
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  发送中...
+                </>
+              ) : (
+                "获取验证码"
+              )}
+            </Button>
+
+            <p className="text-center text-xs text-muted-foreground">
+              点击获取验证码即表示您同意我们的
+              <Link href="/terms" className="underline underline-offset-4 hover:text-primary">
+                服务条款
+              </Link>
+              {" 和 "}
+              <Link href="/privacy" className="underline underline-offset-4 hover:text-primary">
+                隐私政策
+              </Link>
+            </p>
+          </form>
+        </>
+      ) : (
+        <>
+          <div className="mb-8 space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                setStep("phone");
+                setError(null);
+                setSmsCode("");
+                setRealName("");
+              }}
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              返回
+            </button>
+            <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">输入验证码</h2>
+            <p className="text-sm text-muted-foreground">验证码已发送至 +86 {phoneNumber}</p>
           </div>
 
-          {smsSent && (
-            <>
-              <div className="space-y-2 animate-slide-up">
-                <Label htmlFor="code">验证码</Label>
-                <Input
-                  id="code"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  value={smsCode}
-                  onChange={(e) => {
-                    setSmsCode(e.target.value.replace(/\D/g, ""));
-                    setError(null);
-                  }}
-                  placeholder="请输入 6 位验证码"
-                  maxLength={6}
-                  className="tracking-widest text-base"
-                />
-              </div>
-
-              {needsName && (
-                <div className="space-y-2 animate-slide-up">
-                  <Label htmlFor="realName">
-                    真实姓名<span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="realName"
-                    type="text"
-                    autoComplete="name"
-                    value={realName}
-                    onChange={(e) => {
-                      setRealName(e.target.value);
-                      setError(null);
-                    }}
-                    placeholder="请输入您的真实姓名"
-                    maxLength={50}
-                    className="text-base"
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">首次注册需要填写真实姓名，用于财务申请</p>
-                </div>
-              )}
-            </>
-          )}
-
-          {error && (
-            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive flex items-center gap-2 animate-slide-up">
-              <div className="h-1.5 w-1.5 rounded-full bg-destructive" />
-              {error}
-            </div>
-          )}
-
-          <Button
-            type="submit"
-            className="w-full"
-            size="lg"
-            disabled={isPending || !smsSent || !smsLoginEnabled || noAuthAvailable}
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                处理中...
-              </>
-            ) : (
-              "登录 / 注册"
-            )}
-          </Button>
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            点击登录即表示您同意我们的
-            <Link href="/terms" className="underline underline-offset-4 hover:text-primary">
-              服务条款
-            </Link>
-            {" 和 "}
-            <Link href="/privacy" className="underline underline-offset-4 hover:text-primary">
-              隐私政策
-            </Link>
-          </p>
-        </form>
-      ) : passwordLoginEnabled ? (
-        <form onSubmit={handlePasswordLogin} className="space-y-5 animate-fade-in">
-          {mode === "signup" && (
+          <form onSubmit={handleVerify} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="name">昵称（可选）</Label>
+              <Label htmlFor="code">验证码</Label>
               <Input
-                id="name"
+                id="code"
                 type="text"
-                autoComplete="name"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={smsCode}
                 onChange={(e) => {
-                  setName(e.target.value);
+                  setSmsCode(e.target.value.replace(/\D/g, ""));
                   setError(null);
                 }}
-                value={name}
-                maxLength={50}
-                placeholder="设置一个好听的昵称"
-                className="text-base"
+                placeholder="请输入 6 位验证码"
+                maxLength={6}
+                className="tracking-widest text-base text-center text-lg"
+                autoFocus
               />
             </div>
-          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="username">用户名</Label>
-            <Input
-              id="username"
-              value={username}
-              onChange={(e) => {
-                setUsername(e.target.value);
-                setError(null);
-              }}
-              type="text"
-              autoComplete="username"
-              required
-              maxLength={50}
-              placeholder="例如: demo"
-              className="text-base"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">密码</Label>
-              {mode === "signin" && (
-                <Link
-                  href="/forgot-password"
-                  className="text-xs text-muted-foreground underline-offset-4 hover:text-primary hover:underline"
-                >
-                  忘记密码？
-                </Link>
-              )}
-            </div>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setError(null);
-              }}
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              required
-              minLength={8}
-              maxLength={100}
-              placeholder="至少 8 位字符"
-              className="text-base"
-            />
-          </div>
-
-          {error && (
-            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive flex items-center gap-2 animate-slide-up">
-              <div className="h-1.5 w-1.5 rounded-full bg-destructive" />
-              {error}
-            </div>
-          )}
-
-          <Button
-            type="submit"
-            className="w-full"
-            size="lg"
-            disabled={isPending || !passwordLoginEnabled || noAuthAvailable}
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                处理中...
-              </>
-            ) : mode === "signin" ? (
-              "登录"
-            ) : (
-              "创建账号"
+            {needsName && (
+              <div className="space-y-2">
+                <Label htmlFor="realName">
+                  真实姓名<span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="realName"
+                  type="text"
+                  autoComplete="name"
+                  value={realName}
+                  onChange={(e) => {
+                    setRealName(e.target.value);
+                    setError(null);
+                  }}
+                  placeholder="请输入您的真实姓名"
+                  maxLength={50}
+                  className="text-base"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">首次注册需要填写真实姓名，用于财务申请</p>
+              </div>
             )}
-          </Button>
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            点击登录即表示您同意我们的
-            <Link href="/terms" className="underline underline-offset-4 hover:text-primary">
-              服务条款
-            </Link>
-            {" 和 "}
-            <Link href="/privacy" className="underline underline-offset-4 hover:text-primary">
-              隐私政策
-            </Link>
-          </p>
-        </form>
-      ) : null}
 
-      <div className="mt-8 text-center text-sm">
-        <span className="text-muted-foreground">{mode === "signin" ? "还没有账号？" : "已经有账号？"}</span>
-        <Link href={switchHref} className="ml-2 font-medium text-primary underline-offset-4 hover:underline">
-          {mode === "signin" ? "立即注册" : "直接登录"}
-        </Link>
-      </div>
+            {error && (
+              <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                {error}
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" size="lg" disabled={isPending}>
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  验证中...
+                </>
+              ) : (
+                "登录 / 注册"
+              )}
+            </Button>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={countdown > 0 || isPending}
+                className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {countdown > 0 ? `${countdown}s 后可重新发送` : "重新发送验证码"}
+              </button>
+            </div>
+          </form>
+        </>
+      )}
     </div>
   );
 }
