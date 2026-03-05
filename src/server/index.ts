@@ -5,6 +5,8 @@ import authController from "./modules/auth";
 import systemRoutes from "./modules/system";
 import financeRoutes from "./modules/finance";
 import uploadRoutes from "./modules/upload";
+import notificationRoutes from "./modules/notification";
+import auditRoutes from "./modules/audit";
 import type { AuthEnv } from "./middleware";
 
 export const app = new Hono<AuthEnv>()
@@ -15,7 +17,9 @@ export const app = new Hono<AuthEnv>()
   .route("/auth", authController)
   .route("/system", systemRoutes)
   .route("/finance", financeRoutes)
-  .route("/upload", uploadRoutes);
+  .route("/upload", uploadRoutes)
+  .route("/notification", notificationRoutes)
+  .route("/audit", auditRoutes);
 
 export type AppType = typeof app;
 export default app;

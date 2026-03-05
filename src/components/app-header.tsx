@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, ChevronRight, Home } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ChevronRight, Home } from "lucide-react";
 import { MobileSidebar } from "@/components/app-sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogoMark } from "@/components/logo";
+import { NotificationBell } from "@/components/notification-bell";
 import { cn } from "@/lib/utils";
 import { isImmersivePage } from "@/lib/config/navigation";
 
@@ -79,14 +79,7 @@ export function AppHeader({ user }: AppHeaderProps) {
 
       {/* Right: Actions */}
       <div className="ml-auto flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
-        >
-          <Bell className="h-4 w-4" />
-          <span className="sr-only">通知</span>
-        </Button>
+        {user && <NotificationBell />}
 
         {/* Mobile Avatar (Sidebar has it, but TopNav also good for context) */}
         <div className="md:hidden">

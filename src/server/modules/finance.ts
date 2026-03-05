@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import type { Prisma } from "@/server/prisma/generated/prisma/client";
 import { prisma } from "@/server/lib/db";
 import { auth } from "@/server/lib/auth";
+import { notifyAdmins, createNotification } from "@/server/lib/notification";
+import { createAuditLog } from "@/server/lib/audit";
 
 const app = new Hono();
 
@@ -56,6 +58,24 @@ app.post("/", async (c) => {
         },
       },
     },
+  });
+
+  await notifyAdmins({
+    type: "finance_submitted",
+    title: "新的财务申请",
+    content: `${session.user.name} 提交了一条${data.type === "income" ? "收入" : "支出"}申请`,
+    link: `/finance/edit/${record.id}`,
+    financeRecordId: record.id,
+  });
+
+  await createAuditLog({
+    userId: session.user.id,
+    userName: session.user.name || "Unknown",
+    action: "create",
+    resource: "finance_record",
+    resourceId: record.id,
+    metadata: { type: data.type, amount: data.amount },
+    req: c.req.raw,
   });
 
   return c.json({ success: true, data: record });
@@ -192,6 +212,16 @@ app.put("/:id", async (c) => {
     },
   });
 
+  await createAuditLog({
+    userId: session.user.id,
+    userName: session.user.name || "Unknown",
+    action: "update",
+    resource: "finance_record",
+    resourceId: id,
+    changes: updateData,
+    req: c.req.raw,
+  });
+
   return c.json({ success: true, data: updated });
 });
 
@@ -224,6 +254,15 @@ app.delete("/:id", async (c) => {
 
   await prisma.financeRecord.delete({
     where: { id },
+  });
+
+  await createAuditLog({
+    userId: session.user.id,
+    userName: session.user.name || "Unknown",
+    action: "delete",
+    resource: "finance_record",
+    resourceId: id,
+    req: c.req.raw,
   });
 
   return c.json({ success: true });
@@ -304,6 +343,25 @@ app.post("/:id/review", async (c) => {
     },
   });
 
+  await createNotification({
+    userId: record.userId,
+    type: "finance_reviewed",
+    title: data.status === "approved" ? "申请已通过" : "申请已拒绝",
+    content: `您的财务申请已${data.status === "approved" ? "通过" : "拒绝"}审核`,
+    link: `/finance/edit/${record.id}`,
+    financeRecordId: record.id,
+  });
+
+  await createAuditLog({
+    userId: session.user.id,
+    userName: session.user.name || "Unknown",
+    action: "review",
+    resource: "finance_record",
+    resourceId: id,
+    changes: { status: data.status, reviewNote: data.reviewNote },
+    req: c.req.raw,
+  });
+
   return c.json({ success: true, data: updated });
 });
 
@@ -346,6 +404,25 @@ app.post("/:id/mark-paid", async (c) => {
         },
       },
     },
+  });
+
+  await createNotification({
+    userId: record.userId,
+    type: "finance_paid",
+    title: "款项已支付",
+    content: "您的财务申请款项已支付",
+    link: `/finance/edit/${record.id}`,
+    financeRecordId: record.id,
+  });
+
+  await createAuditLog({
+    userId: session.user.id,
+    userName: session.user.name || "Unknown",
+    action: "mark_paid",
+    resource: "finance_record",
+    resourceId: id,
+    changes: { paymentStatus: "paid", paymentDate: data.paymentDate },
+    req: c.req.raw,
   });
 
   return c.json({ success: true, data: updated });
