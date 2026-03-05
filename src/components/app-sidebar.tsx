@@ -17,6 +17,7 @@ import {
   MessageSquare,
   ImageIcon,
   Upload,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { authClient } from "@/lib/auth-client";
 import { Logo } from "@/components/logo";
+import { NotificationBell } from "@/components/notification-bell";
 import { canAccessAdmin } from "@/lib/rbac";
 
 type AppUser = User & { role?: string | null };
@@ -84,12 +86,20 @@ const buildNavItems = (user?: AppUser) => {
   }
 
   if (canAccessAdmin(user)) {
-    items.push({
-      title: "审核后台",
-      href: "/finance/admin",
-      activePath: "/finance/admin",
-      icon: ShieldCheck,
-    });
+    items.push(
+      {
+        title: "审核后台",
+        href: "/finance/admin",
+        activePath: "/finance/admin",
+        icon: ShieldCheck,
+      },
+      {
+        title: "审计日志",
+        href: "/admin/audit-logs",
+        activePath: "/admin/audit-logs",
+        icon: ScrollText,
+      },
+    );
   }
 
   return items;
@@ -192,37 +202,49 @@ export function SidebarContent({
 
       <div className="p-3 border-t border-border/40">
         {user ? (
-          <div
-            className={cn(
-              "flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group",
-              isCollapsed && "justify-center",
-            )}
-          >
-            <Avatar className="h-9 w-9 border border-border/50">
-              <AvatarImage src={user.image || undefined} />
-              <AvatarFallback className="bg-primary/10 text-primary text-xs">{user.name?.[0] || "U"}</AvatarFallback>
-            </Avatar>
-            {!isCollapsed && (
-              <>
-                <div className="flex-1 overflow-hidden">
-                  <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={async () => {
-                    await authClient.signOut();
-                    window.location.href = "/";
-                  }}
-                  title="退出登录"
-                >
-                  <LogOut className="h-4 w-4 text-muted-foreground" />
-                </Button>
-              </>
-            )}
-          </div>
+          <>
+            <div
+              className={cn(
+                "mb-2 flex items-center rounded-lg p-1.5",
+                isCollapsed ? "justify-center" : "justify-between gap-2 px-2.5",
+              )}
+            >
+              {!isCollapsed && <span className="text-xs font-medium text-muted-foreground">通知</span>}
+              <NotificationBell />
+            </div>
+
+            <div
+              className={cn(
+                "flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group",
+                isCollapsed && "justify-center",
+              )}
+            >
+              <Avatar className="h-9 w-9 border border-border/50">
+                <AvatarImage src={user.image || undefined} />
+                <AvatarFallback className="bg-primary/10 text-primary text-xs">{user.name?.[0] || "U"}</AvatarFallback>
+              </Avatar>
+              {!isCollapsed && (
+                <>
+                  <div className="flex-1 overflow-hidden">
+                    <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={async () => {
+                      await authClient.signOut();
+                      window.location.href = "/";
+                    }}
+                    title="退出登录"
+                  >
+                    <LogOut className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </>
+              )}
+            </div>
+          </>
         ) : (
           <div className="p-2">
             {isCollapsed ? (

@@ -23,6 +23,7 @@ import {
   RefreshCcw,
   Search,
   ShieldCheck,
+  ScrollText,
   Trash2,
   X,
   XCircle,
@@ -521,6 +522,12 @@ export default function AdminPage() {
             <Badge variant="outline" className="rounded-full border-border/60 bg-muted/50 text-xs">
               Finance Admin
             </Badge>
+            <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs">
+              <Link href="/admin/audit-logs">
+                <ScrollText className="h-3.5 w-3.5" />
+                审计日志
+              </Link>
+            </Button>
           </div>
           <div className="space-y-1">
             <div className="flex items-center gap-2">

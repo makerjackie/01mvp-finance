@@ -79,7 +79,11 @@ export function AppHeader({ user }: AppHeaderProps) {
 
       {/* Right: Actions */}
       <div className="ml-auto flex items-center gap-2">
-        {user && <NotificationBell />}
+        {user && (
+          <div className="md:hidden">
+            <NotificationBell />
+          </div>
+        )}
 
         {/* Mobile Avatar (Sidebar has it, but TopNav also good for context) */}
         <div className="md:hidden">
