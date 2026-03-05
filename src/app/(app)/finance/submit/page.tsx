@@ -34,7 +34,7 @@ type SessionData = {
 type FinanceCreatePayload = {
   type: "income" | "expense";
   category: FinanceApplicationType;
-  attachments: UploadedFile[];
+  attachments: string[];
   subcategory?: string;
   amount?: number;
   transactionDate?: string;
@@ -191,7 +191,7 @@ function ApplicationForm({
       const payload: FinanceCreatePayload = {
         type: config.dbType,
         category: applicationType,
-        attachments: uploadedFiles,
+        attachments: uploadedFiles.map((file) => file.url),
       };
 
       // 映射表单字段到数据库字段

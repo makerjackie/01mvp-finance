@@ -45,7 +45,7 @@ interface FinanceRecord {
   taxHandling?: string;
   reviewNote?: string;
   reviewedAt?: string;
-  attachments?: Attachment[];
+  attachments?: unknown[];
 }
 
 type EditFormData = {
@@ -95,6 +95,41 @@ const formatDateTime = (value: string) =>
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+
+const getFileNameFromUrl = (url: string, fallback: string) => {
+  const pathname = url.split("?")[0];
+  const fileName = pathname.split("/").pop();
+  if (!fileName) return fallback;
+  try {
+    return decodeURIComponent(fileName);
+  } catch {
+    return fileName;
+  }
+};
+
+const normalizeAttachment = (file: unknown, index: number): Attachment | null => {
+  if (typeof file === "string") {
+    const url = file.trim();
+    if (!url) return null;
+    return {
+      key: `${url}-${index}`,
+      url,
+      name: getFileNameFromUrl(url, `附件${index + 1}`),
+    };
+  }
+
+  if (file && typeof file === "object" && "url" in file && typeof file.url === "string" && file.url.trim()) {
+    const url = file.url.trim();
+    const key = "key" in file && typeof file.key === "string" && file.key.trim() ? file.key : `${url}-${index}`;
+    const name =
+      "name" in file && typeof file.name === "string" && file.name.trim()
+        ? file.name
+        : getFileNameFromUrl(url, `附件${index + 1}`);
+    return { key, url, name };
+  }
+
+  return null;
+};
 
 export default function EditRecordPage() {
   const params = useParams();
@@ -212,6 +247,9 @@ export default function EditRecordPage() {
 
   const canEdit = record.status === "pending";
   const categories = FINANCE_CATEGORIES[formData.type];
+  const attachments = (record.attachments ?? [])
+    .map((file, index) => normalizeAttachment(file, index))
+    .filter((file): file is Attachment => file !== null);
 
   return (
     <div className="space-y-3 md:space-y-5">
@@ -461,13 +499,13 @@ export default function EditRecordPage() {
           </CardContent>
         </Card>
 
-        {record.attachments && record.attachments.length > 0 && (
+        {attachments.length > 0 && (
           <Card className="rounded-xl border border-border/60 shadow-sm">
             <CardHeader className="px-4 py-3 sm:px-5">
               <CardTitle className="text-base">附件</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5 px-4 pb-4 pt-0 sm:px-5">
-              {record.attachments.map((file, index) => (
+              {attachments.map((file, index) => (
                 <div
                   key={`${file.key}-${index}`}
                   className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/20 px-2.5 py-2"

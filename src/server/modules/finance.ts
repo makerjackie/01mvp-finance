@@ -7,6 +7,38 @@ import { createAuditLog } from "@/server/lib/audit";
 
 const app = new Hono();
 
+const parsePositiveAmount = (value: unknown): number | null => {
+  const amount = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+};
+
+const normalizeAttachmentUrls = (value: unknown): string[] | null => {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) return null;
+
+  const urls: string[] = [];
+  for (const item of value) {
+    if (typeof item === "string") {
+      const url = item.trim();
+      if (!url) continue;
+      urls.push(url);
+      continue;
+    }
+
+    if (item && typeof item === "object" && "url" in item) {
+      const url = item.url;
+      if (typeof url === "string" && url.trim()) {
+        urls.push(url.trim());
+        continue;
+      }
+    }
+
+    return null;
+  }
+
+  return urls;
+};
+
 // 创建财务记录
 app.post("/", async (c) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -18,7 +50,7 @@ app.post("/", async (c) => {
   const data = await c.req.json();
 
   // 基本验证
-  if (!data.type || !data.category || !data.amount || !data.description) {
+  if (!data.type || !data.category || !data.description) {
     return c.json({ error: "缺少必填字段" }, 400);
   }
 
@@ -26,15 +58,25 @@ app.post("/", async (c) => {
     return c.json({ error: "无效的记录类型" }, 400);
   }
 
+  const amount = parsePositiveAmount(data.amount);
+  if (amount === null) {
+    return c.json({ error: "金额必须是大于0的数字" }, 400);
+  }
+
+  const attachmentUrls = normalizeAttachmentUrls(data.attachments);
+  if (attachmentUrls === null) {
+    return c.json({ error: "附件格式无效" }, 400);
+  }
+
   const record = await prisma.financeRecord.create({
     data: {
       type: data.type,
       category: data.category,
       subcategory: data.subcategory || null,
-      amount: Number(data.amount),
+      amount,
       relatedProject: data.relatedProject || null,
       description: data.description,
-      attachments: data.attachments || [],
+      attachments: attachmentUrls,
       recipientName: data.recipientName || null,
       recipientAccount: data.recipientAccount || null,
       recipientBank: data.recipientBank || null,
@@ -174,10 +216,21 @@ app.put("/:id", async (c) => {
   }
 
   const updateData: Prisma.FinanceRecordUpdateInput = {};
-  if (data.type !== undefined) updateData.type = data.type;
+  if (data.type !== undefined) {
+    if (!["income", "expense"].includes(data.type)) {
+      return c.json({ error: "无效的记录类型" }, 400);
+    }
+    updateData.type = data.type;
+  }
   if (data.category !== undefined) updateData.category = data.category;
   if (data.subcategory !== undefined) updateData.subcategory = data.subcategory;
-  if (data.amount !== undefined) updateData.amount = Number(data.amount);
+  if (data.amount !== undefined) {
+    const amount = parsePositiveAmount(data.amount);
+    if (amount === null) {
+      return c.json({ error: "金额必须是大于0的数字" }, 400);
+    }
+    updateData.amount = amount;
+  }
   if (data.relatedProject !== undefined) updateData.relatedProject = data.relatedProject;
   if (data.description !== undefined) updateData.description = data.description;
   if (data.recipientName !== undefined) updateData.recipientName = data.recipientName;
@@ -191,7 +244,13 @@ app.put("/:id", async (c) => {
   if (data.purpose !== undefined) updateData.purpose = data.purpose;
   if (data.accountPeriod !== undefined) updateData.accountPeriod = data.accountPeriod;
   if (data.taxHandling !== undefined) updateData.taxHandling = data.taxHandling;
-  if (data.attachments !== undefined) updateData.attachments = data.attachments;
+  if (data.attachments !== undefined) {
+    const attachmentUrls = normalizeAttachmentUrls(data.attachments);
+    if (attachmentUrls === null) {
+      return c.json({ error: "附件格式无效" }, 400);
+    }
+    updateData.attachments = attachmentUrls;
+  }
 
   // 只有管理员可以修改 isCommunity 字段
   if (session.user.role === "admin" && data.isCommunity !== undefined) {

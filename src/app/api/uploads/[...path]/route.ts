@@ -3,8 +3,17 @@ import { readBinary } from "@/server/lib/storage";
 
 export async function GET(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   try {
-    const { path } = await context.params;
-    const filePath = path.join("/");
+    const { path: segments } = await context.params;
+    if (
+      segments.length === 0 ||
+      segments.some(
+        (segment) => !segment || segment === "." || segment === ".." || segment.includes("/") || segment.includes("\\"),
+      )
+    ) {
+      return new NextResponse("Invalid file path", { status: 400 });
+    }
+
+    const filePath = segments.join("/");
     const buffer = await readBinary(filePath);
 
     // 根据文件扩展名设置Content-Type
