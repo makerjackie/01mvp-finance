@@ -31,6 +31,15 @@ type SessionData = {
   };
 } | null;
 
+type ProfileResponse = {
+  profile?: {
+    name?: string;
+    idCardNumber?: string;
+    bankAccountNumber?: string;
+    bankName?: string;
+  };
+};
+
 type FinanceCreatePayload = {
   type: "income" | "expense";
   category: FinanceApplicationType;
@@ -167,6 +176,7 @@ function ApplicationForm({
 
   // 初始化表单数据
   useEffect(() => {
+    let cancelled = false;
     const initialData: Record<string, string> = {};
     config.fields.forEach((field) => {
       if (field.type === "auto") {
@@ -180,6 +190,57 @@ function ApplicationForm({
       }
     });
     setFormData(initialData);
+
+    const hasReusableFields = ["recipientName", "recipientIdCard", "recipientAccount", "recipientBank"].some(
+      (fieldName) => fieldName in initialData,
+    );
+
+    if (!hasReusableFields) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const loadProfileDefaults = async () => {
+      try {
+        const response = await fetch("/api/user/profile");
+        if (!response.ok || cancelled) {
+          return;
+        }
+
+        const result = (await response.json()) as ProfileResponse;
+        const profile = result.profile;
+
+        if (!profile || cancelled) {
+          return;
+        }
+
+        setFormData((prev) => {
+          const next = { ...prev };
+          if ("recipientName" in next && !next.recipientName) {
+            next.recipientName = profile.name?.trim() || "";
+          }
+          if ("recipientIdCard" in next && !next.recipientIdCard) {
+            next.recipientIdCard = profile.idCardNumber?.trim() || "";
+          }
+          if ("recipientAccount" in next && !next.recipientAccount) {
+            next.recipientAccount = profile.bankAccountNumber?.trim() || "";
+          }
+          if ("recipientBank" in next && !next.recipientBank) {
+            next.recipientBank = profile.bankName?.trim() || "";
+          }
+          return next;
+        });
+      } catch (error) {
+        console.error("加载个人资料失败", error);
+      }
+    };
+
+    void loadProfileDefaults();
+
+    return () => {
+      cancelled = true;
+    };
   }, [config, session]);
 
   const handleSubmit = async (e: React.FormEvent) => {

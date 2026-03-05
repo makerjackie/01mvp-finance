@@ -23,6 +23,9 @@ export default async function ProfileSettingsPage() {
     where: { id: user.id },
     select: {
       phoneNumber: true,
+      idCardNumber: true,
+      bankAccountNumber: true,
+      bankName: true,
     },
   });
 
@@ -52,6 +55,9 @@ export default async function ProfileSettingsPage() {
             username={user.username}
             email={user.email}
             phoneNumber={fullUser?.phoneNumber}
+            idCardNumber={fullUser?.idCardNumber}
+            bankAccountNumber={fullUser?.bankAccountNumber}
+            bankName={fullUser?.bankName}
           />
         </CardContent>
       </Card>

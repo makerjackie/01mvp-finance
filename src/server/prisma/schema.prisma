@@ -18,6 +18,9 @@ model User {
   phoneNumberVerified Boolean        @default(false)
   emailVerified       Boolean
   image               String?
+  idCardNumber        String?
+  bankAccountNumber   String?
+  bankName            String?
   role                String?        @default("user") // "admin" | "user"
   banned              Boolean?       @default(false)
   banReason           String?
@@ -204,6 +207,21 @@ model FeatureFlag {
   updatedById       String?
 
   @@map("feature_flag")
+}
+
+// 项目目录表 - 用于关联项目搜索与分类统计
+model Project {
+  id             String   @id @default(cuid()) @map("_id")
+  name           String
+  normalizedName String   @unique
+  category       String
+  isActive       Boolean  @default(true)
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([category, isActive])
+  @@map("project")
 }
 
 // 财务记录表 - 统一存储所有类型的财务申请

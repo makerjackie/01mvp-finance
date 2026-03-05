@@ -26,6 +26,9 @@ export default async function MePage() {
     where: { id: user.id },
     select: {
       phoneNumber: true,
+      idCardNumber: true,
+      bankAccountNumber: true,
+      bankName: true,
     },
   });
 
@@ -86,10 +89,13 @@ export default async function MePage() {
             <Card className="overflow-hidden rounded-2xl border border-border/60 shadow-sm">
               <CardContent className="space-y-6 p-4 md:p-6">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <InfoRow label="昵称" value={displayName} />
+                  <InfoRow label="姓名" value={displayName} />
                   <InfoRow label="用户名" value={user.username || "未设置"} />
                   <InfoRow label="邮箱" value={email || "未填写"} />
                   <InfoRow label="手机号" value={fullUser?.phoneNumber || "未绑定"} />
+                  <InfoRow label="身份证" value={maskIdCard(fullUser?.idCardNumber)} />
+                  <InfoRow label="银行卡号" value={maskBankAccount(fullUser?.bankAccountNumber)} />
+                  <InfoRow label="开户银行" value={fullUser?.bankName || "未填写"} />
                 </div>
               </CardContent>
             </Card>
@@ -148,6 +154,18 @@ export default async function MePage() {
       </div>
     </div>
   );
+}
+
+function maskIdCard(idCard?: string | null) {
+  if (!idCard) return "未填写";
+  if (idCard.length <= 8) return idCard;
+  return `${idCard.slice(0, 3)}********${idCard.slice(-3)}`;
+}
+
+function maskBankAccount(bankAccount?: string | null) {
+  if (!bankAccount) return "未填写";
+  if (bankAccount.length <= 8) return bankAccount;
+  return `${bankAccount.slice(0, 4)} **** **** ${bankAccount.slice(-4)}`;
 }
 
 function StatsItem({ label, value }: { label: string; value: string }) {

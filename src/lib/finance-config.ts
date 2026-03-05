@@ -234,14 +234,14 @@ export const APPLICATION_TYPES: Record<FinanceApplicationType, ApplicationTypeCo
         name: "recipientAccount",
         label: "收款人账号",
         type: "text",
-        required: true,
+        required: false,
         placeholder: "请输入收款账号",
       },
       {
         name: "recipientBank",
         label: "收款人开户行",
         type: "text",
-        required: true,
+        required: false,
         placeholder: "请输入开户行信息",
       },
       {

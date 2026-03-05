@@ -4,12 +4,37 @@ import { prisma } from "@/server/lib/db";
 import { auth } from "@/server/lib/auth";
 import { notifyAdmins, createNotification } from "@/server/lib/notification";
 import { createAuditLog } from "@/server/lib/audit";
+import {
+  inferProjectCategory,
+  isProjectCategory,
+  normalizeProjectName,
+  PROJECT_CATEGORY_LABELS,
+  PROJECT_CATEGORY_VALUES,
+  toProjectNormalizedName,
+  type ProjectCategory,
+} from "@/lib/project-categories";
 
 const app = new Hono();
+
+const PROJECT_SEARCH_MAX_LIMIT = 30;
+
+const resolveProjectCategory = (value: unknown): ProjectCategory => (isProjectCategory(value) ? value : "other");
 
 const parsePositiveAmount = (value: unknown): number | null => {
   const amount = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   return Number.isFinite(amount) && amount > 0 ? amount : null;
+};
+
+const normalizeBankAccountNumber = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/\s+/g, "");
+  return normalized ? normalized : null;
+};
+
+const normalizeBankName = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized ? normalized : null;
 };
 
 const normalizeAttachmentUrls = (value: unknown): string[] | null => {
@@ -38,6 +63,137 @@ const normalizeAttachmentUrls = (value: unknown): string[] | null => {
 
   return urls;
 };
+
+// 获取项目目录（用于关联项目搜索）
+app.get("/projects", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.user) {
+    return c.json({ error: "未登录" }, 401);
+  }
+
+  const query = c.req.query("query")?.trim() ?? "";
+  const parsedLimit = Number(c.req.query("limit") || 8);
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.max(1, Math.min(PROJECT_SEARCH_MAX_LIMIT, Math.floor(parsedLimit)))
+    : 8;
+
+  const projects = await prisma.project.findMany({
+    where: {
+      isActive: true,
+      ...(query
+        ? {
+            name: {
+              contains: query,
+              mode: "insensitive",
+            },
+          }
+        : {}),
+    },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+    take: limit,
+  });
+
+  return c.json({
+    success: true,
+    data: projects.map((project) => ({
+      id: project.id,
+      name: project.name,
+      category: project.category,
+      categoryLabel: PROJECT_CATEGORY_LABELS[project.category as ProjectCategory] || PROJECT_CATEGORY_LABELS.other,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+    })),
+  });
+});
+
+// 新建项目（搜索不到时快捷创建）
+app.post("/projects", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.user) {
+    return c.json({ error: "未登录" }, 401);
+  }
+
+  const data = await c.req.json();
+
+  const rawName = typeof data?.name === "string" ? data.name : "";
+  const name = normalizeProjectName(rawName);
+
+  if (name.length < 2 || name.length > 60) {
+    return c.json({ error: "项目名称长度需在 2 到 60 个字符之间" }, 400);
+  }
+
+  const inferredCategory = inferProjectCategory({
+    subcategory: typeof data?.subcategory === "string" ? data.subcategory : undefined,
+    applicationType: typeof data?.applicationType === "string" ? data.applicationType : undefined,
+  });
+
+  const requestedCategory = isProjectCategory(data?.category) ? data.category : inferredCategory;
+  const normalizedName = toProjectNormalizedName(name);
+
+  const existing = await prisma.project.findUnique({
+    where: {
+      normalizedName,
+    },
+  });
+
+  if (existing) {
+    const shouldUpdateCategory = existing.category === "other" && requestedCategory !== "other";
+    const project = shouldUpdateCategory
+      ? await prisma.project.update({
+          where: { id: existing.id },
+          data: {
+            category: requestedCategory,
+          },
+        })
+      : existing;
+
+    return c.json({
+      success: true,
+      data: {
+        id: project.id,
+        name: project.name,
+        category: project.category,
+        categoryLabel: PROJECT_CATEGORY_LABELS[project.category as ProjectCategory] || PROJECT_CATEGORY_LABELS.other,
+        created: false,
+      },
+    });
+  }
+
+  const project = await prisma.project.create({
+    data: {
+      name,
+      normalizedName,
+      category: requestedCategory,
+      createdById: session.user.id,
+    },
+  });
+
+  await createAuditLog({
+    userId: session.user.id,
+    userName: session.user.name || "Unknown",
+    action: "create",
+    resource: "project",
+    resourceId: project.id,
+    metadata: {
+      name: project.name,
+      category: project.category,
+    },
+    req: c.req.raw,
+  });
+
+  return c.json({
+    success: true,
+    data: {
+      id: project.id,
+      name: project.name,
+      category: project.category,
+      categoryLabel: PROJECT_CATEGORY_LABELS[project.category as ProjectCategory] || PROJECT_CATEGORY_LABELS.other,
+      created: true,
+    },
+  });
+});
 
 // 创建财务记录
 app.post("/", async (c) => {
@@ -101,6 +257,21 @@ app.post("/", async (c) => {
       },
     },
   });
+
+  if (data.category === "reimbursement") {
+    const bankAccountNumber = normalizeBankAccountNumber(data.recipientAccount);
+    const bankName = normalizeBankName(data.recipientBank);
+
+    if (bankAccountNumber || bankName) {
+      await prisma.user.update({
+        where: { id: session.user.id },
+        data: {
+          ...(bankAccountNumber ? { bankAccountNumber } : {}),
+          ...(bankName ? { bankName } : {}),
+        },
+      });
+    }
+  }
 
   await notifyAdmins({
     type: "finance_submitted",
