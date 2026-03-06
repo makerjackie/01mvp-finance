@@ -11,6 +11,7 @@ import {
   type FinanceApplicationType,
   type FormField,
 } from "@/lib/finance-config";
+import { DEFAULT_EXPENSE_CATEGORY_OPTIONS, type ExpenseCategoryOption } from "@/lib/finance-expense-categories";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,6 +57,14 @@ type FinanceCreatePayload = {
   recipientIdCard?: string;
   summary?: string;
   taxHandling?: string;
+};
+
+type ExpenseCategoryConfigItem = {
+  id: string;
+  value: string;
+  label: string;
+  sortOrder: number;
+  isActive: boolean;
 };
 
 const LEGACY_TYPE_MAPPING: Record<string, FinanceApplicationType> = {
@@ -174,6 +183,63 @@ function ApplicationForm({
   const [uploading, setUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [formData, setFormData] = useState<Record<string, string>>({});
+  const [expenseCategoryOptions, setExpenseCategoryOptions] = useState<ExpenseCategoryOption[]>(
+    DEFAULT_EXPENSE_CATEGORY_OPTIONS,
+  );
+  const [loadingExpenseCategories, setLoadingExpenseCategories] = useState(applicationType === "reimbursement");
+
+  useEffect(() => {
+    if (applicationType !== "reimbursement") {
+      setExpenseCategoryOptions(DEFAULT_EXPENSE_CATEGORY_OPTIONS);
+      setLoadingExpenseCategories(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadExpenseCategories = async () => {
+      setLoadingExpenseCategories(true);
+      try {
+        const response = await fetch("/api/finance/expense-categories");
+        if (!response.ok || cancelled) {
+          return;
+        }
+
+        const result = (await response.json()) as {
+          success?: boolean;
+          data?: ExpenseCategoryConfigItem[];
+        };
+
+        if (!result.success || !Array.isArray(result.data) || cancelled) {
+          return;
+        }
+
+        const options = result.data
+          .filter((item) => item.isActive)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((item) => ({
+            value: item.value,
+            label: item.label,
+          }));
+
+        if (options.length > 0) {
+          setExpenseCategoryOptions(options);
+        }
+      } catch (error) {
+        console.error("加载费用归属类别失败", error);
+      } finally {
+        if (!cancelled) {
+          setLoadingExpenseCategories(false);
+        }
+      }
+    };
+
+    void loadExpenseCategories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applicationType]);
 
   // 初始化表单数据
   useEffect(() => {
@@ -352,6 +418,13 @@ function ApplicationForm({
     setUploadedFiles((prev) => prev.filter((f) => f.key !== key));
   };
 
+  const getFieldOptions = (field: FormField) => {
+    if (applicationType === "reimbursement" && field.name === "subcategory") {
+      return expenseCategoryOptions;
+    }
+    return field.options || [];
+  };
+
   const renderField = (field: FormField) => {
     if (field.type === "auto") {
       return (
@@ -466,6 +539,13 @@ function ApplicationForm({
     }
 
     if (field.type === "select") {
+      const options = getFieldOptions(field);
+      const currentValue = formData[field.name] || "";
+      const optionsWithFallback =
+        currentValue && !options.some((option) => option.value === currentValue)
+          ? [...options, { value: currentValue, label: `${currentValue}（历史值）` }]
+          : options;
+
       return (
         <div key={field.name} className="space-y-2">
           <Label className="text-sm font-medium">
@@ -479,12 +559,17 @@ function ApplicationForm({
             className="h-11 w-full rounded-xl border border-border/60 bg-background px-3 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           >
             <option value="">请选择</option>
-            {field.options?.map((option) => (
+            {optionsWithFallback.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
           </select>
+          {applicationType === "reimbursement" && field.name === "subcategory" && (
+            <p className="text-xs text-muted-foreground">
+              {loadingExpenseCategories ? "正在加载后台配置..." : "可由管理员在后台自定义费用归属类别"}
+            </p>
+          )}
           {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
         </div>
       );

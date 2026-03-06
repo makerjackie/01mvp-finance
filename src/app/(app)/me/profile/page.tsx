@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { auth } from "@/server/lib/auth";
 import { prisma } from "@/server/lib/db";
 import { ProfileForm } from "../components/profile-form";
@@ -31,13 +30,10 @@ export default async function ProfileSettingsPage() {
 
   return (
     <div className="space-y-6 pb-10">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center">
         <Link href="/me" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> 返回账户中心
+          <ArrowLeft className="h-4 w-4" /> 返回我的
         </Link>
-        <Badge variant="outline" className="h-6 rounded-full border-border/60 px-3 text-[11px]">
-          资料管理
-        </Badge>
       </div>
 
       <div className="space-y-2">
@@ -47,13 +43,11 @@ export default async function ProfileSettingsPage() {
       <Card className="rounded-2xl border border-border/60 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold">基础信息</CardTitle>
-          <CardDescription className="text-xs">保存后会立即应用到所有工作区。</CardDescription>
+          <CardDescription className="text-xs">用于默认填充申请单中的个人信息。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <ProfileForm
             name={user.name}
-            username={user.username}
-            email={user.email}
             phoneNumber={fullUser?.phoneNumber}
             idCardNumber={fullUser?.idCardNumber}
             bankAccountNumber={fullUser?.bankAccountNumber}

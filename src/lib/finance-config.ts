@@ -1,4 +1,5 @@
 // 财务申请类型配置
+import { DEFAULT_EXPENSE_CATEGORY_OPTIONS } from "@/lib/finance-expense-categories";
 
 export type FinanceApplicationType =
   | "income_registration" // 收入登记
@@ -203,11 +204,7 @@ export const APPLICATION_TYPES: Record<FinanceApplicationType, ApplicationTypeCo
         label: "费用归属类别",
         type: "select",
         required: true,
-        options: [
-          { value: "entry_activity_cost", label: "入门活动成本" },
-          { value: "advanced_activity_cost", label: "进阶活动成本" },
-          { value: "community_operation", label: "社区日常运营" },
-        ],
+        options: DEFAULT_EXPENSE_CATEGORY_OPTIONS,
       },
       {
         name: "relatedProject",
@@ -367,16 +364,10 @@ export const FINANCE_CATEGORIES = {
     { value: "other_income", label: "其他收入" },
   ],
   expense: [
-    { value: "material_fee", label: "物料费" },
-    { value: "transportation_fee", label: "交通费" },
-    { value: "accommodation_fee", label: "住宿费" },
-    { value: "office_fee", label: "办公费" },
-    { value: "communication_fee", label: "通讯费" },
+    ...DEFAULT_EXPENSE_CATEGORY_OPTIONS,
     { value: "competition_bonus", label: "比赛奖金" },
     { value: "labor_subsidy", label: "劳务补贴" },
-    { value: "welfare_fee", label: "福利费" },
     { value: "salary", label: "工资" },
-    { value: "other_expense", label: "其他支出" },
   ],
 } as const;
 

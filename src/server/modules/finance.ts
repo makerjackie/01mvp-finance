@@ -4,6 +4,7 @@ import { prisma } from "@/server/lib/db";
 import { auth } from "@/server/lib/auth";
 import { notifyAdmins, createNotification } from "@/server/lib/notification";
 import { createAuditLog } from "@/server/lib/audit";
+import { listExpenseCategories, replaceExpenseCategories } from "@/server/lib/finance-expense-categories";
 import {
   clampCommunitySharePercent,
   DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT,
@@ -71,6 +72,12 @@ const normalizeAttachmentUrls = (value: unknown): string[] | null => {
   }
 
   return urls;
+};
+
+const runBackgroundTask = (label: string, task: Promise<unknown>) => {
+  void task.catch((error) => {
+    console.error(`[finance] background task failed: ${label}`, error);
+  });
 };
 
 const ensureProjectByName = async ({
@@ -474,35 +481,102 @@ app.post("/", async (c) => {
     const bankName = normalizeBankName(data.recipientBank);
 
     if (bankAccountNumber || bankName) {
-      await prisma.user.update({
-        where: { id: session.user.id },
-        data: {
-          ...(bankAccountNumber ? { bankAccountNumber } : {}),
-          ...(bankName ? { bankName } : {}),
-        },
-      });
+      runBackgroundTask(
+        "sync-user-bank-info",
+        prisma.user.update({
+          where: { id: session.user.id },
+          data: {
+            ...(bankAccountNumber ? { bankAccountNumber } : {}),
+            ...(bankName ? { bankName } : {}),
+          },
+        }),
+      );
     }
   }
 
-  await notifyAdmins({
-    type: "finance_submitted",
-    title: "新的财务申请",
-    content: `${session.user.name} 提交了一条${data.type === "income" ? "收入" : "支出"}申请`,
-    link: `/finance/edit/${record.id}`,
-    financeRecordId: record.id,
-  });
+  runBackgroundTask(
+    "notify-admins",
+    notifyAdmins({
+      type: "finance_submitted",
+      title: "新的财务申请",
+      content: `${session.user.name} 提交了一条${data.type === "income" ? "收入" : "支出"}申请`,
+      link: `/finance/edit/${record.id}`,
+      financeRecordId: record.id,
+    }),
+  );
 
-  await createAuditLog({
-    userId: session.user.id,
-    userName: session.user.name || "Unknown",
-    action: "create",
-    resource: "finance_record",
-    resourceId: record.id,
-    metadata: { type: data.type, amount: data.amount },
-    req: c.req.raw,
-  });
+  runBackgroundTask(
+    "create-audit-log",
+    createAuditLog({
+      userId: session.user.id,
+      userName: session.user.name || "Unknown",
+      action: "create",
+      resource: "finance_record",
+      resourceId: record.id,
+      metadata: { type: data.type, amount: data.amount },
+      req: c.req.raw,
+    }),
+  );
 
   return c.json({ success: true, data: record });
+});
+
+// 获取费用归属类别（前端提交表单使用）
+app.get("/expense-categories", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.user) {
+    return c.json({ error: "未登录" }, 401);
+  }
+
+  const categories = await listExpenseCategories();
+  return c.json({ success: true, data: categories });
+});
+
+// 管理员：获取费用归属类别配置
+app.get("/admin/expense-categories", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.user || session.user.role !== "admin") {
+    return c.json({ error: "无权访问" }, 403);
+  }
+
+  const categories = await listExpenseCategories({ includeInactive: true });
+  return c.json({ success: true, data: categories });
+});
+
+// 管理员：更新费用归属类别配置
+app.put("/admin/expense-categories", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.user || session.user.role !== "admin") {
+    return c.json({ error: "无权操作" }, 403);
+  }
+
+  const data = await c.req.json();
+  if (!Array.isArray(data?.categories)) {
+    return c.json({ error: "categories 必须是数组" }, 400);
+  }
+
+  try {
+    const categories = await replaceExpenseCategories(data.categories, session.user.id);
+
+    await createAuditLog({
+      userId: session.user.id,
+      userName: session.user.name || "Unknown",
+      action: "update",
+      resource: "finance_expense_category_config",
+      resourceId: "expense_categories",
+      metadata: {
+        count: categories.length,
+      },
+      req: c.req.raw,
+    });
+
+    return c.json({ success: true, data: categories });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : "配置保存失败" }, 400);
+  }
 });
 
 // 获取当前用户的财务记录列表

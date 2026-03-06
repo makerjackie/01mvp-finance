@@ -4,22 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 import type { User } from "better-auth";
-import {
-  Menu,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Wallet,
-  PlusCircle,
-  ClipboardList,
-  ShieldCheck,
-  LogOut,
-  User as UserIcon,
-  MessageSquare,
-  ImageIcon,
-  Upload,
-  ScrollText,
-  BarChart3,
-} from "lucide-react";
+import { Menu, PanelLeftClose, PanelLeftOpen, LogOut, User as UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -28,89 +13,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { authClient } from "@/lib/auth-client";
 import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notification-bell";
-import { canAccessAdmin } from "@/lib/rbac";
+import { getAppNavItems } from "@/lib/config/app-nav-items";
 
 type AppUser = User & { role?: string | null };
-
-type NavItem = {
-  title: string;
-  href: string;
-  activePath: string;
-  icon: React.ComponentType<{ className?: string }>;
-};
-
-const showAiSidebarItems = process.env.NEXT_PUBLIC_ENABLE_AI_SIDEBAR === "true";
-
-const buildNavItems = (user?: AppUser) => {
-  const items: NavItem[] = [
-    {
-      title: "财务主页",
-      href: "/finance",
-      activePath: "/finance",
-      icon: Wallet,
-    },
-    {
-      title: "新建申请",
-      href: "/finance/submit",
-      activePath: "/finance/submit",
-      icon: PlusCircle,
-    },
-    {
-      title: "我的记录",
-      href: "/finance/my-records",
-      activePath: "/finance/my-records",
-      icon: ClipboardList,
-    },
-  ];
-
-  if (showAiSidebarItems) {
-    items.push(
-      {
-        title: "AI 对话",
-        href: "/chat",
-        activePath: "/chat",
-        icon: MessageSquare,
-      },
-      {
-        title: "AI 生图",
-        href: "/ai-image",
-        activePath: "/ai-image",
-        icon: ImageIcon,
-      },
-      {
-        title: "文件上传",
-        href: "/upload",
-        activePath: "/upload",
-        icon: Upload,
-      },
-    );
-  }
-
-  if (canAccessAdmin(user)) {
-    items.push(
-      {
-        title: "审核后台",
-        href: "/finance/admin",
-        activePath: "/finance/admin",
-        icon: ShieldCheck,
-      },
-      {
-        title: "项目统计",
-        href: "/finance/admin/project-stats",
-        activePath: "/finance/admin/project-stats",
-        icon: BarChart3,
-      },
-      {
-        title: "审计日志",
-        href: "/admin/audit-logs",
-        activePath: "/admin/audit-logs",
-        icon: ScrollText,
-      },
-    );
-  }
-
-  return items;
-};
 
 interface SidebarContentProps {
   user?: AppUser;
@@ -128,7 +33,7 @@ export function SidebarContent({
   isMobile = false,
 }: SidebarContentProps) {
   const pathname = usePathname();
-  const navItems = buildNavItems(user);
+  const navItems = getAppNavItems(user);
   const activeHref =
     navItems
       .filter((item) => pathname === item.activePath || pathname.startsWith(`${item.activePath}/`))

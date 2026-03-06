@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Wallet, User, LogOut } from "lucide-react";
+import { Wallet, User, LogOut, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { siteConfig } from "@/lib/config/site";
@@ -68,6 +68,12 @@ export function TopNav() {
                     <Link href="/finance" className="flex items-center gap-2">
                       <Wallet className="h-4 w-4" />
                       <span>财务系统</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer rounded-sm">
+                    <Link href="/me" className="flex items-center gap-2">
+                      <Settings2 className="h-4 w-4" />
+                      <span>账号资料</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />

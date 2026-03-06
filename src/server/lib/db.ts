@@ -8,9 +8,67 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 let prismaClient: PrismaClient | undefined;
+let resetPromise: Promise<void> | null = null;
 
 type PrismaClientKey = keyof PrismaClient;
 type PrismaClientValue = PrismaClient[PrismaClientKey];
+
+const RETRYABLE_DB_ERROR_PATTERNS = [
+  /connection terminated unexpectedly/i,
+  /server closed the connection unexpectedly/i,
+  /connection ended unexpectedly/i,
+  /econnreset/i,
+  /terminating connection due to administrator command/i,
+];
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const cause =
+      error.cause instanceof Error ? error.cause.message : typeof error.cause === "string" ? error.cause : "";
+    return `${error.message} ${cause}`.trim();
+  }
+
+  return typeof error === "string" ? error : "";
+}
+
+export function isRetryableDatabaseError(error: unknown): boolean {
+  const message = getErrorMessage(error);
+  if (!message) return false;
+  return RETRYABLE_DB_ERROR_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+export async function resetPrismaConnection(reason: string) {
+  if (resetPromise) return resetPromise;
+
+  const currentClient = prismaClient ?? globalForPrisma.prisma;
+  const currentPool = globalForPrisma.pool;
+
+  prismaClient = undefined;
+  globalForPrisma.prisma = undefined;
+  globalForPrisma.pool = undefined;
+
+  resetPromise = (async () => {
+    if (process.env.NODE_ENV === "development") {
+      console.warn(`[prisma] reset database client: ${reason}`);
+    }
+
+    try {
+      await currentClient?.$disconnect();
+    } catch (error) {
+      console.error("[prisma] failed to disconnect prisma client", error);
+    }
+
+    try {
+      await currentPool?.end();
+    } catch (error) {
+      console.error("[prisma] failed to close pg pool", error);
+    }
+  })().finally(() => {
+    resetPromise = null;
+  });
+
+  return resetPromise;
+}
 
 function createPrismaClient() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -18,7 +76,12 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL is not set");
   }
 
+  if (globalForPrisma.prisma) {
+    return globalForPrisma.prisma;
+  }
+
   // 在开发模式下重用全局连接池
+  const usingExistingPool = Boolean(globalForPrisma.pool);
   const pool =
     globalForPrisma.pool ??
     new Pool({
@@ -26,10 +89,19 @@ function createPrismaClient() {
       max: 10, // 限制最大连接数
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
+      query_timeout: 15000,
+      statement_timeout: 15000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
     });
 
-  if (globalForPrisma.prisma) {
-    return globalForPrisma.prisma;
+  if (!usingExistingPool) {
+    pool.on("error", (error) => {
+      console.error("[prisma] pg pool error", error);
+      if (isRetryableDatabaseError(error)) {
+        void resetPrismaConnection("pg pool error");
+      }
+    });
   }
 
   const adapter = new PrismaPg(pool);

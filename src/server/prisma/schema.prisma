@@ -226,6 +226,22 @@ model Project {
   @@map("project")
 }
 
+// 费用归属类别配置（可后台维护）
+model FinanceExpenseCategory {
+  id          String   @id @default(cuid()) @map("_id")
+  value       String   @unique
+  label       String
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("finance_expense_category")
+}
+
 // 财务记录表 - 统一存储所有类型的财务申请
 model FinanceRecord {
   id              String   @id @default(cuid()) @map("_id")

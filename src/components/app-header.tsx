@@ -35,6 +35,9 @@ export function AppHeader({ user }: AppHeaderProps) {
       chat: "AI 对话",
       "ai-image": "AI 生图",
       upload: "文件上传",
+      me: "我的",
+      profile: "资料设置",
+      password: "密码安全",
     };
     const title = titleMap[segment] || segment.charAt(0).toUpperCase() + segment.slice(1);
 

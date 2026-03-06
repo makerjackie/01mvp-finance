@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Wallet, PlusCircle, ClipboardList } from "lucide-react";
+import { Wallet, PlusCircle, ClipboardList, User as UserIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { shouldHideTabbar } from "@/lib/config/navigation";
@@ -44,6 +44,12 @@ export function MobileTabbar({ user }: MobileTabbarProps) {
       icon: ClipboardList,
       href: "/finance/my-records",
       active: pathname === "/finance/my-records",
+    },
+    {
+      label: "我的",
+      icon: UserIcon,
+      href: "/me",
+      active: pathname === "/me" || pathname.startsWith("/me/"),
     },
   ];
 

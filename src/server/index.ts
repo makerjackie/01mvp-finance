@@ -8,6 +8,7 @@ import uploadRoutes from "./modules/upload";
 import notificationRoutes from "./modules/notification";
 import auditRoutes from "./modules/audit";
 import userRoutes from "./modules/user";
+import { isRetryableDatabaseError, resetPrismaConnection } from "./lib/db";
 import type { AuthEnv } from "./middleware";
 
 export const app = new Hono<AuthEnv>()
@@ -21,7 +22,27 @@ export const app = new Hono<AuthEnv>()
   .route("/upload", uploadRoutes)
   .route("/notification", notificationRoutes)
   .route("/audit", auditRoutes)
-  .route("/user", userRoutes);
+  .route("/user", userRoutes)
+  .onError(async (error, c) => {
+    console.error("[api] unhandled error", error);
+
+    if (isRetryableDatabaseError(error)) {
+      await resetPrismaConnection("api onError");
+      return c.json(
+        {
+          error: "数据库连接异常，请稍后重试",
+        },
+        503,
+      );
+    }
+
+    return c.json(
+      {
+        error: "服务器开小差了，请稍后重试",
+      },
+      500,
+    );
+  });
 
 export type AppType = typeof app;
 export default app;

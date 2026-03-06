@@ -10,8 +10,6 @@ import { toast } from "@/lib/toast";
 
 interface ProfileFormProps {
   name?: string | null;
-  username?: string | null;
-  email?: string | null;
   phoneNumber?: string | null;
   idCardNumber?: string | null;
   bankAccountNumber?: string | null;
@@ -50,8 +48,6 @@ const buildProfile = ({
 
 export function ProfileForm({
   name,
-  username,
-  email,
   phoneNumber,
   idCardNumber,
   bankAccountNumber,
@@ -209,16 +205,6 @@ export function ProfileForm({
             placeholder="例如：中国工商银行北京分行"
             maxLength={80}
           />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="username">用户名</Label>
-          <Input id="username" value={username || "未设置"} disabled readOnly />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="email">邮箱</Label>
-          <Input id="email" value={email || "未填写"} disabled readOnly />
         </div>
 
         <div className="space-y-2">
