@@ -3,8 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, ClipboardList, PlusCircle, Shield } from "lucide-react";
 import { auth } from "@/server/lib/auth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default async function FinancePage() {
   const session = await auth.api.getSession({
@@ -19,25 +18,6 @@ export default async function FinancePage() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <Card className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 shadow-sm dark:from-slate-950 dark:via-slate-950 dark:to-emerald-950/20">
-        <CardHeader className="space-y-3 px-4 py-4 sm:px-6 sm:py-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="rounded-full border-border/60 bg-background/70 text-[11px]">
-              Finance Workspace
-            </Badge>
-            {isAdmin && (
-              <Badge className="rounded-full border-rose-200 bg-rose-50 text-[11px] text-rose-700">管理员可见</Badge>
-            )}
-          </div>
-          <div className="space-y-1">
-            <CardTitle className="text-xl font-semibold tracking-tight sm:text-2xl">财务工作台</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">
-              统一处理申请提交、进度追踪和审核协同，常用操作都在首页直达。
-            </CardDescription>
-          </div>
-        </CardHeader>
-      </Card>
-
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Link href="/finance/submit" className="group md:col-span-2">
           <Card className="h-full rounded-xl border border-border/60 bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
