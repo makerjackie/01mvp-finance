@@ -1,7 +1,7 @@
 import { getPublicUrl } from "@/lib/utils";
 
 export const siteConfig = {
-  name: "社区财务系统",
+  name: "财务工作台",
   description: "面向社区场景的财务申请、审批与统计系统",
   tagline: "社区财务记录与审核平台",
   apiBase: getPublicUrl(),

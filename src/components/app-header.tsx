@@ -27,7 +27,7 @@ export function AppHeader({ user }: AppHeaderProps) {
     const isLast = index === segments.length - 1;
     // 简单的标题映射 (实际项目可以用更复杂的字典)
     const titleMap: Record<string, string> = {
-      finance: "财务系统",
+      finance: "财务工作台",
       submit: "新建申请",
       "my-records": "我的记录",
       edit: "编辑记录",
