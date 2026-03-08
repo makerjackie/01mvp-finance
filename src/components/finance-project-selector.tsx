@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { CreateActivityDialog } from "@/components/create-activity-dialog";
 
 type ProjectItem = {
   id: string;
@@ -80,6 +81,7 @@ export function FinanceProjectSelector({
   const [items, setItems] = useState<ProjectItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const inferredCategory = useMemo(
     () => inferProjectCategory({ subcategory, applicationType }),
@@ -207,6 +209,53 @@ export function FinanceProjectSelector({
     }
   };
 
+  const handleCreateActivity = async (activityName: string, eventDate?: string) => {
+    setCreating(true);
+    setErrorMessage(null);
+
+    try {
+      const normalizedSharePercent = Number.isFinite(communitySharePercent)
+        ? Math.max(0, Math.min(100, Math.round(communitySharePercent)))
+        : DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT;
+
+      const res = await fetch("/api/finance/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: activityName,
+          category: inferredCategory,
+          subcategory,
+          applicationType,
+          settlementMode: selectedSettlementMode,
+          communitySharePercent: normalizedSharePercent,
+          eventDate: eventDate || undefined,
+        }),
+      });
+
+      const result = (await res.json()) as CreateResponse;
+
+      if (!res.ok || !result.success || !result.data) {
+        setErrorMessage(result.error || "活动创建失败，请稍后重试");
+        return;
+      }
+
+      const project = result.data;
+      onChange(project.name);
+      setItems((prev) => {
+        const merged = [project, ...prev.filter((item) => item.id !== project.id)];
+        return merged.slice(0, 8);
+      });
+      setFeedbackMessage(project.created ? `已新建活动：${project.name}` : `已匹配活动：${project.name}`);
+      setOpen(false);
+    } catch {
+      setErrorMessage("活动创建失败，请稍后重试");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <div className={cn("relative space-y-2", className)}>
       <div className="relative">
@@ -240,6 +289,20 @@ export function FinanceProjectSelector({
               </div>
             ) : (
               <>
+                {/* 顶部新建活动按钮 */}
+                <button
+                  type="button"
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    setShowCreateDialog(true);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-primary/5"
+                >
+                  <PlusCircle className="h-4 w-4" />+ 新建活动
+                </button>
+
+                {items.length > 0 && <div className="my-1 border-t border-border/40" />}
+
                 {items.length > 0 ? (
                   <div className="max-h-56 space-y-1 overflow-y-auto">
                     {items.map((item) => {
@@ -349,6 +412,21 @@ export function FinanceProjectSelector({
                         </>
                       )}
                     </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={creating}
+                      className="mt-1 h-8 w-full justify-start gap-2 rounded-lg text-xs text-muted-foreground hover:text-foreground"
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        setShowCreateDialog(true);
+                      }}
+                    >
+                      <PlusCircle className="h-3.5 w-3.5" />
+                      新建活动（可填写举办日期）
+                    </Button>
                   </div>
                 )}
 
@@ -372,6 +450,14 @@ export function FinanceProjectSelector({
           {feedbackMessage}
         </p>
       )}
+
+      <CreateActivityDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        onSuccess={(activityName, eventDate) => {
+          void handleCreateActivity(activityName, eventDate);
+        }}
+      />
     </div>
   );
 }
