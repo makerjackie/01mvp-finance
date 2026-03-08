@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BarChart3, Plus, ScrollText, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import { BarChart3, ChevronDown, Plus, ScrollText, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,11 @@ interface ExpenseCategoryConfigItem {
 }
 
 export default function FinanceAdminFormConfigPage() {
+  const DEFAULT_VISIBLE_COUNT = 3;
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategoryConfigItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showAllCategories, setShowAllCategories] = useState(false);
 
   useEffect(() => {
     void fetchExpenseCategories();
@@ -47,6 +49,7 @@ export default function FinanceAdminFormConfigPage() {
 
   const handleAddExpenseCategory = () => {
     const uniqueSuffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    setShowAllCategories(true);
     setExpenseCategories((prev) => [
       ...prev,
       {
@@ -65,7 +68,11 @@ export default function FinanceAdminFormConfigPage() {
         alert("至少保留一个费用归属类别");
         return prev;
       }
-      return prev.filter((_, currentIndex) => currentIndex !== index);
+      const next = prev.filter((_, currentIndex) => currentIndex !== index);
+      if (next.length <= DEFAULT_VISIBLE_COUNT) {
+        setShowAllCategories(false);
+      }
+      return next;
     });
   };
 
@@ -126,6 +133,9 @@ export default function FinanceAdminFormConfigPage() {
       </div>
     );
   }
+
+  const visibleCategories = showAllCategories ? expenseCategories : expenseCategories.slice(0, DEFAULT_VISIBLE_COUNT);
+  const hiddenCategoryCount = Math.max(expenseCategories.length - DEFAULT_VISIBLE_COUNT, 0);
 
   return (
     <div className="space-y-3 md:space-y-5">
@@ -197,7 +207,7 @@ export default function FinanceAdminFormConfigPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-2 px-4 pb-4 pt-0 sm:px-5">
-          {expenseCategories.map((item, index) => (
+          {visibleCategories.map((item, index) => (
             <div key={`${item.id}-${index}`} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_120px_auto]">
               <Input
                 value={item.label}
@@ -236,6 +246,21 @@ export default function FinanceAdminFormConfigPage() {
               </Button>
             </div>
           ))}
+
+          {hiddenCategoryCount > 0 && (
+            <div className="flex justify-center pt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAllCategories((prev) => !prev)}
+                className="h-8 gap-1.5 rounded-lg px-3 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <ChevronDown className={showAllCategories ? "h-3.5 w-3.5 rotate-180" : "h-3.5 w-3.5"} />
+                {showAllCategories ? "收起其余类别" : `展开其余 ${hiddenCategoryCount} 项`}
+              </Button>
+            </div>
+          )}
 
           <div className="flex justify-end pt-1">
             <Button
