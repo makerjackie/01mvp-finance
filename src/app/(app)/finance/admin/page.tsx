@@ -46,12 +46,6 @@ interface FinanceRecord {
   attachments?: unknown[];
 }
 
-interface Stats {
-  pendingCount: number;
-  approvedCount: number;
-  rejectedCount: number;
-}
-
 interface ProjectOption {
   id: string;
   name: string;
@@ -81,7 +75,6 @@ const typeClassMap: Record<string, string> = {
 
 export default function AdminPage() {
   const [records, setRecords] = useState<FinanceRecord[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -95,14 +88,12 @@ export default function AdminPage() {
 
   const fetchData = async () => {
     try {
-      const [recordsRes, statsRes, projectOptionsRes] = await Promise.all([
+      const [recordsRes, projectOptionsRes] = await Promise.all([
         fetch("/api/finance/admin/all"),
-        fetch("/api/finance/admin/stats"),
         fetch("/api/finance/admin/project-options"),
       ]);
 
       const recordsResult = await recordsRes.json();
-      const statsResult = await statsRes.json();
       const projectOptionsResult = await projectOptionsRes.json();
 
       if (recordsResult.success && Array.isArray(recordsResult.data)) {
@@ -129,10 +120,6 @@ export default function AdminPage() {
             .map((name, index) => ({ id: `record-${index}`, name, createdAt: new Date(0).toISOString() }));
           setProjectOptions(fallbackProjectOptions);
         }
-      }
-
-      if (statsResult.success) {
-        setStats(statsResult.data as Stats);
       }
 
       if (projectOptionsResult.success && Array.isArray(projectOptionsResult.data)) {
@@ -591,8 +578,25 @@ export default function AdminPage() {
 
   const pagedRows = table.getRowModel().rows;
   const filteredCount = table.getFilteredRowModel().rows.length;
+  const filteredRecords = table.getFilteredRowModel().rows.map((row) => row.original);
   const pageCount = table.getPageCount();
   const currentPage = pageCount === 0 ? 0 : table.getState().pagination.pageIndex + 1;
+  const summaryCounts = filteredRecords.reduce(
+    (acc, record) => {
+      if (record.status === "pending") acc.pending += 1;
+      if (record.status === "approved") acc.approved += 1;
+      if (record.status === "rejected") acc.rejected += 1;
+      if (record.type === "expense") {
+        if (record.paymentStatus === "paid") {
+          acc.paid += 1;
+        } else {
+          acc.unpaid += 1;
+        }
+      }
+      return acc;
+    },
+    { pending: 0, approved: 0, rejected: 0, paid: 0, unpaid: 0 },
+  );
 
   return (
     <div className="space-y-4 md:space-y-5">
@@ -694,18 +698,26 @@ export default function AdminPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3 px-3 pb-3 pt-0 sm:px-4 sm:pb-4">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
             <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
               <p className="text-[11px] text-amber-700">待审核</p>
-              <p className="mt-1 text-lg font-semibold text-amber-800">{stats?.pendingCount ?? 0}</p>
+              <p className="mt-1 text-lg font-semibold text-amber-800">{summaryCounts.pending}</p>
             </div>
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
               <p className="text-[11px] text-emerald-700">已通过</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-800">{stats?.approvedCount ?? 0}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-800">{summaryCounts.approved}</p>
             </div>
             <div className="rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2">
               <p className="text-[11px] text-rose-700">已拒绝</p>
-              <p className="mt-1 text-lg font-semibold text-rose-800">{stats?.rejectedCount ?? 0}</p>
+              <p className="mt-1 text-lg font-semibold text-rose-800">{summaryCounts.rejected}</p>
+            </div>
+            <div className="rounded-lg border border-sky-200 bg-sky-50/60 px-3 py-2">
+              <p className="text-[11px] text-sky-700">已支付（支出）</p>
+              <p className="mt-1 text-lg font-semibold text-sky-800">{summaryCounts.paid}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
+              <p className="text-[11px] text-slate-700">未支付（支出）</p>
+              <p className="mt-1 text-lg font-semibold text-slate-800">{summaryCounts.unpaid}</p>
             </div>
           </div>
 
