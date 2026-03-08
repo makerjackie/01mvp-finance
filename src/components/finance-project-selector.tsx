@@ -20,12 +20,14 @@ import { CreateActivityDialog } from "@/components/create-activity-dialog";
 type ProjectItem = {
   id: string;
   name: string;
+  city?: string | null;
   category: string;
   categoryLabel: string;
   settlementMode: ProjectSettlementMode;
   settlementModeLabel: string;
   communitySharePercent: number;
   settlementDescription: string;
+  description?: string | null;
 };
 
 type SearchResponse = {
@@ -40,12 +42,14 @@ type CreateResponse = {
   data?: {
     id: string;
     name: string;
+    city?: string | null;
     category: string;
     categoryLabel: string;
     settlementMode: ProjectSettlementMode;
     settlementModeLabel: string;
     communitySharePercent: number;
     settlementDescription: string;
+    description?: string | null;
     created: boolean;
   };
 };
@@ -82,6 +86,7 @@ export function FinanceProjectSelector({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [hasEditedSinceOpen, setHasEditedSinceOpen] = useState(false);
 
   const inferredCategory = useMemo(
     () => inferProjectCategory({ subcategory, applicationType }),
@@ -108,7 +113,7 @@ export function FinanceProjectSelector({
       return;
     }
 
-    const trimmed = value.trim();
+    const trimmed = hasEditedSinceOpen ? value.trim() : "";
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setLoading(true);
@@ -149,15 +154,16 @@ export function FinanceProjectSelector({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [value, open, disabled]);
+  }, [value, open, disabled, hasEditedSinceOpen]);
 
   const exactMatchExists = items.some((item) => toProjectNormalizedName(item.name) === normalizedCurrentValue);
-  const canCreate = value.trim().length >= 2 && !exactMatchExists;
+  const canCreate = hasEditedSinceOpen && value.trim().length >= 2 && !exactMatchExists;
 
   const handleSelect = (name: string) => {
     onChange(name);
     setFeedbackMessage(`已选择项目：${name}`);
     setOpen(false);
+    setHasEditedSinceOpen(false);
     setErrorMessage(null);
   };
 
@@ -202,6 +208,7 @@ export function FinanceProjectSelector({
       });
       setFeedbackMessage(project.created ? `已新建项目：${project.name}` : `已匹配项目：${project.name}`);
       setOpen(false);
+      setHasEditedSinceOpen(false);
     } catch {
       setErrorMessage("项目创建失败，请稍后重试");
     } finally {
@@ -209,7 +216,12 @@ export function FinanceProjectSelector({
     }
   };
 
-  const handleCreateActivity = async (activityName: string, eventDate?: string) => {
+  const handleCreateActivity = async (
+    activityName: string,
+    eventDate?: string,
+    city?: string,
+    activityDescription?: string,
+  ) => {
     setCreating(true);
     setErrorMessage(null);
 
@@ -226,10 +238,9 @@ export function FinanceProjectSelector({
         settlementMode: selectedSettlementMode,
         communitySharePercent: normalizedSharePercent,
         eventDate: eventDate || undefined,
+        city: city || undefined,
+        description: activityDescription || undefined,
       };
-
-      console.log("Creating activity with payload:", payload);
-      console.log("Sending to URL:", "/api/finance/projects");
 
       const res = await fetch("/api/finance/projects", {
         method: "POST",
@@ -239,9 +250,7 @@ export function FinanceProjectSelector({
         body: JSON.stringify(payload),
       });
 
-      console.log("Response status:", res.status);
       const result = (await res.json()) as CreateResponse;
-      console.log("Response data:", result);
 
       if (!res.ok || !result.success || !result.data) {
         setErrorMessage(result.error || "活动创建失败，请稍后重试");
@@ -249,13 +258,18 @@ export function FinanceProjectSelector({
       }
 
       const project = result.data;
-      onChange(project.name);
+      const nextProject: ProjectItem = {
+        ...project,
+        description: project.description ?? activityDescription ?? null,
+      };
+      onChange(nextProject.name);
       setItems((prev) => {
-        const merged = [project, ...prev.filter((item) => item.id !== project.id)];
+        const merged = [nextProject, ...prev.filter((item) => item.id !== nextProject.id)];
         return merged.slice(0, 8);
       });
-      setFeedbackMessage(project.created ? `已新建活动：${project.name}` : `已匹配活动：${project.name}`);
+      setFeedbackMessage(project.created ? `已新建活动：${nextProject.name}` : `已匹配活动：${nextProject.name}`);
       setOpen(false);
+      setHasEditedSinceOpen(false);
     } catch (error) {
       console.error("Error creating activity:", error);
       setErrorMessage("活动创建失败，请稍后重试");
@@ -275,6 +289,7 @@ export function FinanceProjectSelector({
           value={value}
           onFocus={() => {
             setOpen(true);
+            setHasEditedSinceOpen(false);
             setFeedbackMessage(null);
           }}
           onBlur={() => {
@@ -282,7 +297,14 @@ export function FinanceProjectSelector({
           }}
           onChange={(event) => {
             onChange(event.target.value);
+            setHasEditedSinceOpen(true);
             setFeedbackMessage(null);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && open) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
           }}
           className={cn("h-11 rounded-xl border-border/60 pl-9 text-sm shadow-sm", inputClassName)}
           placeholder={placeholder}
@@ -332,15 +354,9 @@ export function FinanceProjectSelector({
                         >
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">{item.name}</p>
-                            <p className="truncate text-[11px] text-muted-foreground">{item.settlementDescription}</p>
-                          </div>
-                          <div className="ml-2 flex shrink-0 items-center gap-1">
-                            <span className="rounded-full border border-border/60 bg-muted/60 px-2 py-0.5 text-[10px] text-muted-foreground">
-                              {item.categoryLabel}
-                            </span>
-                            <span className="rounded-full border border-border/60 bg-muted/60 px-2 py-0.5 text-[10px] text-muted-foreground">
-                              {item.settlementModeLabel}
-                            </span>
+                            {item.description ? (
+                              <p className="truncate text-[11px] text-muted-foreground">{item.description}</p>
+                            ) : null}
                           </div>
                         </button>
                       );
@@ -463,8 +479,8 @@ export function FinanceProjectSelector({
       <CreateActivityDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
-        onSuccess={(activityName, eventDate) => {
-          void handleCreateActivity(activityName, eventDate);
+        onSuccess={(activityName, eventDate, city, activityDescription) => {
+          void handleCreateActivity(activityName, eventDate, city, activityDescription);
         }}
       />
     </div>

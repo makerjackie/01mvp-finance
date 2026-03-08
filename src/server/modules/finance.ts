@@ -74,10 +74,182 @@ const normalizeAttachmentUrls = (value: unknown): string[] | null => {
   return urls;
 };
 
+const normalizeOptionalText = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const formatProjectDisplayName = (name: string, eventDate?: Date | null, city?: string | null) => {
+  const parts = [name];
+
+  if (eventDate) {
+    parts.push(eventDate.toISOString().split("T")[0]);
+  }
+
+  const normalizedCity = normalizeOptionalText(city);
+  if (normalizedCity) {
+    parts.push(normalizedCity);
+  }
+
+  return parts.join(" ");
+};
+
 const runBackgroundTask = (label: string, task: Promise<unknown>) => {
   void task.catch((error) => {
     console.error(`[finance] background task failed: ${label}`, error);
   });
+};
+
+const getProjectDescriptionMap = async (projectNames: string[]) => {
+  const normalizedNames = Array.from(
+    new Set(projectNames.map((name) => normalizeProjectName(name)).filter((name): name is string => Boolean(name))),
+  );
+
+  if (normalizedNames.length === 0) {
+    return new Map<string, string>();
+  }
+
+  const records = await prisma.financeRecord.findMany({
+    where: {
+      relatedProject: {
+        in: normalizedNames,
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      relatedProject: true,
+      summary: true,
+      description: true,
+    },
+    take: Math.max(normalizedNames.length * 4, 20),
+  });
+
+  const descriptionMap = new Map<string, string>();
+  for (const record of records) {
+    const projectName = normalizeProjectName(record.relatedProject || "");
+    if (!projectName || descriptionMap.has(projectName)) {
+      continue;
+    }
+
+    const description = normalizeOptionalText(record.summary) || normalizeOptionalText(record.description);
+    if (!description) {
+      continue;
+    }
+
+    descriptionMap.set(projectName, description);
+    if (descriptionMap.size >= normalizedNames.length) {
+      break;
+    }
+  }
+
+  return descriptionMap;
+};
+
+const extractDescriptionFromJson = (value: Prisma.JsonValue | null | undefined) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return normalizeOptionalText((value as Record<string, unknown>).description);
+};
+
+const extractCityFromJson = (value: Prisma.JsonValue | null | undefined) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return normalizeOptionalText((value as Record<string, unknown>).city);
+};
+
+const getProjectDescriptionByAuditMap = async (projectIds: string[]) => {
+  const uniqueIds = Array.from(new Set(projectIds.filter(Boolean)));
+  if (uniqueIds.length === 0) {
+    return new Map<string, string>();
+  }
+
+  const logs = await prisma.auditLog.findMany({
+    where: {
+      resource: "project",
+      resourceId: {
+        in: uniqueIds,
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      resourceId: true,
+      metadata: true,
+      changes: true,
+    },
+    take: Math.max(uniqueIds.length * 5, 20),
+  });
+
+  const descriptionMap = new Map<string, string>();
+  for (const log of logs) {
+    if (descriptionMap.has(log.resourceId)) {
+      continue;
+    }
+
+    const description = extractDescriptionFromJson(log.metadata) || extractDescriptionFromJson(log.changes);
+    if (!description) {
+      continue;
+    }
+
+    descriptionMap.set(log.resourceId, description);
+    if (descriptionMap.size >= uniqueIds.length) {
+      break;
+    }
+  }
+
+  return descriptionMap;
+};
+
+const getProjectCityByAuditMap = async (projectIds: string[]) => {
+  const uniqueIds = Array.from(new Set(projectIds.filter(Boolean)));
+  if (uniqueIds.length === 0) {
+    return new Map<string, string>();
+  }
+
+  const logs = await prisma.auditLog.findMany({
+    where: {
+      resource: "project",
+      resourceId: {
+        in: uniqueIds,
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      resourceId: true,
+      metadata: true,
+      changes: true,
+    },
+    take: Math.max(uniqueIds.length * 5, 20),
+  });
+
+  const cityMap = new Map<string, string>();
+  for (const log of logs) {
+    if (cityMap.has(log.resourceId)) {
+      continue;
+    }
+
+    const city = extractCityFromJson(log.metadata) || extractCityFromJson(log.changes);
+    if (!city) {
+      continue;
+    }
+
+    cityMap.set(log.resourceId, city);
+    if (cityMap.size >= uniqueIds.length) {
+      break;
+    }
+  }
+
+  return cityMap;
 };
 
 const ensureProjectByName = async ({
@@ -185,11 +357,18 @@ app.get("/projects", async (c) => {
     take: limit,
   });
 
+  const [auditDescriptionMap, auditCityMap, recordDescriptionMap] = await Promise.all([
+    getProjectDescriptionByAuditMap(projects.map((project) => project.id)),
+    getProjectCityByAuditMap(projects.map((project) => project.id)),
+    getProjectDescriptionMap(projects.map((project) => project.name)),
+  ]);
+
   return c.json({
     success: true,
     data: projects.map((project) => ({
       id: project.id,
-      name: project.name,
+      name: formatProjectDisplayName(project.name, project.eventDate, auditCityMap.get(project.id)),
+      city: auditCityMap.get(project.id) || null,
       category: project.category,
       categoryLabel: PROJECT_CATEGORY_LABELS[resolveProjectCategory(project.category)],
       settlementMode: resolveSettlementMode(project.settlementMode),
@@ -199,6 +378,7 @@ app.get("/projects", async (c) => {
         resolveSettlementMode(project.settlementMode),
         clampCommunitySharePercent(project.communitySharePercent),
       ),
+      description: auditDescriptionMap.get(project.id) || recordDescriptionMap.get(project.name) || null,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
     })),
@@ -238,6 +418,8 @@ app.post("/projects", async (c) => {
   const requestedCommunitySharePercent = clampCommunitySharePercent(
     data?.communitySharePercent ?? inferredSettlement.communitySharePercent,
   );
+  const requestedCity = normalizeOptionalText(data?.city);
+  const requestedDescription = normalizeOptionalText(data?.description);
 
   // 处理活动日期
   let eventDate: Date | null = null;
@@ -275,13 +457,35 @@ app.post("/projects", async (c) => {
           })
         : existing;
 
+    if (requestedDescription || requestedCity) {
+      await createAuditLog({
+        userId: session.user.id,
+        userName: session.user.name || "Unknown",
+        action: "update",
+        resource: "project",
+        resourceId: project.id,
+        changes: {
+          ...(requestedDescription ? { description: requestedDescription } : {}),
+          ...(requestedCity ? { city: requestedCity } : {}),
+        },
+        metadata: {
+          name: project.name,
+          ...(requestedDescription ? { description: requestedDescription } : {}),
+          ...(requestedCity ? { city: requestedCity } : {}),
+        },
+        req: c.req.raw,
+      });
+    }
+
     const resolvedSettlementMode = resolveSettlementMode(project.settlementMode);
     const resolvedSharePercent = clampCommunitySharePercent(project.communitySharePercent);
-
-    // 如果有活动日期，组合名称和日期
-    const displayName = project.eventDate
-      ? `${project.name} ${project.eventDate.toISOString().split("T")[0]}`
-      : project.name;
+    const [auditDescriptionMap, auditCityMap, recordDescriptionMap] = await Promise.all([
+      getProjectDescriptionByAuditMap([project.id]),
+      getProjectCityByAuditMap([project.id]),
+      getProjectDescriptionMap([project.name]),
+    ]);
+    const projectCity = requestedCity || auditCityMap.get(project.id) || null;
+    const displayName = formatProjectDisplayName(project.name, project.eventDate, projectCity);
 
     return c.json({
       success: true,
@@ -294,6 +498,9 @@ app.post("/projects", async (c) => {
         settlementModeLabel: PROJECT_SETTLEMENT_MODE_LABELS[resolvedSettlementMode],
         communitySharePercent: resolvedSharePercent,
         settlementDescription: getSettlementDescription(resolvedSettlementMode, resolvedSharePercent),
+        city: projectCity,
+        description:
+          requestedDescription || auditDescriptionMap.get(project.id) || recordDescriptionMap.get(project.name) || null,
         eventDate: project.eventDate?.toISOString(),
         created: false,
       },
@@ -321,26 +528,28 @@ app.post("/projects", async (c) => {
     metadata: {
       name: project.name,
       category: project.category,
+      ...(requestedCity ? { city: requestedCity } : {}),
+      ...(requestedDescription ? { description: requestedDescription } : {}),
     },
     req: c.req.raw,
   });
 
-  // 如果有活动日期，组合名称和日期
-  const displayName = project.eventDate
-    ? `${project.name} ${project.eventDate.toISOString().split("T")[0]}`
-    : project.name;
+  const displayName = formatProjectDisplayName(project.name, project.eventDate, requestedCity);
+  const descriptionMap = await getProjectDescriptionMap([project.name]);
 
   return c.json({
     success: true,
     data: {
       id: project.id,
       name: displayName,
+      city: requestedCity || null,
       category: project.category,
       categoryLabel: PROJECT_CATEGORY_LABELS[resolveProjectCategory(project.category)],
       settlementMode: requestedSettlementMode,
       settlementModeLabel: PROJECT_SETTLEMENT_MODE_LABELS[requestedSettlementMode],
       communitySharePercent: requestedCommunitySharePercent,
       settlementDescription: getSettlementDescription(requestedSettlementMode, requestedCommunitySharePercent),
+      description: requestedDescription || descriptionMap.get(project.name) || null,
       eventDate: project.eventDate?.toISOString(),
       created: true,
     },

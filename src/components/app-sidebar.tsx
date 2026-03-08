@@ -264,33 +264,44 @@ export function SidebarContent({
 
             <div
               className={cn(
-                "flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors group",
+                "group flex items-center gap-2 rounded-lg p-1.5 transition-colors",
                 isCollapsed && "justify-center",
               )}
             >
-              <Avatar className="h-9 w-9 border border-border/50">
-                <AvatarImage src={user.image || undefined} />
-                <AvatarFallback className="bg-primary/10 text-primary text-xs">{user.name?.[0] || "U"}</AvatarFallback>
-              </Avatar>
-              {!isCollapsed && (
-                <>
-                  <div className="flex-1 overflow-hidden">
+              <Link
+                href="/me"
+                className={cn(
+                  "flex min-w-0 items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50",
+                  isCollapsed ? "justify-center" : "flex-1",
+                )}
+                title="进入账号资料"
+              >
+                <Avatar className="h-9 w-9 border border-border/50">
+                  <AvatarImage src={user.image || undefined} />
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                    {user.name?.[0] || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                {!isCollapsed && (
+                  <div className="min-w-0 flex-1 overflow-hidden">
                     <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
                     <p className="truncate text-xs text-muted-foreground">{user.email}</p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={async () => {
-                      await authClient.signOut();
-                      window.location.href = "/";
-                    }}
-                    title="退出登录"
-                  >
-                    <LogOut className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </>
+                )}
+              </Link>
+              {!isCollapsed && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
+                  onClick={async () => {
+                    await authClient.signOut();
+                    window.location.href = "/";
+                  }}
+                  title="退出登录"
+                >
+                  <LogOut className="h-4 w-4 text-muted-foreground" />
+                </Button>
               )}
             </div>
           </>
