@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, BarChart3, FolderKanban, Layers, RefreshCcw, Save, Wallet } from "lucide-react";
-import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
+import { ArrowDownRight, ArrowUpRight, FolderKanban, Layers, RefreshCcw, Save, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -231,36 +229,12 @@ export default function ProjectStatsPage() {
 
   return (
     <div className="space-y-3 md:space-y-5">
-      <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
-        <CardHeader className="space-y-2 px-4 py-4 sm:px-5">
-          <FinanceBreadcrumb
-            items={[
-              { label: "财务系统", href: "/finance" },
-              { label: "管理员后台", href: "/finance/admin" },
-              { label: "项目统计" },
-            ]}
-          />
-
-          <div className="flex items-center justify-between gap-2">
-            <Badge variant="outline" className="rounded-full border-border/60 bg-muted/50 text-xs">
-              Project Analytics
-            </Badge>
-            <Button asChild variant="outline" size="sm" className="h-8 rounded-lg text-xs">
-              <Link href="/finance/admin">返回审核后台</Link>
-            </Button>
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-primary" />
-              <CardTitle className="text-xl font-semibold tracking-tight sm:text-2xl">项目类别统计</CardTitle>
-            </div>
-            <CardDescription className="text-xs sm:text-sm">
-              统计口径：已审核通过记录。支持按账目范围查看每个项目类别的收入、支出和净结余。
-            </CardDescription>
-          </div>
-        </CardHeader>
-      </Card>
+      <div className="space-y-2 px-1">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">项目类别统计</h1>
+        <p className="text-sm text-muted-foreground">
+          统计口径：已审核通过记录。支持按账目范围查看每个项目类别的收入、支出和净结余。
+        </p>
+      </div>
 
       <Card className="rounded-2xl border border-border/60 shadow-sm">
         <CardContent className="px-3 py-3 sm:px-4 sm:py-4">

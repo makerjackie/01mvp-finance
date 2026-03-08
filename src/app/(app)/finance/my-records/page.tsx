@@ -5,10 +5,9 @@ import Link from "next/link";
 import { Clock3, Eye, FilePlus2, Trash2 } from "lucide-react";
 import { TYPE_LABELS, STATUS_LABELS, getCategoryLabel } from "@/lib/finance-config";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
 
 interface FinanceRecord {
   id: string;
@@ -95,15 +94,10 @@ export default function MyRecordsPage() {
 
   return (
     <div className="space-y-3 md:space-y-5">
-      <Card className="rounded-2xl border border-border/60 shadow-sm">
-        <CardHeader className="space-y-2 px-4 py-4 sm:px-5">
-          <FinanceBreadcrumb items={[{ label: "财务系统", href: "/finance" }, { label: "我的记录" }]} />
-          <div className="space-y-1">
-            <CardTitle className="text-xl font-semibold tracking-tight sm:text-2xl">我的申请记录</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">查看审核状态，待审核记录可继续修改或删除</CardDescription>
-          </div>
-        </CardHeader>
-      </Card>
+      <div className="space-y-2 px-1">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">我的申请记录</h1>
+        <p className="text-sm text-muted-foreground">查看审核状态，待审核记录可继续修改或删除</p>
+      </div>
 
       {records.length === 0 ? (
         <Card className="rounded-2xl border border-border/60 shadow-sm">

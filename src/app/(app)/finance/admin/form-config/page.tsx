@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { BarChart3, ChevronDown, Plus, ScrollText, ShieldCheck, SlidersHorizontal } from "lucide-react";
-import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
-import { Badge } from "@/components/ui/badge";
+import { ChevronDown, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -159,51 +156,10 @@ export default function FinanceAdminFormConfigPage() {
 
   return (
     <div className="space-y-3 md:space-y-5">
-      <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
-        <CardHeader className="space-y-2 px-4 py-4 sm:px-5">
-          <FinanceBreadcrumb
-            items={[
-              { label: "财务系统", href: "/finance" },
-              { label: "管理员后台", href: "/finance/admin" },
-              { label: "表单配置" },
-            ]}
-          />
-          <div className="flex items-center justify-between gap-2">
-            <Badge variant="outline" className="rounded-full border-border/60 bg-muted/50 text-xs">
-              Form Config
-            </Badge>
-            <div className="flex items-center gap-1.5">
-              <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs">
-                <Link href="/finance/admin">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  审核后台
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs">
-                <Link href="/finance/admin/project-stats">
-                  <BarChart3 className="h-3.5 w-3.5" />
-                  数据统计
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs">
-                <Link href="/admin/audit-logs">
-                  <ScrollText className="h-3.5 w-3.5" />
-                  审计日志
-                </Link>
-              </Button>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="h-4 w-4 text-primary" />
-              <CardTitle className="text-xl font-semibold tracking-tight sm:text-2xl">表单配置</CardTitle>
-            </div>
-            <CardDescription className="text-xs sm:text-sm">
-              管理费用报销申请中的费用归属类别，支持新增、启停与排序保存。
-            </CardDescription>
-          </div>
-        </CardHeader>
-      </Card>
+      <div className="space-y-2 px-1">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">表单配置</h1>
+        <p className="text-sm text-muted-foreground">管理费用报销申请中的费用归属类别，支持新增、启停与排序保存。</p>
+      </div>
 
       <Card className="rounded-2xl border border-border/60 shadow-sm">
         <CardHeader className="px-4 py-3 sm:px-5">
