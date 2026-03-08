@@ -13,23 +13,7 @@ import {
   type SortingState,
   type ColumnFiltersState,
 } from "@tanstack/react-table";
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  Check,
-  CheckCircle2,
-  BarChart3,
-  Download,
-  Eye,
-  RefreshCcw,
-  Search,
-  ShieldCheck,
-  SlidersHorizontal,
-  ScrollText,
-  Trash2,
-  X,
-  XCircle,
-} from "lucide-react";
+import { Check, CheckCircle2, Download, Eye, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { TYPE_LABELS, STATUS_LABELS, getCategoryLabel } from "@/lib/finance-config";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,20 +47,18 @@ interface FinanceRecord {
 }
 
 interface Stats {
-  company: {
-    totalIncome: number;
-    totalExpense: number;
-    balance: number;
-  };
-  community: {
-    totalIncome: number;
-    totalExpense: number;
-    balance: number;
-  };
   pendingCount: number;
   approvedCount: number;
   rejectedCount: number;
 }
+
+interface ProjectOption {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+type CommunityChoice = "" | "yes" | "no";
 
 const formatCurrency = (value: number) =>
   `¥${new Intl.NumberFormat("zh-CN", {
@@ -103,27 +85,66 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [viewMode, setViewMode] = useState<"company" | "community">("company");
+  const [communityChoices, setCommunityChoices] = useState<Record<string, CommunityChoice>>({});
+  const [communitySavingId, setCommunitySavingId] = useState<string | null>(null);
+  const [projectOptions, setProjectOptions] = useState<ProjectOption[]>([]);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, []);
 
   const fetchData = async () => {
     try {
-      const [recordsRes, statsRes] = await Promise.all([
+      const [recordsRes, statsRes, projectOptionsRes] = await Promise.all([
         fetch("/api/finance/admin/all"),
         fetch("/api/finance/admin/stats"),
+        fetch("/api/finance/admin/project-options"),
       ]);
 
       const recordsResult = await recordsRes.json();
       const statsResult = await statsRes.json();
+      const projectOptionsResult = await projectOptionsRes.json();
 
-      if (recordsResult.success) {
-        setRecords(recordsResult.data);
+      if (recordsResult.success && Array.isArray(recordsResult.data)) {
+        const nextRecords = recordsResult.data as FinanceRecord[];
+        setRecords(nextRecords);
+        setCommunityChoices((prev) => {
+          const next: Record<string, CommunityChoice> = {};
+          nextRecords.forEach((record) => {
+            const previous = prev[record.id];
+            if (previous === "yes" || previous === "no") {
+              next[record.id] = previous;
+              return;
+            }
+            next[record.id] = record.status === "pending" ? "" : record.isCommunity ? "yes" : "no";
+          });
+          return next;
+        });
+
+        if (!projectOptionsResult.success || !Array.isArray(projectOptionsResult.data)) {
+          const fallbackProjectOptions = nextRecords
+            .filter((record) => Boolean(record.relatedProject))
+            .map((record) => record.relatedProject!.trim())
+            .filter((name, index, arr) => name.length > 0 && arr.indexOf(name) === index)
+            .map((name, index) => ({ id: `record-${index}`, name, createdAt: new Date(0).toISOString() }));
+          setProjectOptions(fallbackProjectOptions);
+        }
       }
+
       if (statsResult.success) {
-        setStats(statsResult.data);
+        setStats(statsResult.data as Stats);
+      }
+
+      if (projectOptionsResult.success && Array.isArray(projectOptionsResult.data)) {
+        const normalized = (projectOptionsResult.data as ProjectOption[])
+          .filter((item) => typeof item.name === "string" && item.name.trim().length > 0)
+          .map((item) => ({
+            id: item.id,
+            name: item.name.trim(),
+            createdAt: item.createdAt,
+          }))
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setProjectOptions(normalized);
       }
     } catch (error) {
       console.error(error);
@@ -132,18 +153,85 @@ export default function AdminPage() {
     }
   };
 
+  const getCommunityChoice = (record: FinanceRecord): CommunityChoice => {
+    const current = communityChoices[record.id];
+    if (current === "yes" || current === "no") {
+      return current;
+    }
+    if (record.status === "pending") {
+      return "";
+    }
+    return record.isCommunity ? "yes" : "no";
+  };
+
+  const persistCommunityChoice = async (recordId: string, isCommunity: boolean) => {
+    setCommunitySavingId(recordId);
+    try {
+      const res = await fetch(`/api/finance/${recordId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isCommunity }),
+      });
+
+      const result = await res.json();
+      if (!result.success) {
+        alert(result.error || "保存“是否社区账目”失败");
+        return false;
+      }
+
+      setRecords((prev) =>
+        prev.map((item) =>
+          item.id === recordId
+            ? {
+                ...item,
+                isCommunity,
+              }
+            : item,
+        ),
+      );
+      setCommunityChoices((prev) => ({
+        ...prev,
+        [recordId]: isCommunity ? "yes" : "no",
+      }));
+      return true;
+    } catch (error) {
+      console.error(error);
+      alert("保存“是否社区账目”失败");
+      return false;
+    } finally {
+      setCommunitySavingId(null);
+    }
+  };
+
+  const handleCommunityChoiceChange = async (record: FinanceRecord, nextChoice: CommunityChoice) => {
+    const previousChoice = getCommunityChoice(record);
+
+    setCommunityChoices((prev) => ({
+      ...prev,
+      [record.id]: nextChoice,
+    }));
+
+    if (!nextChoice) return;
+
+    const ok = await persistCommunityChoice(record.id, nextChoice === "yes");
+    if (!ok) {
+      setCommunityChoices((prev) => ({
+        ...prev,
+        [record.id]: previousChoice,
+      }));
+    }
+  };
+
   const handleExport = async () => {
     try {
       const typeFilter = table.getColumn("type")?.getFilterValue() as string;
       const statusFilter = table.getColumn("status")?.getFilterValue() as string;
-      const isCommunityFilter = table.getColumn("isCommunity")?.getFilterValue() as string;
+      const projectFilter = table.getColumn("details")?.getFilterValue() as string;
 
       const params = new URLSearchParams();
       if (typeFilter) params.append("type", typeFilter);
       if (statusFilter) params.append("status", statusFilter);
-      if (isCommunityFilter) {
-        params.append("isCommunity", isCommunityFilter === "community" ? "true" : "false");
-      }
+      if (projectFilter) params.append("relatedProject", projectFilter);
 
       const url = `/api/finance/admin/export${params.toString() ? `?${params.toString()}` : ""}`;
       window.open(url, "_blank");
@@ -153,11 +241,23 @@ export default function AdminPage() {
     }
   };
 
-  const handleReview = async (id: string, status: "approved" | "rejected") => {
+  const handleReview = async (record: FinanceRecord, status: "approved" | "rejected") => {
+    const choice = getCommunityChoice(record);
+    if (!choice) {
+      alert("请先选择“是否社区账目”");
+      return;
+    }
+
+    const selectedIsCommunity = choice === "yes";
+    if (record.isCommunity !== selectedIsCommunity) {
+      const synced = await persistCommunityChoice(record.id, selectedIsCommunity);
+      if (!synced) return;
+    }
+
     const reviewNote = prompt("请输入审核备注（可选）：");
 
     try {
-      const res = await fetch(`/api/finance/${id}/review`, {
+      const res = await fetch(`/api/finance/${record.id}/review`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, reviewNote: reviewNote || undefined }),
@@ -167,37 +267,13 @@ export default function AdminPage() {
 
       if (result.success) {
         alert("审核成功");
-        fetchData();
+        await fetchData();
       } else {
         alert(result.error || "审核失败");
       }
     } catch (error) {
       console.error(error);
       alert("审核失败");
-    }
-  };
-
-  const handleToggleCommunity = async (id: string, currentValue: boolean) => {
-    if (!confirm(`确定要将此记录标记为${currentValue ? "公司" : "社区"}账目吗？`)) return;
-
-    try {
-      const res = await fetch(`/api/finance/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isCommunity: !currentValue }),
-      });
-
-      const result = await res.json();
-
-      if (result.success) {
-        alert("修改成功");
-        fetchData();
-      } else {
-        alert(result.error || "修改失败");
-      }
-    } catch (error) {
-      console.error(error);
-      alert("修改失败");
     }
   };
 
@@ -213,7 +289,7 @@ export default function AdminPage() {
 
       if (result.success) {
         alert("删除成功");
-        fetchData();
+        await fetchData();
       } else {
         alert(result.error || "删除失败");
       }
@@ -237,7 +313,7 @@ export default function AdminPage() {
 
       if (result.success) {
         alert("标记成功");
-        fetchData();
+        await fetchData();
       } else {
         alert(result.error || "操作失败");
       }
@@ -249,96 +325,101 @@ export default function AdminPage() {
 
   const ActionButtons = ({ record, compact = false }: { record: FinanceRecord; compact?: boolean }) => {
     const buttonSize = compact ? "h-8 px-2 text-xs" : "h-8 px-2.5 text-xs";
+    const missingCommunityChoice = record.status === "pending" && !getCommunityChoice(record);
 
     return (
-      <div className="flex flex-wrap gap-1.5">
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          className={cn(
-            "rounded-lg border-border/60 bg-background shadow-none transition-all duration-200 active:scale-[0.98]",
-            buttonSize,
-          )}
-        >
-          <Link href={`/finance/edit/${record.id}`}>
-            <Eye className="h-3.5 w-3.5" />
-            查看
-          </Link>
-        </Button>
-
-        {record.status === "pending" && (
-          <>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => handleReview(record.id, "approved")}
-              className={cn(
-                "rounded-lg bg-emerald-600 text-white shadow-none transition-all duration-200 hover:bg-emerald-700 active:scale-[0.98]",
-                buttonSize,
-              )}
-            >
-              <Check className="h-3.5 w-3.5" />
-              通过
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => handleReview(record.id, "rejected")}
-              className={cn(
-                "rounded-lg border-rose-200 bg-rose-50 text-rose-700 shadow-none transition-all duration-200 hover:bg-rose-100 hover:text-rose-700 active:scale-[0.98]",
-                buttonSize,
-              )}
-            >
-              <X className="h-3.5 w-3.5" />
-              拒绝
-            </Button>
-          </>
-        )}
-
-        {record.status === "approved" && record.type === "expense" && record.paymentStatus === "unpaid" && (
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap gap-1.5">
           <Button
-            type="button"
+            asChild
+            variant="outline"
             size="sm"
-            onClick={() => handleMarkPaid(record.id)}
             className={cn(
-              "rounded-lg bg-blue-600 text-white shadow-none transition-all duration-200 hover:bg-blue-700 active:scale-[0.98]",
+              "rounded-lg border-border/60 bg-background shadow-none transition-all duration-200 active:scale-[0.98]",
               buttonSize,
             )}
           >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            标记已支付
+            <Link href={`/finance/edit/${record.id}`}>
+              <Eye className="h-3.5 w-3.5" />
+              查看
+            </Link>
           </Button>
-        )}
 
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => handleDelete(record.id)}
-          className={cn(
-            "rounded-lg border-rose-200 bg-rose-50 text-rose-700 shadow-none transition-all duration-200 hover:bg-rose-100 hover:text-rose-700 active:scale-[0.98]",
-            buttonSize,
+          {record.status === "pending" && (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void handleReview(record, "approved")}
+                disabled={missingCommunityChoice || communitySavingId === record.id}
+                className={cn(
+                  "rounded-lg bg-emerald-600 text-white shadow-none transition-all duration-200 hover:bg-emerald-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
+                  buttonSize,
+                )}
+              >
+                <Check className="h-3.5 w-3.5" />
+                通过
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void handleReview(record, "rejected")}
+                disabled={missingCommunityChoice || communitySavingId === record.id}
+                className={cn(
+                  "rounded-lg border-rose-200 bg-rose-50 text-rose-700 shadow-none transition-all duration-200 hover:bg-rose-100 hover:text-rose-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
+                  buttonSize,
+                )}
+              >
+                <X className="h-3.5 w-3.5" />
+                拒绝
+              </Button>
+            </>
           )}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          删除
-        </Button>
+
+          {record.status === "approved" && record.type === "expense" && record.paymentStatus === "unpaid" && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void handleMarkPaid(record.id)}
+              className={cn(
+                "rounded-lg bg-blue-600 text-white shadow-none transition-all duration-200 hover:bg-blue-700 active:scale-[0.98]",
+                buttonSize,
+              )}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              标记已支付
+            </Button>
+          )}
+        </div>
+
+        {missingCommunityChoice && (
+          <p className="text-[11px] leading-4 text-amber-700">请先选择“是否社区账目”为是或否，再进行审核</p>
+        )}
       </div>
     );
   };
 
+  const DeleteButton = ({ record, compact = false }: { record: FinanceRecord; compact?: boolean }) => (
+    <Button
+      type="button"
+      variant="outline"
+      size={compact ? "sm" : "icon"}
+      onClick={() => void handleDelete(record.id)}
+      className={cn(
+        "border-rose-200 bg-rose-50 text-rose-700 shadow-none transition-all duration-200 hover:bg-rose-100 hover:text-rose-700 active:scale-[0.98]",
+        compact ? "h-8 px-2" : "h-9 w-9",
+      )}
+      title="删除"
+    >
+      <Trash2 className="h-4 w-4" />
+      <span className="sr-only">删除</span>
+    </Button>
+  );
+
   const columns: ColumnDef<FinanceRecord>[] = [
     {
-      accessorKey: "createdAt",
-      header: "提交时间",
-      cell: ({ row }) => (
-        <span className="text-xs whitespace-nowrap text-muted-foreground">{formatDate(row.original.createdAt)}</span>
-      ),
-    },
-    {
-      id: "applicant",
+      id: "request",
       accessorFn: (row) => row.user.name,
       filterFn: (row, _columnId, filterValue) => {
         const search = String(filterValue || "")
@@ -350,78 +431,47 @@ export default function AdminPage() {
           (row.original.user.phoneNumber || "").toLowerCase().includes(search)
         );
       },
-      header: "申请人",
+      header: "申请信息",
       cell: ({ row }) => (
-        <div className="text-sm leading-tight">
-          <div className="font-medium">{row.original.user.name}</div>
-          <div className="text-xs text-muted-foreground">{row.original.user.phoneNumber || "—"}</div>
+        <div className="min-w-[220px] space-y-1">
+          <div className="text-sm font-semibold leading-tight">{row.original.user.name}</div>
+          <div className="text-xs text-muted-foreground">{row.original.user.phoneNumber || "-"}</div>
+          <div className="text-xs text-muted-foreground">{formatDate(row.original.createdAt)}</div>
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <span
+              className={cn(
+                "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                typeClassMap[row.original.type] || "border-border/60 bg-muted/60 text-foreground",
+              )}
+            >
+              {TYPE_LABELS[row.original.type]}
+            </span>
+            <span className="text-xs text-muted-foreground">{getCategoryLabel(row.original.category)}</span>
+          </div>
         </div>
       ),
-    },
-    {
-      accessorKey: "type",
-      filterFn: (row, columnId, filterValue) => {
-        if (!filterValue) return true;
-        return row.getValue(columnId) === filterValue;
-      },
-      header: "类型",
-      cell: ({ row }) => (
-        <span
-          className={cn(
-            "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium",
-            typeClassMap[row.original.type] || "border-border/60 bg-muted/60 text-foreground",
-          )}
-        >
-          {TYPE_LABELS[row.original.type]}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "category",
-      header: "类别",
-      cell: ({ row }) => <div className="text-sm whitespace-nowrap">{getCategoryLabel(row.original.category)}</div>,
     },
     {
       accessorKey: "amount",
       header: "金额",
       cell: ({ row }) => (
-        <div className="text-sm font-semibold whitespace-nowrap">{formatCurrency(row.original.amount)}</div>
+        <div className="text-base font-semibold whitespace-nowrap">{formatCurrency(row.original.amount)}</div>
       ),
     },
     {
-      accessorKey: "isCommunity",
-      filterFn: (row, columnId, filterValue) => {
+      id: "details",
+      accessorFn: (row) => row.relatedProject || "",
+      filterFn: (row, _columnId, filterValue) => {
         if (!filterValue) return true;
-        const isCommunity = row.getValue<boolean>(columnId);
-        return filterValue === "community" ? isCommunity : !isCommunity;
+        const relatedProject = (row.original.relatedProject || "").trim();
+        return relatedProject === String(filterValue).trim();
       },
-      header: "账目",
+      header: "项目 / 说明",
+      enableSorting: false,
       cell: ({ row }) => (
-        <button
-          type="button"
-          onClick={() => handleToggleCommunity(row.original.id, row.original.isCommunity)}
-          className={cn(
-            "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium transition-all duration-200 active:scale-[0.98]",
-            row.original.isCommunity
-              ? "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
-              : "border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted",
-          )}
-        >
-          {row.original.isCommunity ? "社区" : "公司"}
-        </button>
-      ),
-    },
-    {
-      accessorKey: "relatedProject",
-      header: "项目",
-      cell: ({ row }) => <div className="max-w-[150px] truncate text-sm">{row.original.relatedProject || "-"}</div>,
-    },
-    {
-      accessorKey: "description",
-      header: "说明",
-      cell: ({ row }) => (
-        <div className="max-w-[220px] truncate text-sm" title={row.original.description}>
-          {row.original.description}
+        <div className="max-w-[260px] space-y-1 text-sm">
+          <p className="truncate text-foreground">项目：{row.original.relatedProject || "-"}</p>
+          <p className="line-clamp-2 text-muted-foreground">说明：{row.original.description || "-"}</p>
         </div>
       ),
     },
@@ -436,36 +486,56 @@ export default function AdminPage() {
         if (!filterValue) return true;
         return row.getValue(columnId) === filterValue;
       },
-      header: "状态",
+      header: "审核状态",
       cell: ({ row }) => (
-        <span
-          className={cn(
-            "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium",
-            statusClassMap[row.original.status] ||
-              STATUS_LABELS[row.original.status]?.color ||
-              "bg-muted text-foreground",
-          )}
-        >
-          {STATUS_LABELS[row.original.status].label}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "paymentStatus",
-      header: "支付状态",
-      cell: ({ row }) => {
-        if (row.original.type === "income") return <span className="text-xs text-muted-foreground">-</span>;
-        return (
+        <div className="space-y-1">
           <span
             className={cn(
               "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium",
-              row.original.paymentStatus === "paid"
-                ? "border-green-200 bg-green-50 text-green-700"
-                : "border-gray-200 bg-gray-50 text-gray-700",
+              statusClassMap[row.original.status] ||
+                STATUS_LABELS[row.original.status]?.color ||
+                "bg-muted text-foreground",
             )}
           >
-            {row.original.paymentStatus === "paid" ? "已支付" : "未支付"}
+            {STATUS_LABELS[row.original.status].label}
           </span>
+          <div>
+            {row.original.type === "income" ? (
+              <span className="text-xs text-muted-foreground">支付状态：-</span>
+            ) : (
+              <span
+                className={cn(
+                  "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                  row.original.paymentStatus === "paid"
+                    ? "border-green-200 bg-green-50 text-green-700"
+                    : "border-gray-200 bg-gray-50 text-gray-700",
+                )}
+              >
+                {row.original.paymentStatus === "paid" ? "已支付" : "未支付"}
+              </span>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "communityChoice",
+      header: "是否社区账目",
+      enableSorting: false,
+      cell: ({ row }) => {
+        const record = row.original;
+        const value = getCommunityChoice(record);
+        return (
+          <select
+            value={value}
+            onChange={(e) => void handleCommunityChoiceChange(record, e.target.value as CommunityChoice)}
+            disabled={communitySavingId === record.id || record.status !== "pending"}
+            className="h-9 min-w-[130px] rounded-md border border-border/60 bg-background px-2.5 text-xs outline-none transition-colors focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <option value="">请选择</option>
+            <option value="yes">是</option>
+            <option value="no">否</option>
+          </select>
         );
       },
     },
@@ -474,6 +544,16 @@ export default function AdminPage() {
       header: "操作",
       enableSorting: false,
       cell: ({ row }) => <ActionButtons record={row.original} />,
+    },
+    {
+      id: "delete",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="flex justify-end">
+          <DeleteButton record={row.original} />
+        </div>
+      ),
     },
   ];
 
@@ -502,159 +582,39 @@ export default function AdminPage() {
       <div className="space-y-3 md:space-y-4">
         <Card className="rounded-2xl border border-border/60 shadow-sm">
           <CardContent className="px-4 py-4 sm:px-5">
-            <p className="text-sm text-muted-foreground">正在加载管理员后台数据...</p>
+            <p className="text-sm text-muted-foreground">正在加载审核后台数据...</p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const currentStats = viewMode === "company" ? stats?.company : stats?.community;
   const pagedRows = table.getRowModel().rows;
   const filteredCount = table.getFilteredRowModel().rows.length;
   const pageCount = table.getPageCount();
   const currentPage = pageCount === 0 ? 0 : table.getState().pagination.pageIndex + 1;
 
   return (
-    <div className="space-y-3 md:space-y-5">
-      <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
-        <CardHeader className="space-y-2 px-4 py-4 sm:px-5">
-          <FinanceBreadcrumb items={[{ label: "财务系统", href: "/finance" }, { label: "管理员后台" }]} />
-          <div className="flex items-center justify-between gap-2">
-            <Badge variant="outline" className="rounded-full border-border/60 bg-muted/50 text-xs">
-              Finance Admin
-            </Badge>
-            <div className="flex items-center gap-1.5">
-              <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs">
-                <Link href="/finance/admin/project-stats">
-                  <BarChart3 className="h-3.5 w-3.5" />
-                  项目统计
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs">
-                <Link href="/admin/audit-logs">
-                  <ScrollText className="h-3.5 w-3.5" />
-                  审计日志
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs">
-                <Link href="/finance/admin/form-config">
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                  表单配置
-                </Link>
-              </Button>
-            </div>
+    <div className="space-y-4 md:space-y-5">
+      <section className="space-y-3 px-1">
+        <FinanceBreadcrumb items={[{ label: "财务系统", href: "/finance" }, { label: "审核后台" }]} />
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            <h1 className="text-3xl font-semibold tracking-tight">审核后台</h1>
           </div>
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-primary" />
-              <CardTitle className="text-xl font-semibold tracking-tight sm:text-2xl">管理员后台</CardTitle>
-            </div>
-            <CardDescription className="text-xs sm:text-sm">
-              审核申请、查看统计、管理账目归属。移动端采用紧凑布局，便于快速处理。
-            </CardDescription>
-          </div>
-        </CardHeader>
-      </Card>
-
-      <Card className="rounded-2xl border border-border/60 shadow-sm">
-        <CardContent className="px-3 py-3 sm:px-4 sm:py-4">
-          <div className="inline-flex w-full rounded-xl border border-border/60 bg-muted/40 p-1 sm:w-auto">
-            <button
-              type="button"
-              onClick={() => setViewMode("company")}
-              className={cn(
-                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200 active:scale-[0.98] sm:min-w-[130px]",
-                viewMode === "company"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-              )}
-            >
-              <ArrowDownRight className="h-3.5 w-3.5" />
-              公司账目
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("community")}
-              className={cn(
-                "inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200 active:scale-[0.98] sm:min-w-[130px]",
-                viewMode === "community"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-              )}
-            >
-              <ArrowUpRight className="h-3.5 w-3.5" />
-              社区账目
-            </button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {currentStats && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-          <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-            <CardContent className="px-3 py-3">
-              <p className="text-[11px] text-muted-foreground">总收入</p>
-              <p className="mt-1 text-sm font-semibold text-emerald-600 sm:text-base">
-                {formatCurrency(currentStats.totalIncome)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-            <CardContent className="px-3 py-3">
-              <p className="text-[11px] text-muted-foreground">总支出</p>
-              <p className="mt-1 text-sm font-semibold text-rose-600 sm:text-base">
-                {formatCurrency(currentStats.totalExpense)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-            <CardContent className="px-3 py-3">
-              <p className="text-[11px] text-muted-foreground">余额</p>
-              <p className="mt-1 text-sm font-semibold text-primary sm:text-base">
-                {formatCurrency(currentStats.balance)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-            <CardContent className="flex items-center justify-between px-3 py-3">
-              <div>
-                <p className="text-[11px] text-muted-foreground">待审核</p>
-                <p className="mt-1 text-sm font-semibold">{stats?.pendingCount ?? 0}</p>
-              </div>
-              <Badge className="rounded-full border-amber-200 bg-amber-50 px-2 py-0 text-[11px] text-amber-700">
-                <RefreshCcw className="mr-1 h-3 w-3" />
-                待办
-              </Badge>
-            </CardContent>
-          </Card>
-          <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-            <CardContent className="flex items-center justify-between px-3 py-3">
-              <div>
-                <p className="text-[11px] text-muted-foreground">已通过</p>
-                <p className="mt-1 text-sm font-semibold">{stats?.approvedCount ?? 0}</p>
-              </div>
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            </CardContent>
-          </Card>
-          <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-            <CardContent className="flex items-center justify-between px-3 py-3">
-              <div>
-                <p className="text-[11px] text-muted-foreground">已拒绝</p>
-                <p className="mt-1 text-sm font-semibold">{stats?.rejectedCount ?? 0}</p>
-              </div>
-              <XCircle className="h-4 w-4 text-rose-600" />
-            </CardContent>
-          </Card>
+          <p className="text-sm text-muted-foreground">集中处理财务申请审核，支持筛选、导出与状态流转。</p>
         </div>
-      )}
+      </section>
 
       <Card className="rounded-2xl border border-border/60 shadow-sm">
         <CardHeader className="px-4 py-3 sm:px-5">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-base">筛选条件</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">按类型、状态、账目和申请人快速过滤记录</CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
+                按类型、状态、项目/活动和申请人快速过滤记录
+              </CardDescription>
             </div>
             <Button onClick={handleExport} variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs">
               <Download className="h-3.5 w-3.5" />
@@ -692,15 +652,18 @@ export default function AdminPage() {
             </label>
 
             <label className="space-y-1">
-              <span className="text-[11px] font-medium text-muted-foreground">账目归属</span>
+              <span className="text-[11px] font-medium text-muted-foreground">项目/活动</span>
               <select
-                value={(table.getColumn("isCommunity")?.getFilterValue() as string) ?? ""}
-                onChange={(e) => table.getColumn("isCommunity")?.setFilterValue(e.target.value || undefined)}
+                value={(table.getColumn("details")?.getFilterValue() as string) ?? ""}
+                onChange={(e) => table.getColumn("details")?.setFilterValue(e.target.value || undefined)}
                 className="h-9 w-full rounded-md border border-border/60 bg-background px-2.5 text-xs outline-none transition-colors focus:ring-1 focus:ring-ring"
               >
-                <option value="">全部账目</option>
-                <option value="community">社区账目</option>
-                <option value="company">公司账目</option>
+                <option value="">全部项目/活动</option>
+                {projectOptions.map((project) => (
+                  <option key={project.id} value={project.name}>
+                    {project.name}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -710,8 +673,8 @@ export default function AdminPage() {
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="text"
-                  value={(table.getColumn("applicant")?.getFilterValue() as string) ?? ""}
-                  onChange={(e) => table.getColumn("applicant")?.setFilterValue(e.target.value)}
+                  value={(table.getColumn("request")?.getFilterValue() as string) ?? ""}
+                  onChange={(e) => table.getColumn("request")?.setFilterValue(e.target.value)}
                   placeholder="姓名或手机号"
                   className="h-9 border-border/60 pl-8 text-xs"
                 />
@@ -731,6 +694,21 @@ export default function AdminPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3 px-3 pb-3 pt-0 sm:px-4 sm:pb-4">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
+              <p className="text-[11px] text-amber-700">待审核</p>
+              <p className="mt-1 text-lg font-semibold text-amber-800">{stats?.pendingCount ?? 0}</p>
+            </div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
+              <p className="text-[11px] text-emerald-700">已通过</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-800">{stats?.approvedCount ?? 0}</p>
+            </div>
+            <div className="rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2">
+              <p className="text-[11px] text-rose-700">已拒绝</p>
+              <p className="mt-1 text-lg font-semibold text-rose-800">{stats?.rejectedCount ?? 0}</p>
+            </div>
+          </div>
+
           <div className="md:hidden">
             {pagedRows.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
@@ -740,45 +718,89 @@ export default function AdminPage() {
               <div className="space-y-2">
                 {pagedRows.map((row) => {
                   const record = row.original;
+                  const communityChoice = getCommunityChoice(record);
+
                   return (
                     <div key={record.id} className="rounded-xl border border-border/60 bg-card p-3 shadow-sm">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="text-sm leading-tight font-medium">{record.user.name}</p>
-                          <p className="mt-0.5 text-[11px] text-muted-foreground">{formatDate(record.createdAt)}</p>
+                          <p className="text-sm leading-tight font-semibold">{record.user.name}</p>
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">
+                            {record.user.phoneNumber || "-"} · {formatDate(record.createdAt)}
+                          </p>
                         </div>
-                        <Badge
+                        <span
                           className={cn(
-                            "rounded-full border px-2 py-0 text-[10px]",
+                            "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium",
                             statusClassMap[record.status] ||
                               STATUS_LABELS[record.status]?.color ||
                               "bg-muted text-foreground",
                           )}
                         >
                           {STATUS_LABELS[record.status].label}
-                        </Badge>
+                        </span>
                       </div>
 
-                      <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
-                        <p className="text-muted-foreground">
-                          类型：<span className="text-foreground">{TYPE_LABELS[record.type]}</span>
-                        </p>
-                        <p className="text-muted-foreground">
-                          金额：<span className="font-semibold text-foreground">{formatCurrency(record.amount)}</span>
-                        </p>
-                        <p className="text-muted-foreground">
-                          分类：
-                          <span className="text-foreground">{getCategoryLabel(record.category)}</span>
-                        </p>
-                        <p className="text-muted-foreground">
-                          账目：<span className="text-foreground">{record.isCommunity ? "社区" : "公司"}</span>
-                        </p>
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                              typeClassMap[record.type] || "border-border/60 bg-muted/60 text-foreground",
+                            )}
+                          >
+                            {TYPE_LABELS[record.type]}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{getCategoryLabel(record.category)}</span>
+                        </div>
+                        <p className="text-base font-semibold">{formatCurrency(record.amount)}</p>
                       </div>
 
-                      <p className="mt-2 text-xs leading-5 text-muted-foreground">{record.description}</p>
+                      <div className="mt-2 rounded-lg bg-muted/30 px-2.5 py-2 text-xs text-muted-foreground">
+                        <p className="truncate">项目：{record.relatedProject || "-"}</p>
+                        <p className="mt-1 line-clamp-2">说明：{record.description || "-"}</p>
+                      </div>
 
-                      <div className="mt-2 border-t border-border/50 pt-2">
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <label className="space-y-1">
+                          <span className="text-[11px] font-medium text-muted-foreground">是否社区账目</span>
+                          <select
+                            value={communityChoice}
+                            onChange={(e) =>
+                              void handleCommunityChoiceChange(record, e.target.value as CommunityChoice)
+                            }
+                            disabled={communitySavingId === record.id || record.status !== "pending"}
+                            className="h-8 w-full rounded-md border border-border/60 bg-background px-2 text-xs outline-none transition-colors focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <option value="">请选择</option>
+                            <option value="yes">是</option>
+                            <option value="no">否</option>
+                          </select>
+                        </label>
+                        <div className="space-y-1">
+                          <span className="text-[11px] font-medium text-muted-foreground">支付状态</span>
+                          <div>
+                            {record.type === "income" ? (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            ) : (
+                              <span
+                                className={cn(
+                                  "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                                  record.paymentStatus === "paid"
+                                    ? "border-green-200 bg-green-50 text-green-700"
+                                    : "border-gray-200 bg-gray-50 text-gray-700",
+                                )}
+                              >
+                                {record.paymentStatus === "paid" ? "已支付" : "未支付"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 flex items-start justify-between gap-2 border-t border-border/50 pt-2">
                         <ActionButtons record={record} compact />
+                        <DeleteButton record={record} compact />
                       </div>
                     </div>
                   );
@@ -829,9 +851,9 @@ export default function AdminPage() {
                   </tr>
                 ) : (
                   pagedRows.map((row) => (
-                    <tr key={row.id} className="border-b border-border/40">
+                    <tr key={row.id} className="align-top hover:bg-muted/20">
                       {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id} className="border-b border-border/40 px-3 py-2 align-top">
+                        <td key={cell.id} className="border-b border-border/40 px-3 py-3">
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </td>
                       ))}

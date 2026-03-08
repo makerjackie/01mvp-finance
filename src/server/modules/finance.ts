@@ -238,6 +238,16 @@ app.post("/projects", async (c) => {
   const requestedCommunitySharePercent = clampCommunitySharePercent(
     data?.communitySharePercent ?? inferredSettlement.communitySharePercent,
   );
+
+  // 处理活动日期
+  let eventDate: Date | null = null;
+  if (data?.eventDate) {
+    const parsedDate = new Date(data.eventDate);
+    if (!isNaN(parsedDate.getTime())) {
+      eventDate = parsedDate;
+    }
+  }
+
   const normalizedName = toProjectNormalizedName(name);
 
   const existing = await prisma.project.findUnique({
@@ -250,21 +260,17 @@ app.post("/projects", async (c) => {
     const shouldUpdateCategory = existing.category === "other" && requestedCategory !== "other";
     const shouldUpdateSettlementMode = existing.settlementMode !== requestedSettlementMode;
     const shouldUpdateSharePercent = existing.communitySharePercent !== requestedCommunitySharePercent;
-    const project = shouldUpdateCategory
-      ? await prisma.project.update({
-          where: { id: existing.id },
-          data: {
-            category: requestedCategory,
-            settlementMode: requestedSettlementMode,
-            communitySharePercent: requestedCommunitySharePercent,
-          },
-        })
-      : shouldUpdateSettlementMode || shouldUpdateSharePercent
+    const shouldUpdateEventDate = eventDate !== null && existing.eventDate?.getTime() !== eventDate.getTime();
+
+    const project =
+      shouldUpdateCategory || shouldUpdateSettlementMode || shouldUpdateSharePercent || shouldUpdateEventDate
         ? await prisma.project.update({
             where: { id: existing.id },
             data: {
-              settlementMode: requestedSettlementMode,
-              communitySharePercent: requestedCommunitySharePercent,
+              ...(shouldUpdateCategory && { category: requestedCategory }),
+              ...(shouldUpdateSettlementMode && { settlementMode: requestedSettlementMode }),
+              ...(shouldUpdateSharePercent && { communitySharePercent: requestedCommunitySharePercent }),
+              ...(shouldUpdateEventDate && { eventDate }),
             },
           })
         : existing;
@@ -283,6 +289,7 @@ app.post("/projects", async (c) => {
         settlementModeLabel: PROJECT_SETTLEMENT_MODE_LABELS[resolvedSettlementMode],
         communitySharePercent: resolvedSharePercent,
         settlementDescription: getSettlementDescription(resolvedSettlementMode, resolvedSharePercent),
+        eventDate: project.eventDate?.toISOString(),
         created: false,
       },
     });
@@ -295,6 +302,7 @@ app.post("/projects", async (c) => {
       category: requestedCategory,
       settlementMode: requestedSettlementMode,
       communitySharePercent: requestedCommunitySharePercent,
+      eventDate,
       createdById: session.user.id,
     },
   });
@@ -323,6 +331,7 @@ app.post("/projects", async (c) => {
       settlementModeLabel: PROJECT_SETTLEMENT_MODE_LABELS[requestedSettlementMode],
       communitySharePercent: requestedCommunitySharePercent,
       settlementDescription: getSettlementDescription(requestedSettlementMode, requestedCommunitySharePercent),
+      eventDate: project.eventDate?.toISOString(),
       created: true,
     },
   });
@@ -841,6 +850,36 @@ app.get("/admin/all", async (c) => {
   });
 
   return c.json({ success: true, data: records });
+});
+
+// 管理员：获取项目/活动名称选项（按新增时间倒序）
+app.get("/admin/project-options", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.user || session.user.role !== "admin") {
+    return c.json({ error: "无权访问" }, 403);
+  }
+
+  const projects = await prisma.project.findMany({
+    where: {
+      isActive: true,
+    },
+    select: {
+      id: true,
+      name: true,
+      createdAt: true,
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  });
+
+  return c.json({
+    success: true,
+    data: projects.map((project) => ({
+      id: project.id,
+      name: project.name,
+      createdAt: project.createdAt,
+    })),
+  });
 });
 
 // 管理员：审核财务记录
@@ -1365,13 +1404,14 @@ app.get("/admin/export", async (c) => {
     return c.json({ error: "无权访问" }, 403);
   }
 
-  const { type, status, isCommunity } = c.req.query();
+  const { type, status, isCommunity, relatedProject } = c.req.query();
 
   const records = await prisma.financeRecord.findMany({
     where: {
       ...(type && { type }),
       ...(status && { status }),
       ...(isCommunity !== undefined && { isCommunity: isCommunity === "true" }),
+      ...(relatedProject && { relatedProject }),
     },
     orderBy: {
       createdAt: "desc",
