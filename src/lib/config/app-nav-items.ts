@@ -5,6 +5,8 @@ import {
   MessageSquare,
   PlusCircle,
   ScrollText,
+  SlidersHorizontal,
+  Settings,
   Settings2,
   ShieldCheck,
   Upload,
@@ -21,6 +23,7 @@ export interface AppNavItem {
   href: string;
   activePath: string;
   icon: LucideIcon;
+  children?: AppNavItem[];
 }
 
 const showAiSidebarItems = process.env.NEXT_PUBLIC_ENABLE_AI_SIDEBAR === "true";
@@ -82,25 +85,41 @@ const aiNavItems: AppNavItem[] = [
 
 const adminNavItems: AppNavItem[] = [
   {
-    key: "admin-review",
-    title: "审核后台",
+    key: "admin",
+    title: "管理员后台",
     href: "/finance/admin",
     activePath: "/finance/admin",
-    icon: ShieldCheck,
-  },
-  {
-    key: "admin-stats",
-    title: "项目统计",
-    href: "/finance/admin/project-stats",
-    activePath: "/finance/admin/project-stats",
-    icon: BarChart3,
-  },
-  {
-    key: "admin-audit-logs",
-    title: "审计日志",
-    href: "/admin/audit-logs",
-    activePath: "/admin/audit-logs",
-    icon: ScrollText,
+    icon: Settings,
+    children: [
+      {
+        key: "admin-review",
+        title: "审核后台",
+        href: "/finance/admin",
+        activePath: "/finance/admin",
+        icon: ShieldCheck,
+      },
+      {
+        key: "admin-stats",
+        title: "数据统计",
+        href: "/finance/admin/project-stats",
+        activePath: "/finance/admin/project-stats",
+        icon: BarChart3,
+      },
+      {
+        key: "admin-audit-logs",
+        title: "审计日志",
+        href: "/admin/audit-logs",
+        activePath: "/admin/audit-logs",
+        icon: ScrollText,
+      },
+      {
+        key: "admin-form-config",
+        title: "表单配置",
+        href: "/finance/admin/form-config",
+        activePath: "/finance/admin/form-config",
+        icon: SlidersHorizontal,
+      },
+    ],
   },
 ];
 

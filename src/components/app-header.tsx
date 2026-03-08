@@ -32,6 +32,7 @@ export function AppHeader({ user }: AppHeaderProps) {
       "my-records": "我的记录",
       edit: "编辑记录",
       admin: "审核后台",
+      "form-config": "表单配置",
       chat: "AI 对话",
       "ai-image": "AI 生图",
       upload: "文件上传",
