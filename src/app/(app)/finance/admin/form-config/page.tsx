@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BarChart3, ChevronDown, Plus, ScrollText, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
@@ -20,6 +20,7 @@ interface ExpenseCategoryConfigItem {
 export default function FinanceAdminFormConfigPage() {
   const DEFAULT_VISIBLE_COUNT = 3;
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategoryConfigItem[]>([]);
+  const [initialExpenseCategories, setInitialExpenseCategories] = useState<ExpenseCategoryConfigItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
@@ -36,6 +37,7 @@ export default function FinanceAdminFormConfigPage() {
       if (result.success && Array.isArray(result.data)) {
         const sorted = [...(result.data as ExpenseCategoryConfigItem[])].sort((a, b) => a.sortOrder - b.sortOrder);
         setExpenseCategories(sorted);
+        setInitialExpenseCategories(sorted);
       } else {
         alert(result.error || "加载类别配置失败");
       }
@@ -109,6 +111,7 @@ export default function FinanceAdminFormConfigPage() {
       if (result.success && Array.isArray(result.data)) {
         const sorted = [...(result.data as ExpenseCategoryConfigItem[])].sort((a, b) => a.sortOrder - b.sortOrder);
         setExpenseCategories(sorted);
+        setInitialExpenseCategories(sorted);
         alert("费用归属类别配置已保存");
         return;
       }
@@ -120,6 +123,23 @@ export default function FinanceAdminFormConfigPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const hasUnsavedChanges = useMemo(() => {
+    const normalize = (categories: ExpenseCategoryConfigItem[]) =>
+      categories.map((item, index) => ({
+        label: item.label.trim(),
+        value: item.value,
+        isActive: item.isActive,
+        sortOrder: index,
+      }));
+
+    return JSON.stringify(normalize(expenseCategories)) !== JSON.stringify(normalize(initialExpenseCategories));
+  }, [expenseCategories, initialExpenseCategories]);
+
+  const handleCancelChanges = () => {
+    setExpenseCategories(initialExpenseCategories.map((item) => ({ ...item })));
+    setShowAllCategories(false);
   };
 
   if (loading) {
@@ -262,16 +282,27 @@ export default function FinanceAdminFormConfigPage() {
             </div>
           )}
 
-          <div className="flex justify-end pt-1">
-            <Button
-              type="button"
-              onClick={handleSaveExpenseCategories}
-              disabled={saving}
-              className="h-9 rounded-lg px-4 text-xs"
-            >
-              {saving ? "保存中..." : "保存类别配置"}
-            </Button>
-          </div>
+          {hasUnsavedChanges && (
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancelChanges}
+                disabled={saving}
+                className="h-9 rounded-lg px-4 text-xs"
+              >
+                取消
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveExpenseCategories}
+                disabled={saving}
+                className="h-9 rounded-lg px-4 text-xs"
+              >
+                {saving ? "保存中..." : "保存类别配置"}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
