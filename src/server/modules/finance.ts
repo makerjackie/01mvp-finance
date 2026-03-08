@@ -278,11 +278,16 @@ app.post("/projects", async (c) => {
     const resolvedSettlementMode = resolveSettlementMode(project.settlementMode);
     const resolvedSharePercent = clampCommunitySharePercent(project.communitySharePercent);
 
+    // 如果有活动日期，组合名称和日期
+    const displayName = project.eventDate
+      ? `${project.name} ${project.eventDate.toISOString().split("T")[0]}`
+      : project.name;
+
     return c.json({
       success: true,
       data: {
         id: project.id,
-        name: project.name,
+        name: displayName,
         category: project.category,
         categoryLabel: PROJECT_CATEGORY_LABELS[resolveProjectCategory(project.category)],
         settlementMode: resolvedSettlementMode,
@@ -320,11 +325,16 @@ app.post("/projects", async (c) => {
     req: c.req.raw,
   });
 
+  // 如果有活动日期，组合名称和日期
+  const displayName = project.eventDate
+    ? `${project.name} ${project.eventDate.toISOString().split("T")[0]}`
+    : project.name;
+
   return c.json({
     success: true,
     data: {
       id: project.id,
-      name: project.name,
+      name: displayName,
       category: project.category,
       categoryLabel: PROJECT_CATEGORY_LABELS[resolveProjectCategory(project.category)],
       settlementMode: requestedSettlementMode,

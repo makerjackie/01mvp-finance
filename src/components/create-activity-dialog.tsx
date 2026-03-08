@@ -41,13 +41,8 @@ export function CreateActivityDialog({ open, onOpenChange, onSuccess }: CreateAc
       return;
     }
 
-    // 组合名称和日期
-    let finalName = trimmedName;
-    if (eventDate) {
-      finalName = `${trimmedName} ${eventDate}`;
-    }
-
-    onSuccess(finalName, eventDate || undefined);
+    // 直接传递原始名称和日期，不要组合
+    onSuccess(trimmedName, eventDate || undefined);
 
     // 重置表单
     setActivityName("");

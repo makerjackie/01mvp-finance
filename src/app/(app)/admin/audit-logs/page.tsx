@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 
@@ -48,12 +48,14 @@ export default function AuditLogsPage() {
   };
 
   return (
-    <div className="container mx-auto p-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>审计日志</CardTitle>
-        </CardHeader>
-        <CardContent>
+    <div className="container mx-auto space-y-3 p-6 md:space-y-5">
+      <div className="space-y-2 px-1">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">审计日志</h1>
+        <p className="text-sm text-muted-foreground">查看系统关键操作记录，便于审计追踪与问题排查。</p>
+      </div>
+
+      <Card className="rounded-2xl border border-border/60 shadow-sm">
+        <CardContent className="px-4 py-4 sm:px-5">
           {loading ? (
             <div className="text-center py-8">加载中...</div>
           ) : (

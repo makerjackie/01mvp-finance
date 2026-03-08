@@ -18,6 +18,13 @@ export default async function FinancePage() {
 
   return (
     <div className="space-y-4 md:space-y-6">
+      <div className="space-y-2 px-1">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">财务工作台</h1>
+        <p className="text-sm text-muted-foreground">
+          统一处理申请提交、进度追踪与审核协同，常用操作可在首页直接进入。
+        </p>
+      </div>
+
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Link href="/finance/submit" className="group md:col-span-2">
           <Card className="h-full rounded-xl border border-border/60 bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">

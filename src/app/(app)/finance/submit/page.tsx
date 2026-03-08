@@ -131,8 +131,8 @@ function TypeSelectionPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-4 pb-24 sm:px-6 sm:py-6 sm:pb-10">
-      <div className="mb-4 space-y-2 sm:mb-6">
+    <div className="space-y-4 md:space-y-6">
+      <div className="space-y-2 px-1">
         <FinanceBreadcrumb items={[{ label: "财务系统", href: "/finance" }, { label: "新建申请" }]} />
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">选择申请类型</h1>
         <p className="text-sm text-muted-foreground">请选择您要提交的申请类型</p>
@@ -145,16 +145,16 @@ function TypeSelectionPage() {
 
           return (
             <Link key={type.key} href={`/finance/submit?type=${type.key}`} className="group">
-              <Card className="h-full rounded-xl border border-border/60 bg-card shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.99]">
-                <CardContent className="px-4 py-4 sm:px-5">
+              <Card className="h-full rounded-xl border border-border/60 bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+                <CardContent className="flex h-full flex-col justify-between gap-6 px-4 py-4 sm:px-5 sm:py-5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-semibold">{type.label}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{type.description}</p>
+                      <p className="text-base font-semibold">{type.label}</p>
+                      <p className="mt-1 text-xs text-muted-foreground sm:text-sm">{type.description}</p>
                     </div>
-                    {Icon && <Icon className={`h-4 w-4 ${colorClass}`} />}
+                    {Icon && <Icon className={`h-5 w-5 ${colorClass}`} />}
                   </div>
-                  <div className="mt-3 inline-flex items-center text-xs text-muted-foreground transition-colors group-hover:text-foreground">
+                  <div className="inline-flex items-center text-xs text-muted-foreground transition-colors group-hover:text-foreground sm:text-sm">
                     去申请
                     <ArrowRight className="ml-1 h-3.5 w-3.5" />
                   </div>

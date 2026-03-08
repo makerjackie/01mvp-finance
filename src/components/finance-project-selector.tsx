@@ -218,23 +218,30 @@ export function FinanceProjectSelector({
         ? Math.max(0, Math.min(100, Math.round(communitySharePercent)))
         : DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT;
 
+      const payload = {
+        name: activityName,
+        category: inferredCategory,
+        subcategory,
+        applicationType,
+        settlementMode: selectedSettlementMode,
+        communitySharePercent: normalizedSharePercent,
+        eventDate: eventDate || undefined,
+      };
+
+      console.log("Creating activity with payload:", payload);
+      console.log("Sending to URL:", "/api/finance/projects");
+
       const res = await fetch("/api/finance/projects", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: activityName,
-          category: inferredCategory,
-          subcategory,
-          applicationType,
-          settlementMode: selectedSettlementMode,
-          communitySharePercent: normalizedSharePercent,
-          eventDate: eventDate || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
+      console.log("Response status:", res.status);
       const result = (await res.json()) as CreateResponse;
+      console.log("Response data:", result);
 
       if (!res.ok || !result.success || !result.data) {
         setErrorMessage(result.error || "活动创建失败，请稍后重试");
@@ -249,7 +256,8 @@ export function FinanceProjectSelector({
       });
       setFeedbackMessage(project.created ? `已新建活动：${project.name}` : `已匹配活动：${project.name}`);
       setOpen(false);
-    } catch {
+    } catch (error) {
+      console.error("Error creating activity:", error);
       setErrorMessage("活动创建失败，请稍后重试");
     } finally {
       setCreating(false);
@@ -298,7 +306,8 @@ export function FinanceProjectSelector({
                   }}
                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-primary/5"
                 >
-                  <PlusCircle className="h-4 w-4" />+ 新建活动
+                  <PlusCircle className="h-4 w-4" />
+                  新建活动
                 </button>
 
                 {items.length > 0 && <div className="my-1 border-t border-border/40" />}
