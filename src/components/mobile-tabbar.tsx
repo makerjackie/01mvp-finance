@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Wallet, PlusCircle, ClipboardList, User as UserIcon } from "lucide-react";
+import { Wallet, PlusCircle, ClipboardList, ShieldCheck, User as UserIcon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { shouldHideTabbar } from "@/lib/config/navigation";
 import type { User } from "better-auth";
+import { getAdminMobileTabs } from "@/lib/config/admin-tabs";
+import type { AppNavUser } from "@/lib/config/app-nav-items";
 
 type MobileTabbarProps = {
   user?: User;
@@ -21,6 +23,9 @@ type TabItem = {
 
 export function MobileTabbar({ user }: MobileTabbarProps) {
   const pathname = usePathname();
+  const adminTabs = getAdminMobileTabs(user as AppNavUser);
+  const hasAdminTab = adminTabs.length > 0;
+  const adminEntryHref = adminTabs[0]?.href || "/finance/admin";
 
   if (!user || shouldHideTabbar(pathname)) {
     return null;
@@ -46,10 +51,15 @@ export function MobileTabbar({ user }: MobileTabbarProps) {
       active: pathname === "/finance/my-records",
     },
     {
-      label: "我的",
-      icon: UserIcon,
-      href: "/me",
-      active: pathname === "/me" || pathname.startsWith("/me/"),
+      label: hasAdminTab ? "后台" : "我的",
+      icon: hasAdminTab ? ShieldCheck : UserIcon,
+      href: hasAdminTab ? adminEntryHref : "/me",
+      active: hasAdminTab
+        ? pathname === "/finance/admin" ||
+          pathname.startsWith("/finance/admin/") ||
+          pathname === "/admin" ||
+          pathname.startsWith("/admin/")
+        : pathname === "/me" || pathname.startsWith("/me/"),
     },
   ];
 
