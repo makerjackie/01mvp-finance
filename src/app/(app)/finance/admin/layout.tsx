@@ -21,7 +21,7 @@ export default async function FinanceAdminLayout({ children }: { children: React
   return (
     <>
       <MobileAdminSubtabs tabs={tabs} />
-      {children}
+      <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</div>
     </>
   );
 }

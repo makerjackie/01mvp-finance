@@ -61,6 +61,16 @@ type SubcategoryAmountStat = {
   amount: number;
 };
 
+type ActivityBalanceStat = {
+  key: string;
+  label: string;
+  recordCount: number;
+  totalIncome: number;
+  totalExpense: number;
+  balance: number;
+  totalFlow: number;
+};
+
 const formatCurrency = (value: number) =>
   `¥${new Intl.NumberFormat("zh-CN", {
     minimumFractionDigits: 2,
@@ -315,6 +325,69 @@ export default function ProjectStatsPage() {
     [categoryStats],
   );
 
+  const activityBalanceStats = useMemo<ActivityBalanceStat[]>(() => {
+    const map = new Map<string, ActivityBalanceStat>();
+
+    for (const record of allRecords) {
+      const normalizedActivity = record.relatedProject?.trim() || "未关联活动";
+
+      if (!map.has(normalizedActivity)) {
+        map.set(normalizedActivity, {
+          key: normalizedActivity,
+          label: normalizedActivity,
+          recordCount: 0,
+          totalIncome: 0,
+          totalExpense: 0,
+          balance: 0,
+          totalFlow: 0,
+        });
+      }
+
+      const bucket = map.get(normalizedActivity);
+      if (!bucket) continue;
+
+      bucket.recordCount += 1;
+      bucket.totalFlow += record.amount;
+
+      if (record.type === "income") {
+        bucket.totalIncome += record.amount;
+        bucket.balance += record.amount;
+      } else {
+        bucket.totalExpense += record.amount;
+        bucket.balance -= record.amount;
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (b.totalFlow !== a.totalFlow) {
+        return b.totalFlow - a.totalFlow;
+      }
+      return b.balance - a.balance;
+    });
+  }, [allRecords]);
+
+  const profitableActivityCount = useMemo(
+    () => activityBalanceStats.filter((item) => item.balance > 0).length,
+    [activityBalanceStats],
+  );
+
+  const lossActivityCount = useMemo(
+    () => activityBalanceStats.filter((item) => item.balance < 0).length,
+    [activityBalanceStats],
+  );
+
+  const breakEvenActivityCount = useMemo(
+    () => activityBalanceStats.filter((item) => item.balance === 0).length,
+    [activityBalanceStats],
+  );
+
+  const maxActivityBalanceAbs = useMemo(
+    () => activityBalanceStats.reduce((max, item) => Math.max(max, Math.abs(item.balance)), 1),
+    [activityBalanceStats],
+  );
+
+  const activityBars = useMemo(() => activityBalanceStats.slice(0, 8), [activityBalanceStats]);
+
   const selectedCategoryRecords = useMemo(() => {
     return allRecords.filter((record) => {
       const normalizedCategory = getApplicationTypeFromRecord(record.type, record.category) || record.category;
@@ -371,9 +444,9 @@ export default function ProjectStatsPage() {
   return (
     <div className="space-y-3 md:space-y-5">
       <div className="space-y-2 px-1">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">申请类别统计</h1>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">数据统计</h1>
         <p className="text-sm text-muted-foreground">
-          统计口径：已审核通过记录。先看申请类别，再下钻款项性质，快速识别金额集中区域。
+          统计口径：已审核通过记录。先看总体与活动收支，再下钻申请类别和款项性质。
         </p>
       </div>
 
@@ -488,6 +561,155 @@ export default function ProjectStatsPage() {
               </CardContent>
             </Card>
           </div>
+
+          <Card className="rounded-2xl border border-border/60 shadow-sm">
+            <CardHeader className="px-4 py-3 sm:px-5">
+              <CardTitle className="text-base">活动收支统计</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                以活动为维度查看收入、支出和净收支，快速判断每个活动是否盈利。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 px-3 pb-3 pt-0 sm:px-4 sm:pb-4">
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">盈利活动</p>
+                  <p className="mt-1 text-sm font-semibold text-emerald-600">{profitableActivityCount}</p>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">亏损活动</p>
+                  <p className="mt-1 text-sm font-semibold text-rose-600">{lossActivityCount}</p>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">持平活动</p>
+                  <p className="mt-1 text-sm font-semibold">{breakEvenActivityCount}</p>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">整体收支状态</p>
+                  <p
+                    className={cn(
+                      "mt-1 text-sm font-semibold",
+                      data.summary.balance >= 0 ? "text-emerald-600" : "text-rose-600",
+                    )}
+                  >
+                    {data.summary.balance >= 0 ? "整体盈利" : "整体亏损"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                <div className="overflow-x-auto rounded-xl border border-border/60">
+                  <table className="w-full min-w-[720px] border-separate border-spacing-0">
+                    <thead>
+                      <tr>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          活动/项目
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                          记录数
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                          收入
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                          支出
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                          净收支
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                          收支状态
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activityBalanceStats.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-8 text-center text-xs text-muted-foreground">
+                            当前周期暂无活动收支数据
+                          </td>
+                        </tr>
+                      ) : (
+                        activityBalanceStats.map((item) => (
+                          <tr key={`${item.key}-activity`}>
+                            <td className="border-b border-border/40 px-3 py-2 text-sm">{item.label}</td>
+                            <td className="border-b border-border/40 px-3 py-2 text-right text-sm">
+                              {item.recordCount}
+                            </td>
+                            <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-emerald-600">
+                              {formatCurrency(item.totalIncome)}
+                            </td>
+                            <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-rose-600">
+                              {formatCurrency(item.totalExpense)}
+                            </td>
+                            <td
+                              className={cn(
+                                "border-b border-border/40 px-3 py-2 text-right text-sm font-medium",
+                                item.balance >= 0 ? "text-emerald-600" : "text-rose-600",
+                              )}
+                            >
+                              {formatCurrency(item.balance)}
+                            </td>
+                            <td className="border-b border-border/40 px-3 py-2 text-right text-sm">
+                              <span
+                                className={cn(
+                                  "inline-flex rounded-full px-2 py-0.5 text-xs",
+                                  item.balance > 0
+                                    ? "bg-emerald-50 text-emerald-700"
+                                    : item.balance < 0
+                                      ? "bg-rose-50 text-rose-700"
+                                      : "bg-muted text-muted-foreground",
+                                )}
+                              >
+                                {item.balance > 0 ? "盈利" : item.balance < 0 ? "亏损" : "持平"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="rounded-xl border border-border/60 p-3">
+                  <p className="mb-2 text-sm font-medium">活动净收支柱状图（Top 8）</p>
+                  {activityBars.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-8 text-center text-xs text-muted-foreground">
+                      当前周期暂无活动收支数据
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {activityBars.map((item) => (
+                        <div key={`${item.key}-activity-bar`} className="rounded-lg border border-border/50 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate text-sm">{item.label}</p>
+                            <p
+                              className={cn(
+                                "text-xs font-medium",
+                                item.balance >= 0 ? "text-emerald-600" : "text-rose-600",
+                              )}
+                            >
+                              {formatCurrency(item.balance)}
+                            </p>
+                          </div>
+                          <div className="mt-2 h-2 rounded-full bg-muted">
+                            <div
+                              className={cn("h-2 rounded-full", item.balance >= 0 ? "bg-emerald-500" : "bg-rose-500")}
+                              style={{
+                                width: `${Math.max((Math.abs(item.balance) / maxActivityBalanceAbs) * 100, 4)}%`,
+                              }}
+                            />
+                          </div>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            收入 {formatCurrency(item.totalIncome)} / 支出 {formatCurrency(item.totalExpense)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="px-4 py-3 sm:px-5">

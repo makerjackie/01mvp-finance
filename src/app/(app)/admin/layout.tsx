@@ -21,7 +21,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <>
       <MobileAdminSubtabs tabs={tabs} />
-      {children}
+      <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</div>
     </>
   );
 }

@@ -9,6 +9,7 @@ import { shouldHideTabbar } from "@/lib/config/navigation";
 import type { User } from "better-auth";
 import { getAdminMobileTabs } from "@/lib/config/admin-tabs";
 import type { AppNavUser } from "@/lib/config/app-nav-items";
+import { authClient } from "@/lib/auth-client";
 
 type MobileTabbarProps = {
   user?: User;
@@ -23,7 +24,9 @@ type TabItem = {
 
 export function MobileTabbar({ user }: MobileTabbarProps) {
   const pathname = usePathname();
-  const adminTabs = getAdminMobileTabs(user as AppNavUser);
+  const { data: sessionData } = authClient.useSession();
+  const effectiveUser = (sessionData?.user as AppNavUser) || (user as AppNavUser);
+  const adminTabs = getAdminMobileTabs(effectiveUser);
   const hasAdminTab = adminTabs.length > 0;
   const adminEntryHref = adminTabs[0]?.href || "/finance/admin";
 
