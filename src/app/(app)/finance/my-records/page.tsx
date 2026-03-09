@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Clock3, Eye, FilePlus2, Trash2 } from "lucide-react";
+import { Eye, FilePlus2, Trash2 } from "lucide-react";
 import {
-  TYPE_LABELS,
+  APPLICATION_TYPES,
+  FINANCE_CATEGORIES,
   STATUS_LABELS,
   getAllApplicationTypes,
   getApplicationTypeFromRecord,
@@ -20,6 +21,8 @@ interface FinanceRecord {
   id: string;
   type: string;
   category: string;
+  subcategory?: string | null;
+  formPayload?: Record<string, unknown> | null;
   amount: number;
   relatedProject?: string;
   description: string;
@@ -35,17 +38,33 @@ const statusClassMap: Record<string, string> = {
   rejected: "border-rose-200 bg-rose-50 text-rose-700",
 };
 
+const isRecordObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const PAYMENT_NATURE_LABEL_MAP: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+
+  Object.values(APPLICATION_TYPES).forEach((config) => {
+    const subcategoryField = config.fields.find((field) => field.name === "subcategory");
+    subcategoryField?.options?.forEach((option) => {
+      map[option.value] = option.label;
+    });
+  });
+
+  [...FINANCE_CATEGORIES.income, ...FINANCE_CATEGORIES.expense].forEach((option) => {
+    if (!map[option.value]) {
+      map[option.value] = option.label;
+    }
+  });
+
+  return map;
+})();
+
 const formatCurrency = (value: number) =>
   `¥${new Intl.NumberFormat("zh-CN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)}`;
-
-const formatDateTime = (value: string) =>
-  new Intl.DateTimeFormat("zh-CN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 
 type TypeFilter = "all" | FinanceApplicationType;
 type StatusFilter = "all" | "approved" | "rejected" | "pending";
@@ -68,6 +87,7 @@ const statusTabs: Array<{ key: StatusFilter; label: string }> = [
 export default function MyRecordsPage() {
   const [records, setRecords] = useState<FinanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expenseCategoryLabelMap, setExpenseCategoryLabelMap] = useState<Record<string, string>>({});
   const [activeType, setActiveType] = useState<TypeFilter>("all");
   const [activeStatus, setActiveStatus] = useState<StatusFilter>("all");
 
@@ -77,10 +97,36 @@ export default function MyRecordsPage() {
 
   const fetchRecords = async () => {
     try {
-      const res = await fetch("/api/finance/my-records");
-      const result = await res.json();
-      if (result.success) {
-        setRecords(result.data);
+      const [recordsRes, expenseCategoryRes] = await Promise.all([
+        fetch("/api/finance/my-records"),
+        fetch("/api/finance/expense-categories"),
+      ]);
+
+      const recordsResult = await recordsRes.json();
+      const expenseCategoryResult = await expenseCategoryRes.json();
+
+      if (recordsResult.success) {
+        setRecords(recordsResult.data);
+      }
+
+      if (expenseCategoryResult.success && Array.isArray(expenseCategoryResult.data)) {
+        const nextLabelMap = (expenseCategoryResult.data as Array<{ value?: unknown; label?: unknown }>).reduce<
+          Record<string, string>
+        >((acc, item) => {
+          if (typeof item.value !== "string" || typeof item.label !== "string") {
+            return acc;
+          }
+
+          const value = item.value.trim();
+          const label = item.label.trim();
+          if (!value || !label) {
+            return acc;
+          }
+
+          acc[value] = label;
+          return acc;
+        }, {});
+        setExpenseCategoryLabelMap(nextLabelMap);
       }
     } catch (error) {
       console.error(error);
@@ -127,6 +173,22 @@ export default function MyRecordsPage() {
       return true;
     });
   }, [records, activeType, activeStatus]);
+
+  const getPaymentNatureLabel = (record: FinanceRecord): string => {
+    const payloadSubcategory = isRecordObject(record.formPayload) ? record.formPayload.subcategory : undefined;
+    const rawSubcategory =
+      typeof record.subcategory === "string"
+        ? record.subcategory.trim()
+        : typeof payloadSubcategory === "string"
+          ? payloadSubcategory.trim()
+          : "";
+
+    if (rawSubcategory) {
+      return expenseCategoryLabelMap[rawSubcategory] || PAYMENT_NATURE_LABEL_MAP[rawSubcategory] || rawSubcategory;
+    }
+
+    return PAYMENT_NATURE_LABEL_MAP[record.category] || "-";
+  };
 
   if (loading) {
     return (
@@ -199,89 +261,102 @@ export default function MyRecordsPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-2">
-              {filteredRecords.map((record) => (
-                <Card
-                  key={record.id}
-                  className={cn(
-                    "rounded-xl border border-border/60 shadow-sm",
-                    record.status === "pending" && "border-amber-200/80 bg-amber-50/20",
-                    record.status === "approved" && "border-emerald-200/70 bg-emerald-50/20",
-                    record.status === "rejected" && "border-rose-200/70 bg-rose-50/20",
-                  )}
-                >
-                  <CardContent className="space-y-2 px-3 py-3 sm:px-4 sm:py-3.5">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="truncate text-lg font-semibold sm:text-xl">
-                        {record.relatedProject || "未关联项目"}
-                      </p>
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        <Badge className="rounded-full border border-border/60 bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground">
-                          {TYPE_LABELS[record.type]}-{getCategoryLabel(record.category)}
-                        </Badge>
-                        <Badge
-                          className={cn(
-                            "rounded-full border px-2 py-0 text-[10px]",
-                            statusClassMap[record.status] ||
-                              STATUS_LABELS[record.status]?.color ||
-                              "bg-muted text-foreground",
-                          )}
-                        >
-                          {STATUS_LABELS[record.status]?.label || record.status}
-                        </Badge>
-                      </div>
-                    </div>
+            <Card className="rounded-xl border border-border/60 shadow-sm">
+              <CardContent className="space-y-3 px-3 py-3 sm:px-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">申请记录</p>
+                  <Badge variant="outline" className="rounded-full border-border/60 bg-muted/40 text-[11px]">
+                    共 {filteredRecords.length} 条
+                  </Badge>
+                </div>
 
-                    <div className="flex items-end justify-between gap-3">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span>提交：{formatDateTime(record.createdAt)}</span>
-                        {record.reviewedAt ? (
-                          <span className="inline-flex items-center gap-1">
-                            <Clock3 className="h-3.5 w-3.5" />
-                            审核：{formatDateTime(record.reviewedAt)}
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="shrink-0 text-xl font-semibold tracking-tight text-primary">
-                        {formatCurrency(record.amount)}
-                      </p>
-                    </div>
-
-                    <p className="line-clamp-1 text-xs text-muted-foreground">说明：{record.description}</p>
-                    {record.reviewNote ? (
-                      <p className="line-clamp-1 text-xs text-muted-foreground">备注：{record.reviewNote}</p>
-                    ) : null}
-
-                    <div className="flex items-center justify-end gap-1.5 border-t border-border/50 pt-2">
-                      <Button
-                        asChild
-                        variant="outline"
-                        size="sm"
-                        className="h-8 rounded-lg border-border/60 bg-background px-2.5 text-xs shadow-none"
-                      >
-                        <Link href={`/finance/edit/${record.id}`}>
-                          <Eye className="h-3.5 w-3.5" />
-                          查看
-                        </Link>
-                      </Button>
-
-                      {record.status === "pending" && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(record.id)}
-                          className="h-8 rounded-lg border-rose-200 bg-rose-50 px-2.5 text-xs text-rose-700 shadow-none hover:bg-rose-100 hover:text-rose-700"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          删除
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                <div className="overflow-x-auto rounded-xl border border-border/60">
+                  <table className="w-full min-w-[920px] border-separate border-spacing-0">
+                    <thead>
+                      <tr>
+                        <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                          申请类别
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                          款项性质
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                          项目/活动
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                          金额
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                          状态
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-right text-xs font-medium text-muted-foreground">
+                          操作
+                        </th>
+                        <th className="w-14 border-b border-border/60 bg-muted/40 px-4 py-2 text-right" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRecords.map((record) => (
+                        <tr key={record.id} className="align-middle hover:bg-muted/20">
+                          <td className="border-b border-border/40 px-4 py-3">
+                            <span className="text-sm text-foreground">{getCategoryLabel(record.category)}</span>
+                          </td>
+                          <td className="border-b border-border/40 px-4 py-3">
+                            <span className="text-sm text-foreground">{getPaymentNatureLabel(record)}</span>
+                          </td>
+                          <td className="border-b border-border/40 px-4 py-3">
+                            <p className="text-sm text-foreground">{record.relatedProject || "-"}</p>
+                          </td>
+                          <td className="border-b border-border/40 px-4 py-3">
+                            <p className="text-sm text-foreground">{formatCurrency(record.amount)}</p>
+                          </td>
+                          <td className="border-b border-border/40 px-4 py-3">
+                            <span
+                              className={cn(
+                                "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                                statusClassMap[record.status] ||
+                                  STATUS_LABELS[record.status]?.color ||
+                                  "bg-muted text-foreground",
+                              )}
+                            >
+                              {STATUS_LABELS[record.status]?.label || record.status}
+                            </span>
+                          </td>
+                          <td className="border-b border-border/40 px-4 py-3 text-right">
+                            <Button
+                              asChild
+                              variant="outline"
+                              size="sm"
+                              className="h-8 gap-1.5 rounded-lg border-border/60 bg-background px-2.5 text-xs shadow-none"
+                            >
+                              <Link href={`/finance/edit/${record.id}`}>
+                                <Eye className="h-3.5 w-3.5" />
+                                查看
+                              </Link>
+                            </Button>
+                          </td>
+                          <td className="border-b border-border/40 px-4 py-3 text-right">
+                            {record.status === "pending" ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDelete(record.id)}
+                                className="h-8 w-8 text-muted-foreground/70 hover:bg-muted hover:text-rose-600"
+                                title="删除"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">删除</span>
+                              </Button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </>
       )}
