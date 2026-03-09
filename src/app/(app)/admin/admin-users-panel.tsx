@@ -249,7 +249,7 @@ export function AdminUsersPanel({ viewerRole, canManageUsers = true }: AdminUser
                       <div className="col-span-2 space-y-1">
                         <div className="flex items-center gap-2 text-sm font-semibold">
                           <span className="truncate">{user.name}</span>
-                          {roleValue !== "user" && (
+                          {roleValue !== "applicant" && (
                             <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
                               {roleMeta?.label || roleValue}
                             </Badge>

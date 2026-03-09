@@ -1,15 +1,11 @@
 import { Hono } from "hono";
 import { prisma } from "@/server/lib/db";
-import { auth } from "@/server/lib/auth";
+import { requirePermission, type AuthEnv } from "@/server/middleware";
+import { PERMISSIONS } from "@/lib/rbac";
 
-const app = new Hono();
+const app = new Hono<AuthEnv>().use("/logs", requirePermission(PERMISSIONS.financeAuditRead));
 
 app.get("/logs", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权访问" }, 403);
-  }
-
   const page = Number(c.req.query("page")) || 1;
   const limit = 50;
   const resourceId = c.req.query("resourceId");

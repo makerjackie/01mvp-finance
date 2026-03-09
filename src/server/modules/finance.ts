@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Prisma } from "@/server/prisma/generated/prisma/client";
 import { prisma } from "@/server/lib/db";
 import { auth } from "@/server/lib/auth";
+import { requireRoles, type AuthEnv } from "@/server/middleware";
 import { notifyAdmins, createNotification } from "@/server/lib/notification";
 import { createAuditLog } from "@/server/lib/audit";
 import { listExpenseCategories, replaceExpenseCategories } from "@/server/lib/finance-expense-categories";
@@ -30,8 +31,20 @@ import {
   type ProjectCategory,
   type ProjectSettlementMode,
 } from "@/lib/project-categories";
+import { canReviewFinance, resolveRole } from "@/lib/rbac";
 
-const app = new Hono();
+const app = new Hono<AuthEnv>()
+  .use("/admin/projects/:id/config", requireRoles("admin"))
+  .use("/admin/expense-categories", requireRoles("admin"))
+  .use("/admin/form-config", requireRoles("admin"))
+  .use("/admin/form-config/publish", requireRoles("admin"))
+  .use("/admin/all", requireRoles(["reviewer", "admin"]))
+  .use("/admin/project-options", requireRoles(["reviewer", "admin"]))
+  .use("/:id/review", requireRoles(["reviewer", "admin"]))
+  .use("/:id/mark-paid", requireRoles(["reviewer", "admin"]))
+  .use("/admin/stats", requireRoles(["reviewer", "admin"]))
+  .use("/admin/project-stats", requireRoles(["reviewer", "admin"]))
+  .use("/admin/export", requireRoles(["reviewer", "admin"]));
 
 const PROJECT_SEARCH_MAX_LIMIT = 30;
 const APPLICATION_TYPE_LABELS: Record<FinanceApplicationType, string> = {
@@ -576,11 +589,8 @@ app.post("/projects", async (c) => {
 
 // 管理员：更新项目结算配置
 app.put("/admin/projects/:id/config", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权操作" }, 403);
-  }
+  const user = c.get("user");
+  if (!user) return c.json({ error: "未登录" }, 401);
 
   const projectId = c.req.param("id");
   const data = await c.req.json();
@@ -615,8 +625,8 @@ app.put("/admin/projects/:id/config", async (c) => {
   });
 
   await createAuditLog({
-    userId: session.user.id,
-    userName: session.user.name || "Unknown",
+    userId: user.id,
+    userName: user.name || "Unknown",
     action: "update",
     resource: "project",
     resourceId: projectId,
@@ -806,23 +816,14 @@ app.get("/expense-categories", async (c) => {
 
 // 管理员：获取费用归属类别配置
 app.get("/admin/expense-categories", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权访问" }, 403);
-  }
-
   const categories = await listExpenseCategories({ includeInactive: true });
   return c.json({ success: true, data: categories });
 });
 
 // 管理员：更新费用归属类别配置
 app.put("/admin/expense-categories", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权操作" }, 403);
-  }
+  const user = c.get("user");
+  if (!user) return c.json({ error: "未登录" }, 401);
 
   const data = await c.req.json();
   if (!Array.isArray(data?.categories)) {
@@ -830,11 +831,11 @@ app.put("/admin/expense-categories", async (c) => {
   }
 
   try {
-    const categories = await replaceExpenseCategories(data.categories, session.user.id);
+    const categories = await replaceExpenseCategories(data.categories, user.id);
 
     await createAuditLog({
-      userId: session.user.id,
-      userName: session.user.name || "Unknown",
+      userId: user.id,
+      userName: user.name || "Unknown",
       action: "update",
       resource: "finance_expense_category_config",
       resourceId: "expense_categories",
@@ -873,12 +874,6 @@ app.get("/form-config", async (c) => {
 
 // 管理员：获取表单配置（支持汇总或单类型详情）
 app.get("/admin/form-config", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权访问" }, 403);
-  }
-
   const applicationTypeParam = c.req.query("applicationType");
 
   try {
@@ -900,11 +895,8 @@ app.get("/admin/form-config", async (c) => {
 
 // 管理员：保存指定申请类型草稿配置
 app.put("/admin/form-config", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权操作" }, 403);
-  }
+  const user = c.get("user");
+  if (!user) return c.json({ error: "未登录" }, 401);
 
   const applicationTypeParam = c.req.query("applicationType");
   if (typeof applicationTypeParam !== "string" || !isValidApplicationType(applicationTypeParam)) {
@@ -914,11 +906,11 @@ app.put("/admin/form-config", async (c) => {
   const data = await c.req.json();
 
   try {
-    const config = await saveDraftFormConfig(applicationTypeParam, data?.fields, session.user.id);
+    const config = await saveDraftFormConfig(applicationTypeParam, data?.fields, user.id);
 
     await createAuditLog({
-      userId: session.user.id,
-      userName: session.user.name || "Unknown",
+      userId: user.id,
+      userName: user.name || "Unknown",
       action: "update",
       resource: "finance_form_config",
       resourceId: applicationTypeParam,
@@ -938,11 +930,8 @@ app.put("/admin/form-config", async (c) => {
 
 // 管理员：发布指定申请类型配置
 app.post("/admin/form-config/publish", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权操作" }, 403);
-  }
+  const user = c.get("user");
+  if (!user) return c.json({ error: "未登录" }, 401);
 
   const applicationTypeParam = c.req.query("applicationType");
   if (typeof applicationTypeParam !== "string" || !isValidApplicationType(applicationTypeParam)) {
@@ -950,11 +939,11 @@ app.post("/admin/form-config/publish", async (c) => {
   }
 
   try {
-    const config = await publishDraftFormConfig(applicationTypeParam, session.user.id);
+    const config = await publishDraftFormConfig(applicationTypeParam, user.id);
 
     await createAuditLog({
-      userId: session.user.id,
-      userName: session.user.name || "Unknown",
+      userId: user.id,
+      userName: user.name || "Unknown",
       action: "update",
       resource: "finance_form_config",
       resourceId: applicationTypeParam,
@@ -1007,6 +996,7 @@ app.get("/:id", async (c) => {
   if (!session?.user) {
     return c.json({ error: "未登录" }, 401);
   }
+  const role = resolveRole(session.user.role);
 
   const id = c.req.param("id");
   const record = await prisma.financeRecord.findUnique({
@@ -1026,8 +1016,8 @@ app.get("/:id", async (c) => {
     return c.json({ error: "记录不存在" }, 404);
   }
 
-  // 普通用户只能查看自己的记录
-  if (session.user.role !== "admin" && record.userId !== session.user.id) {
+  // 审核员/管理员可查看全部，普通用户仅可查看本人
+  if (!canReviewFinance(role) && record.userId !== session.user.id) {
     return c.json({ error: "无权访问" }, 403);
   }
 
@@ -1041,6 +1031,9 @@ app.put("/:id", async (c) => {
   if (!session?.user) {
     return c.json({ error: "未登录" }, 401);
   }
+  const role = resolveRole(session.user.role);
+  const isAdmin = role === "admin";
+  const canReview = canReviewFinance(role);
 
   const id = c.req.param("id");
   const data = await c.req.json();
@@ -1053,14 +1046,30 @@ app.put("/:id", async (c) => {
     return c.json({ error: "记录不存在" }, 404);
   }
 
-  // 普通用户只能更新自己的待审核记录
-  if (session.user.role !== "admin") {
-    if (record.userId !== session.user.id) {
-      return c.json({ error: "无权修改" }, 403);
-    }
-    if (record.status !== "pending") {
-      return c.json({ error: "只能修改待审核的记录" }, 403);
-    }
+  const isOwnRecord = record.userId === session.user.id;
+  const payload = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+  const requestedKeys = Object.keys(payload).filter((key) => payload[key] !== undefined);
+  const reviewerCrossRecordAllowed =
+    canReview &&
+    !isAdmin &&
+    !isOwnRecord &&
+    requestedKeys.length > 0 &&
+    requestedKeys.every((key) => key === "isCommunity");
+
+  if (!isAdmin && !isOwnRecord && !reviewerCrossRecordAllowed) {
+    return c.json({ error: "无权修改" }, 403);
+  }
+
+  if (!isAdmin && isOwnRecord && record.status !== "pending") {
+    return c.json({ error: "只能修改待审核的记录" }, 403);
+  }
+
+  if (reviewerCrossRecordAllowed && record.status !== "pending") {
+    return c.json({ error: "只能标记待审核记录的账目归属" }, 403);
+  }
+
+  if (data.isCommunity !== undefined && typeof data.isCommunity !== "boolean") {
+    return c.json({ error: "isCommunity 必须是布尔值" }, 400);
   }
 
   const updateData: Prisma.FinanceRecordUpdateInput = {};
@@ -1127,8 +1136,8 @@ app.put("/:id", async (c) => {
     updateData.attachments = attachmentUrls;
   }
 
-  // 只有管理员可以修改 isCommunity 字段
-  if (session.user.role === "admin" && data.isCommunity !== undefined) {
+  // 审核流程中，管理员可修改全部；审核员仅可跨人修改 isCommunity
+  if ((isAdmin || reviewerCrossRecordAllowed) && data.isCommunity !== undefined) {
     updateData.isCommunity = data.isCommunity;
   }
 
@@ -1166,6 +1175,8 @@ app.delete("/:id", async (c) => {
   if (!session?.user) {
     return c.json({ error: "未登录" }, 401);
   }
+  const role = resolveRole(session.user.role);
+  const isAdmin = role === "admin";
 
   const id = c.req.param("id");
   const record = await prisma.financeRecord.findUnique({
@@ -1177,7 +1188,7 @@ app.delete("/:id", async (c) => {
   }
 
   // 普通用户只能删除自己的待审核记录
-  if (session.user.role !== "admin") {
+  if (!isAdmin) {
     if (record.userId !== session.user.id) {
       return c.json({ error: "无权删除" }, 403);
     }
@@ -1202,14 +1213,8 @@ app.delete("/:id", async (c) => {
   return c.json({ success: true });
 });
 
-// 管理员：获取所有财务记录
+// 审核员/管理员：获取所有财务记录
 app.get("/admin/all", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权访问" }, 403);
-  }
-
   const { type, status, category } = c.req.query();
 
   const records = await prisma.financeRecord.findMany({
@@ -1235,14 +1240,8 @@ app.get("/admin/all", async (c) => {
   return c.json({ success: true, data: records });
 });
 
-// 管理员：获取项目/活动名称选项（按新增时间倒序）
+// 审核员/管理员：获取项目/活动名称选项（按新增时间倒序）
 app.get("/admin/project-options", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权访问" }, 403);
-  }
-
   const projects = await prisma.project.findMany({
     where: {
       isActive: true,
@@ -1265,13 +1264,10 @@ app.get("/admin/project-options", async (c) => {
   });
 });
 
-// 管理员：审核财务记录
+// 审核员/管理员：审核财务记录
 app.post("/:id/review", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权操作" }, 403);
-  }
+  const user = c.get("user");
+  if (!user) return c.json({ error: "未登录" }, 401);
 
   const id = c.req.param("id");
   const data = await c.req.json();
@@ -1288,13 +1284,17 @@ app.post("/:id/review", async (c) => {
     return c.json({ error: "记录不存在" }, 404);
   }
 
+  if (record.userId === user.id) {
+    return c.json({ error: "不能审核自己提交的申请" }, 403);
+  }
+
   const updated = await prisma.financeRecord.update({
     where: { id },
     data: {
       status: data.status,
       reviewNote: data.reviewNote || null,
       reviewedAt: new Date(),
-      reviewedBy: session.user.id,
+      reviewedBy: user.id,
     },
     include: {
       user: {
@@ -1317,8 +1317,8 @@ app.post("/:id/review", async (c) => {
   });
 
   await createAuditLog({
-    userId: session.user.id,
-    userName: session.user.name || "Unknown",
+    userId: user.id,
+    userName: user.name || "Unknown",
     action: "review",
     resource: "finance_record",
     resourceId: id,
@@ -1329,13 +1329,10 @@ app.post("/:id/review", async (c) => {
   return c.json({ success: true, data: updated });
 });
 
-// 管理员：标记为已支付
+// 审核员/管理员：标记为已支付
 app.post("/:id/mark-paid", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权操作" }, 403);
-  }
+  const user = c.get("user");
+  if (!user) return c.json({ error: "未登录" }, 401);
 
   const id = c.req.param("id");
   const data = await c.req.json();
@@ -1357,7 +1354,7 @@ app.post("/:id/mark-paid", async (c) => {
     data: {
       paymentStatus: "paid",
       paymentDate: data.paymentDate ? new Date(data.paymentDate) : new Date(),
-      paidBy: session.user.id,
+      paidBy: user.id,
     },
     include: {
       user: {
@@ -1380,8 +1377,8 @@ app.post("/:id/mark-paid", async (c) => {
   });
 
   await createAuditLog({
-    userId: session.user.id,
-    userName: session.user.name || "Unknown",
+    userId: user.id,
+    userName: user.name || "Unknown",
     action: "mark_paid",
     resource: "finance_record",
     resourceId: id,
@@ -1392,14 +1389,8 @@ app.post("/:id/mark-paid", async (c) => {
   return c.json({ success: true, data: updated });
 });
 
-// 管理员：获取财务统计
+// 审核员/管理员：获取财务统计
 app.get("/admin/stats", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权访问" }, 403);
-  }
-
   const [totalIncome, totalExpense, communityIncome, communityExpense, pendingCount, approvedCount, rejectedCount] =
     await Promise.all([
       // 总收入（已通过的收入记录 - 公司账目）
@@ -1483,14 +1474,8 @@ app.get("/admin/stats", async (c) => {
   });
 });
 
-// 管理员：按项目类别查看统计
+// 审核员/管理员：按项目类别查看统计
 app.get("/admin/project-stats", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权访问" }, 403);
-  }
-
   const scope = c.req.query("scope");
   const daysQuery = c.req.query("days");
   const startDateQuery = c.req.query("startDate");
@@ -1843,14 +1828,8 @@ app.get("/public/stats", async (c) => {
   });
 });
 
-// 管理员：导出CSV
+// 审核员/管理员：导出CSV
 app.get("/admin/export", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return c.json({ error: "无权访问" }, 403);
-  }
-
   const { type, status, isCommunity, relatedProject, paymentStatus } = c.req.query();
   const normalizedPaymentStatus = paymentStatus === "paid" || paymentStatus === "unpaid" ? paymentStatus : null;
 

@@ -5,7 +5,7 @@ const matchRoute = (pathname: string | null, routes: string[]) => {
 
 export const navigationConfig = {
   // 深层任务页隐藏 Tabbar，避免遮挡编辑与审核操作
-  hideTabbarRoutes: ["/chat", "/example-ui", "/ai-image", "/finance/edit", "/finance/admin"],
+  hideTabbarRoutes: ["/chat", "/example-ui", "/ai-image", "/finance/edit", "/finance/admin", "/admin"],
   // 登录注册等页面无需 Tabbar
   authRoutes: ["/sign-in", "/sign-up"],
   // AI 对话与生图页使用沉浸式布局

@@ -21,7 +21,7 @@ model User {
   idCardNumber        String?
   bankAccountNumber   String?
   bankName            String?
-  role                String?        @default("user") // "admin" | "user"
+  role                String?        @default("applicant") // "applicant" | "reviewer" | "admin"
   banned              Boolean?       @default(false)
   banReason           String?
   banExpires          DateTime?
@@ -37,8 +37,68 @@ model User {
   invitations         Invitation[]   @relation("InvitationInviter")
   financeRecords      FinanceRecord[] @relation("UserFinanceRecords")
   notifications       Notification[]  @relation("UserNotifications")
+  userRoles           UserRole[]
 
   @@map("user")
+}
+
+// 角色定义（预留多角色模型）
+model Role {
+  id          String           @id @default(cuid()) @map("_id")
+  code        String           @unique // applicant | reviewer | admin
+  name        String
+  description String?
+  isSystem    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  permissions RolePermission[]
+  userRoles   UserRole[]
+
+  @@map("role")
+}
+
+// 权限点定义
+model Permission {
+  id          String           @id @default(cuid()) @map("_id")
+  code        String           @unique
+  name        String
+  description String?
+  module      String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  roles       RolePermission[]
+
+  @@index([module])
+  @@map("permission")
+}
+
+// 角色-权限关联
+model RolePermission {
+  id           String      @id @default(cuid()) @map("_id")
+  roleId       String
+  permissionId String
+  role         Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permission")
+}
+
+// 用户-角色关联（未来支持多角色）
+model UserRole {
+  id        String   @id @default(cuid()) @map("_id")
+  userId    String
+  roleId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  @@unique([userId, roleId])
+  @@index([roleId])
+  @@map("user_role")
 }
 
 // 会话

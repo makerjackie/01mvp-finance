@@ -119,7 +119,7 @@ function createPrismaClient() {
         async create({ args, query }) {
           const data = (args?.data || {}) as Prisma.UserCreateInput;
           const userCount = await baseClient.user.count();
-          const role = (data.role as string | undefined) ?? (userCount === 0 ? "admin" : "user");
+          const role = (data.role as string | undefined) ?? (userCount === 0 ? "admin" : "applicant");
 
           return query({
             ...args,

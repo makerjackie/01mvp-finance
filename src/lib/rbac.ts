@@ -4,10 +4,18 @@ export const PERMISSIONS = {
   manageUsers: "admin:users",
   manageFeatureFlags: "admin:flags",
   runOps: "admin:ops",
+  financeCreate: "finance:application:create",
+  financeReadOwn: "finance:application:read:own",
+  financeUpdateOwn: "finance:application:update:own",
+  financeReview: "finance:application:review",
+  financeStatsRead: "finance:stats:read",
+  financeAuditRead: "finance:audit:read",
+  financeRoleAssign: "finance:user-role:assign",
+  financeConfigManage: "finance:config:update",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
-export type RoleKey = "admin" | "manager" | "user";
+export type RoleKey = "admin" | "reviewer" | "applicant";
 
 type RbacUser = { role?: string | null } | null | undefined;
 
@@ -21,17 +29,31 @@ const ROLE_DEFINITIONS: Record<RoleKey, { label: string; description: string; pe
       PERMISSIONS.manageUsers,
       PERMISSIONS.manageFeatureFlags,
       PERMISSIONS.runOps,
+      PERMISSIONS.financeCreate,
+      PERMISSIONS.financeReadOwn,
+      PERMISSIONS.financeUpdateOwn,
+      PERMISSIONS.financeReview,
+      PERMISSIONS.financeStatsRead,
+      PERMISSIONS.financeAuditRead,
+      PERMISSIONS.financeRoleAssign,
+      PERMISSIONS.financeConfigManage,
     ],
   },
-  manager: {
-    label: "运营/经理",
-    description: "可进入后台并管理用户与 Feature Flag，无法修改系统配置或运维操作。",
-    permissions: [PERMISSIONS.accessAdmin, PERMISSIONS.manageUsers, PERMISSIONS.manageFeatureFlags],
+  reviewer: {
+    label: "审核员",
+    description: "可处理审核任务并查看统计数据，不可访问权限分配与审计日志。",
+    permissions: [
+      PERMISSIONS.financeCreate,
+      PERMISSIONS.financeReadOwn,
+      PERMISSIONS.financeUpdateOwn,
+      PERMISSIONS.financeReview,
+      PERMISSIONS.financeStatsRead,
+    ],
   },
-  user: {
+  applicant: {
     label: "普通用户",
-    description: "仅能访问业务功能，无后台权限。",
-    permissions: [],
+    description: "仅可提交申请并维护自己的申请内容。",
+    permissions: [PERMISSIONS.financeCreate, PERMISSIONS.financeReadOwn, PERMISSIONS.financeUpdateOwn],
   },
 };
 
@@ -47,12 +69,21 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   [PERMISSIONS.manageUsers]: "用户与角色管理",
   [PERMISSIONS.manageFeatureFlags]: "Feature Flags 管理",
   [PERMISSIONS.runOps]: "导入导出与运维",
+  [PERMISSIONS.financeCreate]: "提交申请",
+  [PERMISSIONS.financeReadOwn]: "查看本人申请",
+  [PERMISSIONS.financeUpdateOwn]: "编辑本人申请",
+  [PERMISSIONS.financeReview]: "审核申请",
+  [PERMISSIONS.financeStatsRead]: "查看统计",
+  [PERMISSIONS.financeAuditRead]: "查看操作日志",
+  [PERMISSIONS.financeRoleAssign]: "权限分配",
+  [PERMISSIONS.financeConfigManage]: "系统配置",
 };
 
 export function resolveRole(role?: string | null): RoleKey {
   if (role === "admin") return "admin";
-  if (role === "manager") return "manager";
-  return "user";
+  if (role === "reviewer" || role === "manager") return "reviewer";
+  if (role === "applicant" || role === "user") return "applicant";
+  return "applicant";
 }
 
 export function getPermissionsForRole(role?: string | null): Permission[] {
@@ -90,4 +121,28 @@ export function canManageFeatureFlags(user: RbacUser) {
 
 export function canRunOps(user: RbacUser) {
   return hasPermission(user, PERMISSIONS.runOps);
+}
+
+export function canAccessFinanceReview(subject: RbacUser | RoleKey) {
+  return hasPermission(subject, PERMISSIONS.financeReview);
+}
+
+export function canAccessFinanceStats(subject: RbacUser | RoleKey) {
+  return hasPermission(subject, PERMISSIONS.financeStatsRead);
+}
+
+export function canAccessFinanceAuditLogs(subject: RbacUser | RoleKey) {
+  return hasPermission(subject, PERMISSIONS.financeAuditRead);
+}
+
+export function canManageFinanceRoles(subject: RbacUser | RoleKey) {
+  return hasPermission(subject, PERMISSIONS.financeRoleAssign);
+}
+
+export function canManageFinanceConfig(subject: RbacUser | RoleKey) {
+  return hasPermission(subject, PERMISSIONS.financeConfigManage);
+}
+
+export function canReviewFinance(subject: RbacUser | RoleKey) {
+  return hasPermission(subject, PERMISSIONS.financeReview);
 }

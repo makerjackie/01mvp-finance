@@ -1,10 +1,11 @@
 import { betterFetch } from "@better-fetch/fetch";
 import type { Session, User } from "better-auth/types";
 import { NextResponse, type NextRequest } from "next/server";
+import { resolveRole } from "@/lib/rbac";
 
 type SessionResponse = {
   session: Session;
-  user: User;
+  user: User & { role?: string | null };
 };
 
 // 缓存一次成功的内部 base URL，避免每次请求都重试
@@ -145,6 +146,23 @@ function handleRouting({
     const redirectUrl = new URL("/sign-in", request.url);
     redirectUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(redirectUrl);
+  }
+
+  if (session?.user) {
+    const role = resolveRole(session.user.role);
+    const isFinanceReviewRoute = pathname.startsWith("/finance/admin");
+    const isAdminOnlyRoute =
+      pathname.startsWith("/admin") ||
+      pathname.startsWith("/finance/admin/form-config") ||
+      pathname.startsWith("/finance/admin/audit-logs");
+
+    if (isAdminOnlyRoute && role !== "admin") {
+      return NextResponse.redirect(new URL("/finance", request.url));
+    }
+
+    if (isFinanceReviewRoute && role !== "admin" && role !== "reviewer") {
+      return NextResponse.redirect(new URL("/finance", request.url));
+    }
   }
 
   // 如果已登录访问登录/注册页，重定向到首页

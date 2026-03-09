@@ -58,7 +58,7 @@ const toCsv = (users: AdminUserDTO[]) => {
     [
       `"${user.name?.replace(/"/g, '""') || ""}"`,
       user.email,
-      user.role || "user",
+      user.role || "applicant",
       user.banned ? "banned" : "active",
       user.lastActiveAt?.toISOString() || "",
       user.createdAt.toISOString(),
@@ -80,12 +80,12 @@ const parseCsv = (raw: string): ImportUserPayload[] => {
 
   return dataLines
     .map((line) => {
-      const [name = "", email = "", role = "user"] = line.split(",").map((part) => part.trim());
+      const [name = "", email = "", role = "applicant"] = line.split(",").map((part) => part.trim());
       if (!email) return null;
       return {
         email: email.toLowerCase(),
         name: name || email.split("@")[0] || "导入用户",
-        role: role || "user",
+        role: role || "applicant",
       };
     })
     .filter(Boolean) as ImportUserPayload[];
@@ -93,8 +93,8 @@ const parseCsv = (raw: string): ImportUserPayload[] => {
 
 const normalizeRole = (role?: string | null) => {
   if (role === "admin") return "admin";
-  if (role === "manager") return "manager";
-  return "user";
+  if (role === "reviewer" || role === "manager") return "reviewer";
+  return "applicant";
 };
 
 const adminRoutes = new Hono<{
@@ -206,7 +206,7 @@ const adminRoutes = new Hono<{
       }
       const updated = await prisma.user.update({
         where: { id: targetId },
-        data: { role: "user" },
+        data: { role: "applicant" },
         include: { sessions: { select: { updatedAt: true }, orderBy: { updatedAt: "desc" }, take: 1 } },
       });
       logger.info("管理员降级为普通用户", { targetId, by: currentUser?.id });

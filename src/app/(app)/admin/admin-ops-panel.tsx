@@ -154,7 +154,7 @@ export function AdminOpsPanel({ canRunOps = true }: AdminOpsPanelProps) {
         <CardContent className="space-y-3">
           <div className="rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
             CSV 列顺序：<code className="text-foreground">name,email,role</code>（首行可含表头），role 支持{" "}
-            <code>user</code> /<code>manager</code> /<code>admin</code>。
+            <code>applicant</code> /<code>reviewer</code> /<code>admin</code>。
           </div>
           {summary && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">

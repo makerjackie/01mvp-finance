@@ -8,6 +8,7 @@ import uploadRoutes from "./modules/upload";
 import notificationRoutes from "./modules/notification";
 import auditRoutes from "./modules/audit";
 import userRoutes from "./modules/user";
+import adminRoutes from "./modules/admin";
 import { isRetryableDatabaseError, resetPrismaConnection } from "./lib/db";
 import type { AuthEnv } from "./middleware";
 
@@ -23,6 +24,7 @@ export const app = new Hono<AuthEnv>()
   .route("/notification", notificationRoutes)
   .route("/audit", auditRoutes)
   .route("/user", userRoutes)
+  .route("/admin", adminRoutes)
   .onError(async (error, c) => {
     console.error("[api] unhandled error", error);
 

@@ -6,14 +6,20 @@ import {
   PlusCircle,
   ScrollText,
   SlidersHorizontal,
-  Settings,
-  Settings2,
   ShieldCheck,
   Upload,
+  UserCog,
   Wallet,
+  Settings2,
   type LucideIcon,
 } from "lucide-react";
-import { canAccessAdmin } from "@/lib/rbac";
+import {
+  canAccessFinanceAuditLogs,
+  canAccessFinanceReview,
+  canAccessFinanceStats,
+  canManageFinanceConfig,
+  canManageFinanceRoles,
+} from "@/lib/rbac";
 
 export type AppNavUser = { role?: string | null } | null | undefined;
 
@@ -84,45 +90,45 @@ const aiNavItems: AppNavItem[] = [
   },
 ];
 
-const adminNavItems: AppNavItem[] = [
-  {
-    key: "admin",
-    title: "管理员后台",
-    href: "/finance/admin",
-    activePath: "/finance/admin",
-    icon: Settings,
-    children: [
-      {
-        key: "admin-review",
-        title: "审核后台",
-        href: "/finance/admin",
-        activePath: "/finance/admin",
-        icon: ShieldCheck,
-      },
-      {
-        key: "admin-stats",
-        title: "数据统计",
-        href: "/finance/admin/project-stats",
-        activePath: "/finance/admin/project-stats",
-        icon: BarChart3,
-      },
-      {
-        key: "admin-form-config",
-        title: "表单配置",
-        href: "/finance/admin/form-config",
-        activePath: "/finance/admin/form-config",
-        icon: SlidersHorizontal,
-      },
-      {
-        key: "admin-audit-logs",
-        title: "审计日志",
-        href: "/admin/audit-logs",
-        activePath: "/admin/audit-logs",
-        icon: ScrollText,
-      },
-    ],
-  },
-];
+const reviewNavItem: AppNavItem = {
+  key: "review-center",
+  title: "审核中心",
+  href: "/finance/admin",
+  activePath: "/finance/admin",
+  icon: ShieldCheck,
+};
+
+const statsNavItem: AppNavItem = {
+  key: "review-stats",
+  title: "数据统计",
+  href: "/finance/admin/project-stats",
+  activePath: "/finance/admin/project-stats",
+  icon: BarChart3,
+};
+
+const formConfigNavItem: AppNavItem = {
+  key: "finance-form-config",
+  title: "系统配置",
+  href: "/finance/admin/form-config",
+  activePath: "/finance/admin/form-config",
+  icon: SlidersHorizontal,
+};
+
+const roleManageNavItem: AppNavItem = {
+  key: "role-assign",
+  title: "权限分配",
+  href: "/admin",
+  activePath: "/admin",
+  icon: UserCog,
+};
+
+const auditLogsNavItem: AppNavItem = {
+  key: "operation-logs",
+  title: "操作日志",
+  href: "/admin/audit-logs",
+  activePath: "/admin/audit-logs",
+  icon: ScrollText,
+};
 
 export function getAppNavItems(user?: AppNavUser): AppNavItem[] {
   const items = [...baseNavItems];
@@ -131,8 +137,22 @@ export function getAppNavItems(user?: AppNavUser): AppNavItem[] {
     items.push(...aiNavItems);
   }
 
-  if (canAccessAdmin(user)) {
-    items.push(...adminNavItems);
+  const adminChildren: AppNavItem[] = [];
+  if (canAccessFinanceReview(user)) adminChildren.push(reviewNavItem);
+  if (canAccessFinanceStats(user)) adminChildren.push(statsNavItem);
+  if (canManageFinanceConfig(user)) adminChildren.push(formConfigNavItem);
+  if (canManageFinanceRoles(user)) adminChildren.push(roleManageNavItem);
+  if (canAccessFinanceAuditLogs(user)) adminChildren.push(auditLogsNavItem);
+
+  if (adminChildren.length > 0) {
+    items.push({
+      key: "admin",
+      title: "管理员后台",
+      href: adminChildren[0]?.href || "/finance/admin",
+      activePath: "/finance/admin",
+      icon: UserCog,
+      children: adminChildren,
+    });
   }
 
   items.push(profileNavItem);

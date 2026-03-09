@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, ClipboardList, PlusCircle, Shield } from "lucide-react";
 import { auth } from "@/server/lib/auth";
+import { canAccessFinanceReview } from "@/lib/rbac";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default async function FinancePage() {
@@ -14,7 +15,7 @@ export default async function FinancePage() {
     redirect("/sign-in");
   }
 
-  const isAdmin = session.user.role === "admin";
+  const canReview = canAccessFinanceReview(session.user);
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -65,7 +66,7 @@ export default async function FinancePage() {
         </Link>
       </div>
 
-      {isAdmin && (
+      {canReview && (
         <Link href="/finance/admin" className="group block">
           <Card className="rounded-xl border border-rose-100 bg-gradient-to-r from-rose-50 via-white to-orange-50 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-rose-900/60 dark:from-rose-950/20 dark:via-slate-950 dark:to-orange-950/20">
             <CardContent className="px-4 py-4 sm:px-5 sm:py-5">
@@ -73,7 +74,7 @@ export default async function FinancePage() {
                 <div className="space-y-1">
                   <p className="text-base font-semibold">管理员后台</p>
                   <p className="text-xs text-muted-foreground sm:text-sm">
-                    审核申请、查看统计、管理项目配置与费用分类。
+                    进入后台后通过二级 Tab 处理审核、统计、系统配置、权限分配与操作日志。
                   </p>
                 </div>
                 <Shield className="h-5 w-5 text-rose-600" />

@@ -1,3 +1,4 @@
+import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { auth } from "./lib/auth";
 import { ensureInitialAdmin } from "@/server/lib/user";
@@ -19,26 +20,55 @@ export type AuthEnv = {
   };
 };
 
+type SessionPayload = Awaited<ReturnType<typeof auth.api.getSession>>;
+
+const applySessionContext = (c: Context<AuthEnv>, session: NonNullable<SessionPayload>) => {
+  c.set("user", session.user);
+  c.set("session", session.session);
+  c.set("role", resolveRole(session.user.role));
+  c.set("permissions", getPermissionsForRole(session.user.role));
+};
+
+const loadSession = async (c: Context<AuthEnv>) => {
+  await ensureInitialAdmin();
+  return auth.api.getSession({ headers: c.req.raw.headers });
+};
+
 export const sessionMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  const session = await loadSession(c);
 
   if (!session) {
     c.status(401);
     return c.json({ message: "Unauthorized" });
   }
 
-  c.set("user", session.user);
-  c.set("session", session.session);
-  c.set("role", resolveRole(session.user.role));
-  c.set("permissions", getPermissionsForRole(session.user.role));
+  applySessionContext(c, session);
   return next();
 });
 
+export const requireRoles = (role: RoleKey | RoleKey[]) =>
+  createMiddleware<AuthEnv>(async (c, next) => {
+    const session = await loadSession(c);
+
+    if (!session) {
+      c.status(401);
+      return c.json({ message: "Unauthorized" });
+    }
+
+    const resolvedRole = resolveRole(session.user.role);
+    const allowed = Array.isArray(role) ? role : [role];
+    if (!allowed.includes(resolvedRole)) {
+      c.status(403);
+      return c.json({ message: "当前账号没有权限访问此功能" });
+    }
+
+    applySessionContext(c, session);
+    return next();
+  });
+
 export const requirePermission = (permission: Permission | Permission[]) =>
   createMiddleware<AuthEnv>(async (c, next) => {
-    await ensureInitialAdmin();
-
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    const session = await loadSession(c);
 
     if (!session) {
       c.status(401);
@@ -46,7 +76,6 @@ export const requirePermission = (permission: Permission | Permission[]) =>
     }
 
     const role = resolveRole(session.user.role);
-    const permissions = getPermissionsForRole(session.user.role);
     const required = Array.isArray(permission) ? permission : [permission];
 
     if (!required.some((item) => hasPermission(role, item))) {
@@ -54,10 +83,7 @@ export const requirePermission = (permission: Permission | Permission[]) =>
       return c.json({ message: "当前账号没有权限访问此功能" });
     }
 
-    c.set("user", session.user);
-    c.set("session", session.session);
-    c.set("role", role);
-    c.set("permissions", permissions);
+    applySessionContext(c, session);
     return next();
   });
 
