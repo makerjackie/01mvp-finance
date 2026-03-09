@@ -6,6 +6,15 @@ import { notifyAdmins, createNotification } from "@/server/lib/notification";
 import { createAuditLog } from "@/server/lib/audit";
 import { listExpenseCategories, replaceExpenseCategories } from "@/server/lib/finance-expense-categories";
 import {
+  getAdminFormConfig,
+  getPublishedFormConfig,
+  listAdminFormConfigSummaries,
+  publishDraftFormConfig,
+  saveDraftFormConfig,
+  validateFormPayloadByConfig,
+} from "@/server/lib/finance-form-config";
+import { APPLICATION_TYPES, isValidApplicationType, type FinanceApplicationType } from "@/lib/finance-config";
+import {
   clampCommunitySharePercent,
   DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT,
   getSettlementDescription,
@@ -25,6 +34,12 @@ import {
 const app = new Hono();
 
 const PROJECT_SEARCH_MAX_LIMIT = 30;
+const APPLICATION_TYPE_LABELS: Record<FinanceApplicationType, string> = {
+  income_registration: APPLICATION_TYPES.income_registration.label,
+  procurement: APPLICATION_TYPES.procurement.label,
+  reimbursement: APPLICATION_TYPES.reimbursement.label,
+  labor_settlement: APPLICATION_TYPES.labor_settlement.label,
+};
 
 const resolveProjectCategory = (value: unknown): ProjectCategory => (isProjectCategory(value) ? value : "other");
 const resolveSettlementMode = (value: unknown): ProjectSettlementMode =>
@@ -79,6 +94,9 @@ const normalizeOptionalText = (value: unknown): string | null => {
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
 };
+
+const isRecordObject = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 const formatProjectDisplayName = (name: string, eventDate?: Date | null, city?: string | null) => {
   const parts = [name];
@@ -633,9 +651,10 @@ app.post("/", async (c) => {
   }
 
   const data = await c.req.json();
+  const categoryValue = typeof data.category === "string" ? data.category : "";
 
   // 基本验证
-  if (!data.type || !data.category || !data.description) {
+  if (!data.type || !data.category) {
     return c.json({ error: "缺少必填字段" }, 400);
   }
 
@@ -657,6 +676,28 @@ app.post("/", async (c) => {
   const normalizedRelatedProject = normalizeProjectName(rawRelatedProject);
   let relatedProject: string | null = normalizedRelatedProject || null;
 
+  let formPayload: Record<string, unknown> | null = null;
+  let formVersion: number | null = null;
+
+  if (isValidApplicationType(categoryValue)) {
+    const publishedConfig = await getPublishedFormConfig(categoryValue);
+    const payloadValidation = validateFormPayloadByConfig(
+      publishedConfig,
+      isRecordObject(data.formPayload) ? data.formPayload : {},
+    );
+
+    if (!payloadValidation.valid) {
+      return c.json({ error: payloadValidation.errors[0] || "表单配置校验失败" }, 400);
+    }
+
+    formPayload = payloadValidation.normalized;
+    formVersion = publishedConfig.version;
+  }
+
+  const normalizedDescription =
+    normalizeOptionalText(data.description) ||
+    (isValidApplicationType(categoryValue) ? `${APPLICATION_TYPE_LABELS[categoryValue]}申请` : "财务申请");
+
   if (normalizedRelatedProject) {
     const project = await ensureProjectByName({
       name: normalizedRelatedProject,
@@ -677,7 +718,7 @@ app.post("/", async (c) => {
       subcategory: data.subcategory || null,
       amount,
       relatedProject,
-      description: data.description,
+      description: normalizedDescription,
       attachments: attachmentUrls,
       recipientName: data.recipientName || null,
       recipientAccount: data.recipientAccount || null,
@@ -690,6 +731,8 @@ app.post("/", async (c) => {
       paymentStatus: "unpaid",
       accountPeriod: data.accountPeriod || null,
       taxHandling: data.taxHandling || null,
+      formPayload: (formPayload as Prisma.InputJsonValue | null) ?? undefined,
+      formVersion,
       isCommunity: data.isCommunity !== undefined ? data.isCommunity : true, // 默认为社区账目
       userId: session.user.id,
     },
@@ -804,6 +847,127 @@ app.put("/admin/expense-categories", async (c) => {
     return c.json({ success: true, data: categories });
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : "配置保存失败" }, 400);
+  }
+});
+
+// 前端：获取指定申请类型的已发布表单配置
+app.get("/form-config", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.user) {
+    return c.json({ error: "未登录" }, 401);
+  }
+
+  const applicationTypeParam = c.req.query("applicationType");
+  if (typeof applicationTypeParam !== "string" || !isValidApplicationType(applicationTypeParam)) {
+    return c.json({ error: "applicationType 无效" }, 400);
+  }
+
+  try {
+    const config = await getPublishedFormConfig(applicationTypeParam);
+    return c.json({ success: true, data: config });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : "加载表单配置失败" }, 400);
+  }
+});
+
+// 管理员：获取表单配置（支持汇总或单类型详情）
+app.get("/admin/form-config", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.user || session.user.role !== "admin") {
+    return c.json({ error: "无权访问" }, 403);
+  }
+
+  const applicationTypeParam = c.req.query("applicationType");
+
+  try {
+    if (!applicationTypeParam) {
+      const summaries = await listAdminFormConfigSummaries();
+      return c.json({ success: true, data: summaries });
+    }
+
+    if (!isValidApplicationType(applicationTypeParam)) {
+      return c.json({ error: "applicationType 无效" }, 400);
+    }
+
+    const config = await getAdminFormConfig(applicationTypeParam);
+    return c.json({ success: true, data: config });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : "加载表单配置失败" }, 400);
+  }
+});
+
+// 管理员：保存指定申请类型草稿配置
+app.put("/admin/form-config", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.user || session.user.role !== "admin") {
+    return c.json({ error: "无权操作" }, 403);
+  }
+
+  const applicationTypeParam = c.req.query("applicationType");
+  if (typeof applicationTypeParam !== "string" || !isValidApplicationType(applicationTypeParam)) {
+    return c.json({ error: "applicationType 无效" }, 400);
+  }
+
+  const data = await c.req.json();
+
+  try {
+    const config = await saveDraftFormConfig(applicationTypeParam, data?.fields, session.user.id);
+
+    await createAuditLog({
+      userId: session.user.id,
+      userName: session.user.name || "Unknown",
+      action: "update",
+      resource: "finance_form_config",
+      resourceId: applicationTypeParam,
+      metadata: {
+        actionType: "save_draft",
+        draftVersion: config.draft.version,
+        fieldCount: config.draft.fields.length,
+      },
+      req: c.req.raw,
+    });
+
+    return c.json({ success: true, data: config });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : "保存草稿失败" }, 400);
+  }
+});
+
+// 管理员：发布指定申请类型配置
+app.post("/admin/form-config/publish", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.user || session.user.role !== "admin") {
+    return c.json({ error: "无权操作" }, 403);
+  }
+
+  const applicationTypeParam = c.req.query("applicationType");
+  if (typeof applicationTypeParam !== "string" || !isValidApplicationType(applicationTypeParam)) {
+    return c.json({ error: "applicationType 无效" }, 400);
+  }
+
+  try {
+    const config = await publishDraftFormConfig(applicationTypeParam, session.user.id);
+
+    await createAuditLog({
+      userId: session.user.id,
+      userName: session.user.name || "Unknown",
+      action: "update",
+      resource: "finance_form_config",
+      resourceId: applicationTypeParam,
+      metadata: {
+        actionType: "publish",
+        publishedVersion: config.published.version,
+      },
+      req: c.req.raw,
+    });
+
+    return c.json({ success: true, data: config });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : "发布失败" }, 400);
   }
 });
 
@@ -1328,7 +1492,33 @@ app.get("/admin/project-stats", async (c) => {
   }
 
   const scope = c.req.query("scope");
+  const daysQuery = c.req.query("days");
+  const startDateQuery = c.req.query("startDate");
+  const endDateQuery = c.req.query("endDate");
   const scopeFilter = scope === "community" ? { isCommunity: true } : scope === "company" ? { isCommunity: false } : {};
+  const days = Number(daysQuery);
+
+  const parsedStartDate =
+    typeof startDateQuery === "string" && startDateQuery.trim()
+      ? new Date(`${startDateQuery.trim()}T00:00:00.000`)
+      : null;
+  const parsedEndDateRaw =
+    typeof endDateQuery === "string" && endDateQuery.trim() ? new Date(`${endDateQuery.trim()}T23:59:59.999`) : null;
+
+  const startDate = parsedStartDate && !Number.isNaN(parsedStartDate.getTime()) ? parsedStartDate : null;
+  const endDate = parsedEndDateRaw && !Number.isNaN(parsedEndDateRaw.getTime()) ? parsedEndDateRaw : null;
+
+  const hasCustomDateRange = Boolean(startDate || endDate);
+  const createdAtFilter = hasCustomDateRange
+    ? {
+        ...(startDate ? { gte: startDate } : {}),
+        ...(endDate ? { lte: endDate } : {}),
+      }
+    : Number.isFinite(days) && days > 0
+      ? {
+          gte: new Date(Date.now() - Math.floor(days) * 24 * 60 * 60 * 1000),
+        }
+      : undefined;
 
   const [projects, approvedRecords] = await Promise.all([
     prisma.project.findMany({
@@ -1350,13 +1540,23 @@ app.get("/admin/project-stats", async (c) => {
         relatedProject: {
           not: null,
         },
+        ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
         ...scopeFilter,
       },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: {
         id: true,
         type: true,
+        category: true,
         amount: true,
         relatedProject: true,
+        description: true,
+        createdAt: true,
+        user: {
+          select: {
+            name: true,
+          },
+        },
       },
     }),
   ]);
@@ -1554,6 +1754,32 @@ app.get("/admin/project-stats", async (c) => {
       return b.totalIncome - a.totalIncome;
     });
 
+  const incomeRecords = approvedRecords
+    .filter((record) => record.type === "income")
+    .map((record) => ({
+      id: record.id,
+      type: "income" as const,
+      amount: record.amount,
+      relatedProject: record.relatedProject || "未关联项目",
+      description: record.description || "",
+      category: record.category,
+      applicantName: record.user.name || "未知申请人",
+      createdAt: record.createdAt.toISOString(),
+    }));
+
+  const expenseRecords = approvedRecords
+    .filter((record) => record.type === "expense")
+    .map((record) => ({
+      id: record.id,
+      type: "expense" as const,
+      amount: record.amount,
+      relatedProject: record.relatedProject || "未关联项目",
+      description: record.description || "",
+      category: record.category,
+      applicantName: record.user.name || "未知申请人",
+      createdAt: record.createdAt.toISOString(),
+    }));
+
   return c.json({
     success: true,
     data: {
@@ -1572,6 +1798,8 @@ app.get("/admin/project-stats", async (c) => {
       categories: categoryStats,
       projects: projectStats,
       catalog: projectCatalog,
+      incomeRecords,
+      expenseRecords,
     },
   });
 });

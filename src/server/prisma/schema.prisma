@@ -243,6 +243,69 @@ model FinanceExpenseCategory {
   @@map("finance_expense_category")
 }
 
+// 财务表单模板（按申请类型+版本管理）
+model FinanceFormTemplate {
+  id              String             @id @default(cuid()) @map("_id")
+  applicationType String
+  version         Int                @default(1)
+  status          String             @default("draft") // draft | published | archived
+  createdById     String?
+  publishedById   String?
+  publishedAt     DateTime?
+  fields          FinanceFormField[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([applicationType, status])
+  @@index([applicationType, version])
+  @@unique([applicationType, version, status])
+  @@map("finance_form_template")
+}
+
+// 财务表单字段配置
+model FinanceFormField {
+  id            String                 @id @default(cuid()) @map("_id")
+  templateId    String
+  template      FinanceFormTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name          String
+  label         String
+  dataType      String                 // int | float | string
+  widgetType    String                 // input | single_select | multi_select
+  inputMode     String                 @default("text") // text | textarea | number | date | file | auto
+  autoValue     String?                // date | userName
+  required      Boolean                @default(false)
+  placeholder   String?
+  helpText      String?
+  defaultValue  String?
+  sortOrder     Int                    @default(0)
+  isActive      Boolean                @default(true)
+  isSystemField Boolean                @default(false)
+  options       FinanceFormFieldOption[]
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  @@index([templateId, sortOrder])
+  @@unique([templateId, name])
+  @@map("finance_form_field")
+}
+
+// 财务表单字段选项配置
+model FinanceFormFieldOption {
+  id        String           @id @default(cuid()) @map("_id")
+  fieldId   String
+  field     FinanceFormField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  value     String
+  label     String
+  sortOrder Int              @default(0)
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([fieldId, sortOrder])
+  @@unique([fieldId, value])
+  @@map("finance_form_field_option")
+}
+
 // 财务记录表 - 统一存储所有类型的财务申请
 model FinanceRecord {
   id              String   @id @default(cuid()) @map("_id")
@@ -282,6 +345,10 @@ model FinanceRecord {
 
   // 税务相关
   taxHandling     String?                  // 个人所得税处理方式：withhold(代扣代缴) | self(自行申报) | none(无需处理)
+
+  // 动态表单配置快照
+  formPayload     Json?
+  formVersion     Int?
 
   // 账目类型：是否为社区公开账目
   isCommunity     Boolean  @default(true)  // true=社区账目（公开）, false=公司内部账目（仅管理员可见）
