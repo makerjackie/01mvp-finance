@@ -60,24 +60,29 @@ export default function AuditLogsPage() {
             <div className="text-center py-8">加载中...</div>
           ) : (
             <>
-              <Table>
+              <p className="mb-2 text-xs text-muted-foreground sm:hidden">可左右滑动查看完整列信息</p>
+              <Table className="min-w-[760px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>时间</TableHead>
-                    <TableHead>操作人</TableHead>
-                    <TableHead>操作</TableHead>
-                    <TableHead>资源ID</TableHead>
-                    <TableHead>IP地址</TableHead>
+                    <TableHead className="whitespace-nowrap">时间</TableHead>
+                    <TableHead className="whitespace-nowrap">操作人</TableHead>
+                    <TableHead className="whitespace-nowrap">操作</TableHead>
+                    <TableHead className="whitespace-nowrap">资源ID</TableHead>
+                    <TableHead className="whitespace-nowrap">IP地址</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {logs.map((log) => (
                     <TableRow key={log.id}>
-                      <TableCell>{new Date(log.createdAt).toLocaleString("zh-CN")}</TableCell>
-                      <TableCell>{log.userName}</TableCell>
-                      <TableCell>{actionLabels[log.action] || log.action}</TableCell>
-                      <TableCell className="font-mono text-xs">{log.resourceId.slice(0, 8)}...</TableCell>
-                      <TableCell>{log.ipAddress || "-"}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {new Date(log.createdAt).toLocaleString("zh-CN")}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{log.userName}</TableCell>
+                      <TableCell className="whitespace-nowrap">{actionLabels[log.action] || log.action}</TableCell>
+                      <TableCell className="max-w-[180px] truncate font-mono text-xs whitespace-nowrap">
+                        {log.resourceId.slice(0, 8)}...
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{log.ipAddress || "-"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
