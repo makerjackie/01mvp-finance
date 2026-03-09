@@ -73,6 +73,7 @@ const PAGE_SIZE = 12;
 
 const isRecordObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+const IMAGE_ATTACHMENT_PATTERN = /\.(png|jpe?g|gif|webp|bmp|svg|avif|heic|heif)$/i;
 
 const getFileNameFromUrl = (url: string, fallback: string) => {
   const pathname = url.split("?")[0];
@@ -107,6 +108,11 @@ const normalizeAttachment = (file: unknown, index: number): Attachment | null =>
   }
 
   return null;
+};
+
+const isImageAttachment = (file: Attachment) => {
+  const source = `${file.name} ${file.url.split("?")[0]}`;
+  return IMAGE_ATTACHMENT_PATTERN.test(source);
 };
 
 const PAYMENT_NATURE_LABEL_MAP: Record<string, string> = (() => {
@@ -173,6 +179,7 @@ export default function AdminPage() {
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
   const [reviewNoteInput, setReviewNoteInput] = useState("");
   const [paymentDateInput, setPaymentDateInput] = useState("");
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
 
   const viewerUserId = sessionData?.user?.id;
   const viewerRole = resolveRole((sessionData?.user as { role?: string | null } | undefined)?.role);
@@ -532,6 +539,7 @@ export default function AdminPage() {
     setActiveRecordId(null);
     setReviewNoteInput("");
     setPaymentDateInput("");
+    setPreviewAttachment(null);
   };
 
   const isModalBusy =
@@ -939,12 +947,25 @@ export default function AdminPage() {
                         className="flex items-center gap-2 rounded-md border border-border/60 bg-background px-2.5 py-2"
                       >
                         <p className="min-w-0 flex-1 truncate text-sm">{file.name}</p>
-                        <Button asChild variant="outline" size="sm" className="h-7 rounded-md px-2 text-xs">
-                          <a href={file.url} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="h-3 w-3" />
-                            查看
-                          </a>
-                        </Button>
+                        {isImageAttachment(file) ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 rounded-md px-2 text-xs"
+                            onClick={() => setPreviewAttachment(file)}
+                          >
+                            <Eye className="h-3 w-3" />
+                            预览
+                          </Button>
+                        ) : (
+                          <Button asChild variant="outline" size="sm" className="h-7 rounded-md px-2 text-xs">
+                            <a href={file.url} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-3 w-3" />
+                              查看
+                            </a>
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1102,6 +1123,28 @@ export default function AdminPage() {
               </div>
             )}
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(previewAttachment)}
+        onOpenChange={(open) => (!open ? setPreviewAttachment(null) : undefined)}
+      >
+        <DialogContent className="max-h-[92vh] overflow-y-auto p-3 sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="text-base">图片预览</DialogTitle>
+            <DialogDescription className="truncate">{previewAttachment?.name}</DialogDescription>
+          </DialogHeader>
+          {previewAttachment ? (
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewAttachment.url}
+                alt={previewAttachment.name}
+                className="mx-auto max-h-[72vh] w-auto max-w-full rounded object-contain"
+              />
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>
