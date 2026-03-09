@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, CheckCircle2, Download, Eye, Search, ShieldCheck, Trash2, X } from "lucide-react";
+import { Check, CheckCircle2, Download, ExternalLink, Eye, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { APPLICATION_TYPES, FINANCE_CATEGORIES, STATUS_LABELS, getCategoryLabel } from "@/lib/finance-config";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +27,7 @@ interface FinanceRecord {
   type: string;
   category: string;
   subcategory?: string | null;
+  attachments?: unknown[];
   amount: number;
   relatedProject?: string;
   description: string;
@@ -62,11 +63,51 @@ type CommunityChoice = "" | "yes" | "no";
 type PaymentStatusFilter = "" | "paid" | "unpaid";
 type TypeFilter = "" | "income" | "expense";
 type StatusFilter = "" | "pending" | "approved" | "rejected";
+type Attachment = {
+  key: string;
+  url: string;
+  name: string;
+};
 
 const PAGE_SIZE = 12;
 
 const isRecordObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getFileNameFromUrl = (url: string, fallback: string) => {
+  const pathname = url.split("?")[0];
+  const fileName = pathname.split("/").pop();
+  if (!fileName) return fallback;
+  try {
+    return decodeURIComponent(fileName);
+  } catch {
+    return fileName;
+  }
+};
+
+const normalizeAttachment = (file: unknown, index: number): Attachment | null => {
+  if (typeof file === "string") {
+    const url = file.trim();
+    if (!url) return null;
+    return {
+      key: `${url}-${index}`,
+      url,
+      name: getFileNameFromUrl(url, `附件${index + 1}`),
+    };
+  }
+
+  if (file && typeof file === "object" && "url" in file && typeof file.url === "string" && file.url.trim()) {
+    const url = file.url.trim();
+    const key = "key" in file && typeof file.key === "string" && file.key.trim() ? file.key : `${url}-${index}`;
+    const name =
+      "name" in file && typeof file.name === "string" && file.name.trim()
+        ? file.name
+        : getFileNameFromUrl(url, `附件${index + 1}`);
+    return { key, url, name };
+  }
+
+  return null;
+};
 
 const PAYMENT_NATURE_LABEL_MAP: Record<string, string> = (() => {
   const map: Record<string, string> = {};
@@ -102,6 +143,11 @@ const statusClassMap: Record<string, string> = {
   pending: "border-amber-200 bg-amber-50 text-amber-700",
   approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
   rejected: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+const paymentStatusClassMap: Record<string, string> = {
+  paid: "border-sky-200 bg-sky-50 text-sky-700",
+  unpaid: "border-slate-200 bg-slate-50 text-slate-700",
 };
 
 export default function AdminPage() {
@@ -271,6 +317,25 @@ export default function AdminPage() {
     () => records.find((record) => record.id === activeRecordId) || null,
     [records, activeRecordId],
   );
+
+  const selectedRecordAttachments = useMemo<Attachment[]>(() => {
+    if (!selectedRecord) {
+      return [];
+    }
+
+    const payloadAttachments = isRecordObject(selectedRecord.formPayload)
+      ? selectedRecord.formPayload.attachments
+      : undefined;
+    const rawAttachments = Array.isArray(selectedRecord.attachments)
+      ? selectedRecord.attachments
+      : Array.isArray(payloadAttachments)
+        ? payloadAttachments
+        : [];
+
+    return rawAttachments
+      .map((file, index) => normalizeAttachment(file, index))
+      .filter((file): file is Attachment => file !== null);
+  }, [selectedRecord]);
 
   const getCommunityChoice = (record: FinanceRecord): CommunityChoice => {
     const current = communityChoices[record.id];
@@ -662,7 +727,7 @@ export default function AdminPage() {
                       金额
                     </th>
                     <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
-                      状态
+                      审核/支付状态
                     </th>
                     <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-right text-xs font-medium text-muted-foreground">
                       操作
@@ -689,16 +754,33 @@ export default function AdminPage() {
                         <p className="text-sm text-foreground">{formatCurrency(record.amount)}</p>
                       </td>
                       <td className="border-b border-border/40 px-4 py-3">
-                        <span
-                          className={cn(
-                            "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                            statusClassMap[record.status] ||
-                              STATUS_LABELS[record.status]?.color ||
-                              "bg-muted text-foreground",
+                        <div className="flex flex-col gap-1">
+                          <span
+                            className={cn(
+                              "inline-flex w-fit rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                              statusClassMap[record.status] ||
+                                STATUS_LABELS[record.status]?.color ||
+                                "bg-muted text-foreground",
+                            )}
+                          >
+                            审核：{STATUS_LABELS[record.status]?.label || record.status}
+                          </span>
+                          {record.type === "expense" ? (
+                            <span
+                              className={cn(
+                                "inline-flex w-fit rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                                paymentStatusClassMap[record.paymentStatus] ||
+                                  "border-slate-200 bg-slate-50 text-slate-700",
+                              )}
+                            >
+                              支付：{record.paymentStatus === "paid" ? "已支付" : "未支付"}
+                            </span>
+                          ) : (
+                            <span className="inline-flex w-fit rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                              支付：不适用
+                            </span>
                           )}
-                        >
-                          {STATUS_LABELS[record.status]?.label || record.status}
-                        </span>
+                        </div>
                       </td>
                       <td className="border-b border-border/40 px-4 py-3 text-right">
                         <Button
@@ -841,6 +923,32 @@ export default function AdminPage() {
                     </p>
                   </div>
                 </div>
+              </section>
+
+              <section className="space-y-2">
+                <p className="text-xs text-muted-foreground">附件</p>
+                {selectedRecordAttachments.length === 0 ? (
+                  <p className="rounded-md border border-border/60 bg-background px-3 py-2 text-sm text-muted-foreground">
+                    未上传附件
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {selectedRecordAttachments.map((file, index) => (
+                      <div
+                        key={`${file.key}-${index}`}
+                        className="flex items-center gap-2 rounded-md border border-border/60 bg-background px-2.5 py-2"
+                      >
+                        <p className="min-w-0 flex-1 truncate text-sm">{file.name}</p>
+                        <Button asChild variant="outline" size="sm" className="h-7 rounded-md px-2 text-xs">
+                          <a href={file.url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-3 w-3" />
+                            查看
+                          </a>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
 
               <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
