@@ -294,7 +294,7 @@ export default function AdminPage() {
 
       const result = await res.json();
       if (!result.success) {
-        alert(result.error || "保存“是否社区账目”失败");
+        alert(result.error || "保存“是否公开账目”失败");
         return false;
       }
 
@@ -315,7 +315,7 @@ export default function AdminPage() {
       return true;
     } catch (error) {
       console.error(error);
-      alert("保存“是否社区账目”失败");
+      alert("保存“是否公开账目”失败");
       return false;
     } finally {
       setCommunitySavingId(null);
@@ -360,7 +360,7 @@ export default function AdminPage() {
   const handleReview = async (record: FinanceRecord, status: "approved" | "rejected", reviewNote?: string) => {
     const choice = getCommunityChoice(record);
     if (!choice) {
-      alert("请先选择“是否社区账目”");
+      alert("请先选择“是否公开账目”");
       return;
     }
 
@@ -877,7 +877,9 @@ export default function AdminPage() {
                 </div>
 
                 <div>
-                  <Label className="mb-1 block text-xs text-muted-foreground">是否社区账目</Label>
+                  <Label className="mb-1 block text-xs text-muted-foreground">
+                    是否公开账目 <span className="text-rose-500">*</span>
+                  </Label>
                   <select
                     value={getCommunityChoice(selectedRecord)}
                     onChange={(e) =>
@@ -886,12 +888,12 @@ export default function AdminPage() {
                     disabled={selectedRecord.status !== "pending" || communitySavingId === selectedRecord.id}
                     className="h-9 w-full rounded-md border border-border/60 bg-background px-2.5 text-sm outline-none transition-colors focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <option value="">请选择</option>
+                    <option value="">请选择（必选）</option>
                     <option value="yes">是</option>
                     <option value="no">否</option>
                   </select>
                   {selectedRecord.status !== "pending" && (
-                    <p className="mt-1 text-[11px] text-muted-foreground">已审核记录不可修改账目归属。</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">已审核记录不可修改公开账目归属。</p>
                   )}
                 </div>
 

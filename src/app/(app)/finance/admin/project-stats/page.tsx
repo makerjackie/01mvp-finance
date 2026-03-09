@@ -1,30 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, ChevronDown, RefreshCcw, Wallet } from "lucide-react";
+import { ArrowUpRight, ChevronDown, RefreshCcw } from "lucide-react";
+import {
+  APPLICATION_TYPES,
+  FINANCE_CATEGORIES,
+  getAllApplicationTypes,
+  getApplicationTypeFromRecord,
+  getCategoryLabel,
+  type FinanceApplicationType,
+} from "@/lib/finance-config";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type Scope = "all" | "community";
-
-type CategoryStat = {
-  category: string;
-  label: string;
-  projectCount: number;
-  recordCount: number;
-  totalIncome: number;
-  totalExpense: number;
-  balance: number;
-};
-
-type ProjectStat = {
-  projectId: string | null;
-  name: string;
-  recordCount: number;
-  totalIncome: number;
-  totalExpense: number;
-  balance: number;
-};
 
 type RecordDetail = {
   id: string;
@@ -33,6 +22,7 @@ type RecordDetail = {
   relatedProject: string;
   description: string;
   category: string;
+  subcategory?: string | null;
   applicantName: string;
   createdAt: string;
 };
@@ -40,18 +30,11 @@ type RecordDetail = {
 type ProjectStatsData = {
   scope: Scope;
   summary: {
-    totalProjects: number;
-    involvedProjects: number;
-    trackedRecords: number;
-    unmatchedProjectCount: number;
     totalIncome: number;
     totalExpense: number;
     balance: number;
-    estimatedCommunityShareIncome: number;
-    estimatedTeamShareIncome: number;
+    trackedRecords: number;
   };
-  categories: CategoryStat[];
-  projects: ProjectStat[];
   incomeRecords: RecordDetail[];
   expenseRecords: RecordDetail[];
 };
@@ -60,6 +43,22 @@ type StatsResponse = {
   success?: boolean;
   error?: string;
   data?: ProjectStatsData;
+};
+
+type CategoryAmountStat = {
+  key: string;
+  label: string;
+  recordCount: number;
+  totalIncome: number;
+  totalExpense: number;
+  totalAmount: number;
+};
+
+type SubcategoryAmountStat = {
+  key: string;
+  label: string;
+  recordCount: number;
+  amount: number;
 };
 
 const formatCurrency = (value: number) =>
@@ -99,9 +98,33 @@ const scopeTabs: Array<{
   label: string;
   icon: typeof ArrowUpRight;
 }> = [
-  { value: "all", label: "全部帐目", icon: ArrowUpRight },
-  { value: "community", label: "社区帐目", icon: ArrowUpRight },
+  { value: "all", label: "全部账目", icon: ArrowUpRight },
+  { value: "community", label: "公开账目", icon: ArrowUpRight },
 ];
+
+const applicationTypeTabs = getAllApplicationTypes().map((item) => ({
+  key: item.key,
+  label: item.label,
+}));
+
+const PAYMENT_NATURE_LABEL_MAP: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+
+  Object.values(APPLICATION_TYPES).forEach((config) => {
+    const subcategoryField = config.fields.find((field) => field.name === "subcategory");
+    subcategoryField?.options?.forEach((option) => {
+      map[option.value] = option.label;
+    });
+  });
+
+  [...FINANCE_CATEGORIES.income, ...FINANCE_CATEGORIES.expense].forEach((option) => {
+    if (!map[option.value]) {
+      map[option.value] = option.label;
+    }
+  });
+
+  return map;
+})();
 
 export default function ProjectStatsPage() {
   const defaultRange = getDefaultHalfYearDateRange();
@@ -113,8 +136,10 @@ export default function ProjectStatsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ProjectStatsData | null>(null);
-  const [showAllIncomeRecords, setShowAllIncomeRecords] = useState(false);
-  const [showAllExpenseRecords, setShowAllExpenseRecords] = useState(false);
+  const [expenseCategoryLabelMap, setExpenseCategoryLabelMap] = useState<Record<string, string>>({});
+  const [activeCategory, setActiveCategory] = useState<FinanceApplicationType>("income_registration");
+  const [showAllRecentRecords, setShowAllRecentRecords] = useState(false);
+
   const startDate = dateRanges[scope].startDate;
   const endDate = dateRanges[scope].endDate;
   const isDateRangeIncomplete = (startDate && !endDate) || (!startDate && endDate);
@@ -135,6 +160,7 @@ export default function ProjectStatsPage() {
     }
 
     const controller = new AbortController();
+
     const fetchStats = async () => {
       setLoading(true);
       setError(null);
@@ -151,24 +177,50 @@ export default function ProjectStatsPage() {
           params.set("endDate", endDate);
         }
 
-        const res = await fetch(`/api/finance/admin/project-stats${params.toString() ? `?${params.toString()}` : ""}`, {
-          signal: controller.signal,
-        });
-        const result = (await res.json()) as StatsResponse;
+        const [statsRes, expenseCategoryRes] = await Promise.all([
+          fetch(`/api/finance/admin/project-stats${params.toString() ? `?${params.toString()}` : ""}`, {
+            signal: controller.signal,
+          }),
+          fetch("/api/finance/expense-categories", { signal: controller.signal }),
+        ]);
 
-        if (!res.ok || !result.success || !result.data) {
-          setError(result.error || "加载项目统计失败");
+        const statsResult = (await statsRes.json()) as StatsResponse;
+        const expenseCategoryResult = (await expenseCategoryRes.json()) as {
+          success?: boolean;
+          data?: Array<{ value?: unknown; label?: unknown }>;
+        };
+
+        if (!statsRes.ok || !statsResult.success || !statsResult.data) {
+          setError(statsResult.error || "加载统计数据失败");
           setData(null);
           return;
         }
 
-        setData(result.data);
+        if (expenseCategoryResult.success && Array.isArray(expenseCategoryResult.data)) {
+          const nextLabelMap = expenseCategoryResult.data.reduce<Record<string, string>>((acc, item) => {
+            if (typeof item.value !== "string" || typeof item.label !== "string") {
+              return acc;
+            }
+
+            const value = item.value.trim();
+            const label = item.label.trim();
+            if (!value || !label) {
+              return acc;
+            }
+
+            acc[value] = label;
+            return acc;
+          }, {});
+          setExpenseCategoryLabelMap(nextLabelMap);
+        }
+
+        setData(statsResult.data);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           return;
         }
 
-        setError("加载项目统计失败");
+        setError("加载统计数据失败");
         setData(null);
       } finally {
         setLoading(false);
@@ -182,63 +234,146 @@ export default function ProjectStatsPage() {
     };
   }, [scope, startDate, endDate, isDateRangeIncomplete]);
 
-  const nonEmptyCategories = useMemo(() => {
-    if (!data) return [];
-    return data.categories.filter(
-      (item) => item.projectCount > 0 || item.recordCount > 0 || item.totalIncome > 0 || item.totalExpense > 0,
+  const allRecords = useMemo(() => {
+    if (!data) {
+      return [];
+    }
+
+    return [...data.incomeRecords, ...data.expenseRecords].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }, [data]);
 
-  const sortedCategories = useMemo(
-    () =>
-      [...nonEmptyCategories].sort(
-        (a, b) => Math.max(b.totalIncome, b.totalExpense) - Math.max(a.totalIncome, a.totalExpense),
-      ),
-    [nonEmptyCategories],
+  const categoryStats = useMemo<CategoryAmountStat[]>(() => {
+    const map = new Map<string, CategoryAmountStat>();
+
+    applicationTypeTabs.forEach((item) => {
+      map.set(item.key, {
+        key: item.key,
+        label: item.label,
+        recordCount: 0,
+        totalIncome: 0,
+        totalExpense: 0,
+        totalAmount: 0,
+      });
+    });
+
+    for (const record of allRecords) {
+      const normalizedCategory = getApplicationTypeFromRecord(record.type, record.category) || record.category;
+      if (!map.has(normalizedCategory)) {
+        map.set(normalizedCategory, {
+          key: normalizedCategory,
+          label: getCategoryLabel(normalizedCategory),
+          recordCount: 0,
+          totalIncome: 0,
+          totalExpense: 0,
+          totalAmount: 0,
+        });
+      }
+
+      const bucket = map.get(normalizedCategory);
+      if (!bucket) continue;
+
+      bucket.recordCount += 1;
+      if (record.type === "income") {
+        bucket.totalIncome += record.amount;
+      } else {
+        bucket.totalExpense += record.amount;
+      }
+      bucket.totalAmount += record.amount;
+    }
+
+    const fixedOrderKeys = new Set<string>(applicationTypeTabs.map((item) => item.key));
+    const orderedStats = applicationTypeTabs
+      .map((item) => map.get(item.key))
+      .filter((item): item is CategoryAmountStat => Boolean(item));
+
+    const extraStats = Array.from(map.values())
+      .filter((item) => !fixedOrderKeys.has(item.key))
+      .sort((a, b) => b.totalAmount - a.totalAmount);
+
+    return [...orderedStats, ...extraStats];
+  }, [allRecords]);
+
+  useEffect(() => {
+    const availableKeys = new Set(categoryStats.map((item) => item.key));
+    if (!availableKeys.has(activeCategory)) {
+      const firstKnownKey = categoryStats.find((item) => item.key in APPLICATION_TYPES)?.key;
+      if (firstKnownKey && firstKnownKey in APPLICATION_TYPES) {
+        setActiveCategory(firstKnownKey as FinanceApplicationType);
+      }
+    }
+  }, [categoryStats, activeCategory]);
+
+  const totalCategoryAmount = useMemo(
+    () => categoryStats.reduce((sum, item) => sum + item.totalAmount, 0),
+    [categoryStats],
   );
 
   const maxCategoryAmount = useMemo(
-    () =>
-      sortedCategories.reduce((max, item) => {
-        return Math.max(max, item.totalIncome, item.totalExpense);
-      }, 1),
-    [sortedCategories],
+    () => categoryStats.reduce((max, item) => Math.max(max, item.totalAmount), 1),
+    [categoryStats],
   );
 
-  const rankedProjects = useMemo(() => {
-    if (!data) return [];
-    return [...data.projects].sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance)).slice(0, 8);
-  }, [data]);
+  const selectedCategoryRecords = useMemo(() => {
+    return allRecords.filter((record) => {
+      const normalizedCategory = getApplicationTypeFromRecord(record.type, record.category) || record.category;
+      return normalizedCategory === activeCategory;
+    });
+  }, [allRecords, activeCategory]);
 
-  const topExpenseProjects = useMemo(() => {
-    if (!data) return [];
-    return [...data.projects].sort((a, b) => b.totalExpense - a.totalExpense).slice(0, 5);
-  }, [data]);
-
-  const maxAbsBalance = useMemo(
-    () =>
-      rankedProjects.reduce((max, item) => {
-        return Math.max(max, Math.abs(item.balance));
-      }, 1),
-    [rankedProjects],
+  const selectedCategoryTotalAmount = useMemo(
+    () => selectedCategoryRecords.reduce((sum, item) => sum + item.amount, 0),
+    [selectedCategoryRecords],
   );
 
-  const incomeRecordsToShow = useMemo(
-    () => (data ? (showAllIncomeRecords ? data.incomeRecords : data.incomeRecords.slice(0, 8)) : []),
-    [data, showAllIncomeRecords],
+  const subcategoryStats = useMemo<SubcategoryAmountStat[]>(() => {
+    const map = new Map<string, SubcategoryAmountStat>();
+
+    for (const record of selectedCategoryRecords) {
+      const normalizedSubcategory = record.subcategory?.trim() || "__empty__";
+      const label =
+        normalizedSubcategory === "__empty__"
+          ? "未填写"
+          : expenseCategoryLabelMap[normalizedSubcategory] ||
+            PAYMENT_NATURE_LABEL_MAP[normalizedSubcategory] ||
+            normalizedSubcategory;
+
+      if (!map.has(normalizedSubcategory)) {
+        map.set(normalizedSubcategory, {
+          key: normalizedSubcategory,
+          label,
+          recordCount: 0,
+          amount: 0,
+        });
+      }
+
+      const bucket = map.get(normalizedSubcategory);
+      if (!bucket) continue;
+
+      bucket.recordCount += 1;
+      bucket.amount += record.amount;
+    }
+
+    return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
+  }, [selectedCategoryRecords, expenseCategoryLabelMap]);
+
+  const maxSubcategoryAmount = useMemo(
+    () => subcategoryStats.reduce((max, item) => Math.max(max, item.amount), 1),
+    [subcategoryStats],
   );
 
-  const expenseRecordsToShow = useMemo(
-    () => (data ? (showAllExpenseRecords ? data.expenseRecords : data.expenseRecords.slice(0, 8)) : []),
-    [data, showAllExpenseRecords],
+  const recordsToShow = useMemo(
+    () => (showAllRecentRecords ? allRecords : allRecords.slice(0, 8)),
+    [allRecords, showAllRecentRecords],
   );
 
   return (
     <div className="space-y-3 md:space-y-5">
       <div className="space-y-2 px-1">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">项目类别统计</h1>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">申请类别统计</h1>
         <p className="text-sm text-muted-foreground">
-          统计口径：已审核通过记录。社区账目口径为审核员将“是否社区账目”选择为“是”的记录。
+          统计口径：已审核通过记录。先看申请类别，再下钻款项性质，快速识别金额集中区域。
         </p>
       </div>
 
@@ -301,7 +436,7 @@ export default function ProjectStatsPage() {
         <Card className="rounded-2xl border border-border/60 shadow-sm">
           <CardContent className="flex items-center gap-2 px-4 py-5 text-sm text-muted-foreground">
             <RefreshCcw className="h-4 w-4 animate-spin" />
-            正在加载项目统计...
+            正在加载统计数据...
           </CardContent>
         </Card>
       ) : error ? (
@@ -342,293 +477,304 @@ export default function ProjectStatsPage() {
             </Card>
             <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
               <CardContent className="px-3 py-3">
-                <p className="text-[11px] text-muted-foreground">收支比（支出/收入）</p>
-                <p
-                  className={cn(
-                    "mt-1 text-base font-semibold",
-                    data.summary.totalIncome > 0 && data.summary.totalExpense / data.summary.totalIncome > 1
-                      ? "text-rose-600"
-                      : "text-foreground",
-                  )}
-                >
-                  {data.summary.totalIncome > 0
-                    ? `${((data.summary.totalExpense / data.summary.totalIncome) * 100).toFixed(1)}%`
-                    : "—"}
-                </p>
+                <p className="text-[11px] text-muted-foreground">已通过记录</p>
+                <p className="mt-1 text-base font-semibold">{allRecords.length}</p>
               </CardContent>
             </Card>
             <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
               <CardContent className="px-3 py-3">
-                <p className="text-[11px] text-muted-foreground">已关联记录</p>
+                <p className="text-[11px] text-muted-foreground">已关联项目记录</p>
                 <p className="mt-1 text-base font-semibold">{data.summary.trackedRecords}</p>
               </CardContent>
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            <Card className="rounded-2xl border border-border/60 shadow-sm">
-              <CardHeader className="px-4 py-3 sm:px-5">
-                <CardTitle className="text-base">收支结构图（按项目类别）</CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  绿色为收入，红色为支出，便于快速识别结构失衡。
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 px-4 pb-4 pt-0 sm:px-5">
-                {sortedCategories.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-                    暂无类别统计数据
-                  </div>
-                ) : (
-                  sortedCategories.map((item) => (
-                    <div key={item.category} className="rounded-lg border border-border/50 px-3 py-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium">{item.label}</p>
-                        <p
-                          className={cn(
-                            "text-xs font-medium",
-                            item.balance >= 0 ? "text-emerald-600" : "text-rose-600",
-                          )}
-                        >
-                          净额 {formatCurrency(item.balance)}
-                        </p>
-                      </div>
-                      <div className="mt-2 space-y-1.5">
-                        <div className="grid grid-cols-[40px_1fr_auto] items-center gap-2">
-                          <span className="text-[11px] text-muted-foreground">收入</span>
-                          <div className="h-1.5 rounded-full bg-emerald-100">
-                            <div
-                              className="h-1.5 rounded-full bg-emerald-500"
-                              style={{
-                                width: `${item.totalIncome > 0 ? Math.max((item.totalIncome / maxCategoryAmount) * 100, 3) : 0}%`,
-                              }}
-                            />
-                          </div>
-                          <span className="text-[11px] text-emerald-600">{formatCurrency(item.totalIncome)}</span>
-                        </div>
-                        <div className="grid grid-cols-[40px_1fr_auto] items-center gap-2">
-                          <span className="text-[11px] text-muted-foreground">支出</span>
-                          <div className="h-1.5 rounded-full bg-rose-100">
-                            <div
-                              className="h-1.5 rounded-full bg-rose-500"
-                              style={{
-                                width: `${item.totalExpense > 0 ? Math.max((item.totalExpense / maxCategoryAmount) * 100, 3) : 0}%`,
-                              }}
-                            />
-                          </div>
-                          <span className="text-[11px] text-rose-600">{formatCurrency(item.totalExpense)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl border border-border/60 shadow-sm">
-              <CardHeader className="px-4 py-3 sm:px-5">
-                <CardTitle className="text-base">项目净额排行（Top 8）</CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  按净额绝对值排序，优先看波动最大的项目。
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 px-4 pb-4 pt-0 sm:px-5">
-                {rankedProjects.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-                    暂无项目数据
-                  </div>
-                ) : (
-                  rankedProjects.map((item) => (
-                    <div
-                      key={`${item.name}-${item.projectId || "legacy"}`}
-                      className="space-y-1.5 rounded-lg border border-border/50 px-3 py-2"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-sm font-medium">{item.name}</p>
-                        <p
-                          className={cn(
-                            "text-xs font-medium",
-                            item.balance >= 0 ? "text-emerald-600" : "text-rose-600",
-                          )}
-                        >
-                          {formatCurrency(item.balance)}
-                        </p>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-muted">
-                        <div
-                          className={cn("h-1.5 rounded-full", item.balance >= 0 ? "bg-emerald-500" : "bg-rose-500")}
-                          style={{ width: `${Math.max((Math.abs(item.balance) / maxAbsBalance) * 100, 4)}%` }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                        <span>记录 {item.recordCount}</span>
-                        <span>
-                          收入 {formatCurrency(item.totalIncome)} / 支出 {formatCurrency(item.totalExpense)}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
           <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="px-4 py-3 sm:px-5">
-              <CardTitle className="text-base">重点项目清单（按支出 Top 5）</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">用于审核阶段优先关注大额支出项目。</CardDescription>
+              <CardTitle className="text-base">申请类别金额分布</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                先看四类申请的金额、占比与收支结构，确认重点类别。
+              </CardDescription>
             </CardHeader>
-            <CardContent className="px-3 pb-3 pt-0 sm:px-4 sm:pb-4">
-              {topExpenseProjects.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-                  暂无重点项目
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[680px] border-separate border-spacing-0">
-                    <thead>
-                      <tr>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                          项目
-                        </th>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                          记录数
-                        </th>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                          支出
-                        </th>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                          收入
-                        </th>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                          净额
-                        </th>
+            <CardContent className="grid grid-cols-1 gap-3 px-3 pb-3 pt-0 xl:grid-cols-2 sm:px-4 sm:pb-4">
+              <div className="overflow-x-auto rounded-xl border border-border/60">
+                <table className="w-full min-w-[640px] border-separate border-spacing-0">
+                  <thead>
+                    <tr>
+                      <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                        申请类别
+                      </th>
+                      <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                        记录数
+                      </th>
+                      <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                        收入
+                      </th>
+                      <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                        支出
+                      </th>
+                      <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                        总金额
+                      </th>
+                      <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                        占比
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {categoryStats.map((item) => (
+                      <tr key={item.key}>
+                        <td className="border-b border-border/40 px-3 py-2 text-sm">{item.label}</td>
+                        <td className="border-b border-border/40 px-3 py-2 text-right text-sm">{item.recordCount}</td>
+                        <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-emerald-600">
+                          {formatCurrency(item.totalIncome)}
+                        </td>
+                        <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-rose-600">
+                          {formatCurrency(item.totalExpense)}
+                        </td>
+                        <td className="border-b border-border/40 px-3 py-2 text-right text-sm font-medium">
+                          {formatCurrency(item.totalAmount)}
+                        </td>
+                        <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-muted-foreground">
+                          {totalCategoryAmount > 0
+                            ? `${((item.totalAmount / totalCategoryAmount) * 100).toFixed(1)}%`
+                            : "-"}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {topExpenseProjects.map((item) => (
-                        <tr key={`${item.name}-${item.projectId || "legacy"}-expense`}>
-                          <td className="border-b border-border/40 px-3 py-2 text-sm">{item.name}</td>
-                          <td className="border-b border-border/40 px-3 py-2 text-right text-sm">{item.recordCount}</td>
-                          <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-rose-600">
-                            {formatCurrency(item.totalExpense)}
-                          </td>
-                          <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-emerald-600">
-                            {formatCurrency(item.totalIncome)}
-                          </td>
-                          <td
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="rounded-xl border border-border/60 p-3">
+                <p className="mb-2 text-sm font-medium">类别金额柱状图</p>
+                {categoryStats.every((item) => item.totalAmount <= 0) ? (
+                  <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-8 text-center text-xs text-muted-foreground">
+                    当前周期暂无已通过记录
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {categoryStats.map((item) => (
+                      <div key={`${item.key}-bar`} className="rounded-lg border border-border/50 px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-sm">{item.label}</p>
+                          <p className="text-xs font-medium">{formatCurrency(item.totalAmount)}</p>
+                        </div>
+                        <div className="mt-2 h-2 rounded-full bg-muted">
+                          <div
                             className={cn(
-                              "border-b border-border/40 px-3 py-2 text-right text-sm font-semibold",
-                              item.balance >= 0 ? "text-emerald-600" : "text-rose-600",
+                              "h-2 rounded-full",
+                              item.totalIncome >= item.totalExpense ? "bg-emerald-500" : "bg-rose-500",
                             )}
-                          >
-                            {formatCurrency(item.balance)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                            style={{
+                              width: `${item.totalAmount > 0 ? Math.max((item.totalAmount / maxCategoryAmount) * 100, 4) : 0}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          收入 {formatCurrency(item.totalIncome)} / 支出 {formatCurrency(item.totalExpense)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
           <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="px-4 py-3 sm:px-5">
-              <CardTitle className="text-base">收入与支出明细</CardTitle>
+              <CardTitle className="text-base">款项性质下钻</CardTitle>
               <CardDescription className="text-xs sm:text-sm">
-                默认展示最近 8 条，点击下拉可展开更多历史记录。
+                选择申请类别后，查看该类别下不同款项性质的金额分布。
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 px-3 pb-3 pt-0 lg:grid-cols-2 sm:px-4 sm:pb-4">
-              <div className="rounded-xl border border-border/60 p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-medium text-emerald-600">收入明细</p>
-                  <span className="text-xs text-muted-foreground">共 {data.incomeRecords.length} 条</span>
-                </div>
-                {incomeRecordsToShow.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-6 text-center text-xs text-muted-foreground">
-                    暂无收入记录
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {incomeRecordsToShow.map((record) => (
-                      <div key={record.id} className="rounded-lg border border-border/50 px-3 py-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{record.relatedProject}</p>
-                            {record.description ? (
-                              <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{record.description}</p>
-                            ) : null}
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              {formatDateTime(record.createdAt)} · {record.applicantName} · {record.category}
-                            </p>
-                          </div>
-                          <p className="shrink-0 text-sm font-semibold text-emerald-600">
-                            {formatCurrency(record.amount)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {data.incomeRecords.length > 8 && (
+            <CardContent className="space-y-3 px-3 pb-3 pt-0 sm:px-4 sm:pb-4">
+              <div className="inline-flex w-full flex-wrap gap-1 rounded-xl border border-border/60 bg-muted/30 p-1">
+                {applicationTypeTabs.map((tab) => (
                   <button
+                    key={tab.key}
                     type="button"
-                    onClick={() => setShowAllIncomeRecords((prev) => !prev)}
-                    className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setActiveCategory(tab.key)}
+                    className={cn(
+                      "rounded-lg px-3 py-1.5 text-xs font-medium transition",
+                      activeCategory === tab.key
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
                   >
-                    <ChevronDown
-                      className={cn("h-3.5 w-3.5 transition-transform", showAllIncomeRecords && "rotate-180")}
-                    />
-                    {showAllIncomeRecords ? "收起明细" : "展开更多明细"}
+                    {tab.label}
                   </button>
-                )}
+                ))}
               </div>
 
-              <div className="rounded-xl border border-border/60 p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-medium text-rose-600">支出明细</p>
-                  <span className="text-xs text-muted-foreground">共 {data.expenseRecords.length} 条</span>
-                </div>
-                {expenseRecordsToShow.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-6 text-center text-xs text-muted-foreground">
-                    暂无支出记录
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {expenseRecordsToShow.map((record) => (
-                      <div key={record.id} className="rounded-lg border border-border/50 px-3 py-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{record.relatedProject}</p>
-                            {record.description ? (
-                              <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{record.description}</p>
-                            ) : null}
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              {formatDateTime(record.createdAt)} · {record.applicantName} · {record.category}
-                            </p>
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                <div className="rounded-xl border border-border/60 p-3">
+                  <p className="mb-2 text-sm font-medium">款项性质柱状图</p>
+                  {subcategoryStats.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-8 text-center text-xs text-muted-foreground">
+                      当前类别暂无款项性质数据
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {subcategoryStats.map((item) => (
+                        <div key={item.key} className="rounded-lg border border-border/50 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate text-sm">{item.label}</p>
+                            <p className="text-xs font-medium">{formatCurrency(item.amount)}</p>
                           </div>
-                          <p className="shrink-0 text-sm font-semibold text-rose-600">
-                            {formatCurrency(record.amount)}
-                          </p>
+                          <div className="mt-2 h-2 rounded-full bg-muted">
+                            <div
+                              className={cn(
+                                "h-2 rounded-full",
+                                activeCategory === "income_registration" ? "bg-emerald-500" : "bg-blue-500",
+                              )}
+                              style={{
+                                width: `${item.amount > 0 ? Math.max((item.amount / maxSubcategoryAmount) * 100, 4) : 0}%`,
+                              }}
+                            />
+                          </div>
+                          <p className="mt-1 text-[11px] text-muted-foreground">记录 {item.recordCount} 条</p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {data.expenseRecords.length > 8 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAllExpenseRecords((prev) => !prev)}
-                    className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    <ChevronDown
-                      className={cn("h-3.5 w-3.5 transition-transform", showAllExpenseRecords && "rotate-180")}
-                    />
-                    {showAllExpenseRecords ? "收起明细" : "展开更多明细"}
-                  </button>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-border/60">
+                  <table className="w-full min-w-[420px] border-separate border-spacing-0">
+                    <thead>
+                      <tr>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          款项性质
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                          记录数
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                          金额
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                          占比
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subcategoryStats.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="px-3 py-8 text-center text-xs text-muted-foreground">
+                            当前类别暂无款项性质数据
+                          </td>
+                        </tr>
+                      ) : (
+                        subcategoryStats.map((item) => (
+                          <tr key={`${item.key}-row`}>
+                            <td className="border-b border-border/40 px-3 py-2 text-sm">{item.label}</td>
+                            <td className="border-b border-border/40 px-3 py-2 text-right text-sm">
+                              {item.recordCount}
+                            </td>
+                            <td className="border-b border-border/40 px-3 py-2 text-right text-sm font-medium">
+                              {formatCurrency(item.amount)}
+                            </td>
+                            <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-muted-foreground">
+                              {selectedCategoryTotalAmount > 0
+                                ? `${((item.amount / selectedCategoryTotalAmount) * 100).toFixed(1)}%`
+                                : "-"}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border border-border/60 shadow-sm">
+            <CardHeader className="px-4 py-3 sm:px-5">
+              <CardTitle className="text-base">近期记录预览</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                展示当前筛选条件内记录，默认显示 8 条，可展开查看全部。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-3 pb-3 pt-0 sm:px-4 sm:pb-4">
+              {recordsToShow.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+                  暂无记录
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-border/60">
+                  <table className="w-full min-w-[720px] border-separate border-spacing-0">
+                    <thead>
+                      <tr>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          申请类别
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          款项性质
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          项目/活动
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                          金额
+                        </th>
+                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                          提交时间
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recordsToShow.map((record) => {
+                        const subcategory = record.subcategory?.trim();
+                        const paymentNatureLabel = subcategory
+                          ? expenseCategoryLabelMap[subcategory] || PAYMENT_NATURE_LABEL_MAP[subcategory] || subcategory
+                          : "未填写";
+
+                        return (
+                          <tr key={record.id}>
+                            <td className="border-b border-border/40 px-3 py-2 text-sm">
+                              {getCategoryLabel(
+                                getApplicationTypeFromRecord(record.type, record.category) || record.category,
+                              )}
+                            </td>
+                            <td className="border-b border-border/40 px-3 py-2 text-sm">{paymentNatureLabel}</td>
+                            <td className="border-b border-border/40 px-3 py-2 text-sm">
+                              {record.relatedProject || "-"}
+                            </td>
+                            <td
+                              className={cn(
+                                "border-b border-border/40 px-3 py-2 text-right text-sm font-medium",
+                                record.type === "income" ? "text-emerald-600" : "text-rose-600",
+                              )}
+                            >
+                              {formatCurrency(record.amount)}
+                            </td>
+                            <td className="border-b border-border/40 px-3 py-2 text-right text-xs text-muted-foreground">
+                              {formatDateTime(record.createdAt)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {allRecords.length > 8 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllRecentRecords((prev) => !prev)}
+                  className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <ChevronDown
+                    className={cn("h-3.5 w-3.5 transition-transform", showAllRecentRecords && "rotate-180")}
+                  />
+                  {showAllRecentRecords ? "收起记录" : `展开全部（共 ${allRecords.length} 条）`}
+                </button>
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground">当前共 {allRecords.length} 条，已全部显示</p>
+              )}
             </CardContent>
           </Card>
         </>
@@ -637,13 +783,6 @@ export default function ProjectStatsPage() {
           <CardContent className="px-4 py-4 text-sm text-muted-foreground">暂无统计数据</CardContent>
         </Card>
       )}
-
-      <Card className="rounded-2xl border border-border/60 bg-muted/20 shadow-sm">
-        <CardContent className="flex items-start gap-2 px-4 py-3 text-xs text-muted-foreground">
-          <Wallet className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          历史自由文本项目名若未进入项目目录，会自动归类到“其他/未归类”，可后续通过项目目录治理逐步清理。
-        </CardContent>
-      </Card>
     </div>
   );
 }

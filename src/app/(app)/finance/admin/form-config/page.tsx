@@ -117,7 +117,6 @@ export default function FinanceAdminFormConfigPage() {
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [currentConfig, setCurrentConfig] = useState<AdminConfigResponse | null>(null);
   const [editableFields, setEditableFields] = useState<FinanceFormFieldConfig[]>([]);
   const [initialFields, setInitialFields] = useState<FinanceFormFieldConfig[]>([]);
 
@@ -138,13 +137,11 @@ export default function FinanceAdminFormConfigPage() {
       }
 
       const draftFields = toEditableFields(result.data.draft.fields);
-      setCurrentConfig(result.data);
       setEditableFields(draftFields);
       setInitialFields(toEditableFields(draftFields));
       setDetailOpenMap({});
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "加载配置失败");
-      setCurrentConfig(null);
       setEditableFields([]);
       setInitialFields([]);
       setDetailOpenMap({});
@@ -378,7 +375,6 @@ export default function FinanceAdminFormConfigPage() {
       }
 
       const draftFields = toEditableFields(result.data.draft.fields);
-      setCurrentConfig(result.data);
       setEditableFields(draftFields);
       setInitialFields(toEditableFields(draftFields));
       alert("草稿已保存");
@@ -412,7 +408,6 @@ export default function FinanceAdminFormConfigPage() {
       }
 
       const draftFields = toEditableFields(result.data.draft.fields);
-      setCurrentConfig(result.data);
       setEditableFields(draftFields);
       setInitialFields(toEditableFields(draftFields));
       alert("发布成功");
@@ -461,11 +456,7 @@ export default function FinanceAdminFormConfigPage() {
           <div className="flex items-start justify-between gap-2">
             <div>
               <CardTitle className="text-base">字段配置</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">
-                {loading
-                  ? "正在加载..."
-                  : `草稿 v${currentConfig?.draft.version ?? "-"} / 已发布 v${currentConfig?.published.version ?? "-"}`}
-              </CardDescription>
+              <CardDescription className="text-xs sm:text-sm">维护当前申请类型的字段内容并发布生效。</CardDescription>
             </div>
             <Button
               type="button"

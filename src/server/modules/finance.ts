@@ -1518,9 +1518,6 @@ app.get("/admin/project-stats", async (c) => {
     prisma.financeRecord.findMany({
       where: {
         status: "approved",
-        relatedProject: {
-          not: null,
-        },
         ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
         ...scopeFilter,
       },
@@ -1529,6 +1526,7 @@ app.get("/admin/project-stats", async (c) => {
         id: true,
         type: true,
         category: true,
+        subcategory: true,
         amount: true,
         relatedProject: true,
         description: true,
@@ -1624,6 +1622,12 @@ app.get("/admin/project-stats", async (c) => {
   let estimatedTeamShareIncome = 0;
 
   for (const record of approvedRecords) {
+    if (record.type === "income") {
+      totalIncome += record.amount;
+    } else {
+      totalExpense += record.amount;
+    }
+
     if (!record.relatedProject) continue;
 
     const normalizedProjectName = toProjectNormalizedName(record.relatedProject);
@@ -1662,7 +1666,6 @@ app.get("/admin/project-stats", async (c) => {
 
     if (record.type === "income") {
       projectBucket.totalIncome += record.amount;
-      totalIncome += record.amount;
       if (categoryBucket) {
         categoryBucket.totalIncome += record.amount;
       }
@@ -1680,7 +1683,6 @@ app.get("/admin/project-stats", async (c) => {
       }
     } else {
       projectBucket.totalExpense += record.amount;
-      totalExpense += record.amount;
       if (categoryBucket) {
         categoryBucket.totalExpense += record.amount;
       }
@@ -1744,6 +1746,7 @@ app.get("/admin/project-stats", async (c) => {
       relatedProject: record.relatedProject || "未关联项目",
       description: record.description || "",
       category: record.category,
+      subcategory: record.subcategory || null,
       applicantName: record.user.name || "未知申请人",
       createdAt: record.createdAt.toISOString(),
     }));
@@ -1757,6 +1760,7 @@ app.get("/admin/project-stats", async (c) => {
       relatedProject: record.relatedProject || "未关联项目",
       description: record.description || "",
       category: record.category,
+      subcategory: record.subcategory || null,
       applicantName: record.user.name || "未知申请人",
       createdAt: record.createdAt.toISOString(),
     }));
