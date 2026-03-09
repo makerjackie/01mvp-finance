@@ -21,9 +21,16 @@ import { AdminFeatureFlagsPanel } from "./admin-feature-flags-panel";
 import { AdminOpsPanel } from "./admin-ops-panel";
 
 export default async function AdminPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  let session: Awaited<ReturnType<typeof auth.api.getSession>> | null = null;
+  try {
+    session = await auth.api.getSession({
+      headers: await headers(),
+    });
+  } catch (error) {
+    // 某些环境下 Better Auth 取 session 会直接抛错（而不是返回 null）
+    // 兜底为未登录流程，避免整个页面 Runtime Error
+    console.error("[admin/page] failed to get session", error);
+  }
 
   if (!session?.user) {
     redirect("/sign-in?redirect=/admin");

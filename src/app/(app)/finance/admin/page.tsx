@@ -1,31 +1,32 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  flexRender,
-  type ColumnDef,
-  type SortingState,
-  type ColumnFiltersState,
-} from "@tanstack/react-table";
 import { Check, CheckCircle2, Download, Eye, Search, ShieldCheck, Trash2, X } from "lucide-react";
-import { TYPE_LABELS, STATUS_LABELS, getCategoryLabel } from "@/lib/finance-config";
+import { APPLICATION_TYPES, FINANCE_CATEGORIES, STATUS_LABELS, getCategoryLabel } from "@/lib/finance-config";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { FinanceBreadcrumb } from "@/components/finance-breadcrumb";
+import { authClient } from "@/lib/auth-client";
+import { resolveRole } from "@/lib/rbac";
 
 interface FinanceRecord {
   id: string;
   type: string;
   category: string;
+  subcategory?: string | null;
   amount: number;
   relatedProject?: string;
   description: string;
@@ -43,7 +44,12 @@ interface FinanceRecord {
   reviewedAt?: string;
   recipientName?: string;
   recipientAccount?: string;
-  attachments?: unknown[];
+  recipientBank?: string;
+  transactionNo?: string;
+  transactionDate?: string;
+  summary?: string;
+  purpose?: string;
+  formPayload?: Record<string, unknown> | null;
 }
 
 interface ProjectOption {
@@ -54,6 +60,32 @@ interface ProjectOption {
 
 type CommunityChoice = "" | "yes" | "no";
 type PaymentStatusFilter = "" | "paid" | "unpaid";
+type TypeFilter = "" | "income" | "expense";
+type StatusFilter = "" | "pending" | "approved" | "rejected";
+
+const PAGE_SIZE = 12;
+
+const isRecordObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const PAYMENT_NATURE_LABEL_MAP: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+
+  Object.values(APPLICATION_TYPES).forEach((config) => {
+    const subcategoryField = config.fields.find((field) => field.name === "subcategory");
+    subcategoryField?.options?.forEach((option) => {
+      map[option.value] = option.label;
+    });
+  });
+
+  [...FINANCE_CATEGORIES.income, ...FINANCE_CATEGORIES.expense].forEach((option) => {
+    if (!map[option.value]) {
+      map[option.value] = option.label;
+    }
+  });
+
+  return map;
+})();
 
 const formatCurrency = (value: number) =>
   `¥${new Intl.NumberFormat("zh-CN", {
@@ -61,7 +93,10 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   }).format(value)}`;
 
-const formatDate = (value: string) => new Date(value).toLocaleDateString("zh-CN");
+const formatDateTime = (value: string) =>
+  new Date(value).toLocaleString("zh-CN", {
+    hour12: false,
+  });
 
 const statusClassMap: Record<string, string> = {
   pending: "border-amber-200 bg-amber-50 text-amber-700",
@@ -69,41 +104,53 @@ const statusClassMap: Record<string, string> = {
   rejected: "border-rose-200 bg-rose-50 text-rose-700",
 };
 
-const typeClassMap: Record<string, string> = {
-  income: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  expense: "border-blue-200 bg-blue-50 text-blue-700",
-};
-
 export default function AdminPage() {
+  const { data: sessionData } = authClient.useSession();
   const [records, setRecords] = useState<FinanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [expenseCategoryLabelMap, setExpenseCategoryLabelMap] = useState<Record<string, string>>({});
+
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatusFilter>("");
+  const [projectFilter, setProjectFilter] = useState("");
+  const [applicantQuery, setApplicantQuery] = useState("");
+
   const [communityChoices, setCommunityChoices] = useState<Record<string, CommunityChoice>>({});
   const [communitySavingId, setCommunitySavingId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
   const [projectOptions, setProjectOptions] = useState<ProjectOption[]>([]);
 
-  const paymentFilteredRecords = useMemo(() => {
-    if (!paymentStatusFilter) {
-      return records;
-    }
-    return records.filter((record) => record.type === "expense" && record.paymentStatus === paymentStatusFilter);
-  }, [records, paymentStatusFilter]);
+  const [page, setPage] = useState(1);
+
+  const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
+  const [reviewNoteInput, setReviewNoteInput] = useState("");
+  const [paymentDateInput, setPaymentDateInput] = useState("");
+
+  const viewerUserId = sessionData?.user?.id;
+  const viewerRole = resolveRole((sessionData?.user as { role?: string | null } | undefined)?.role);
 
   useEffect(() => {
     void fetchData();
   }, []);
 
+  useEffect(() => {
+    setPage(1);
+  }, [typeFilter, statusFilter, paymentStatusFilter, projectFilter, applicantQuery]);
+
   const fetchData = async () => {
+    setLoading(true);
     try {
-      const [recordsRes, projectOptionsRes] = await Promise.all([
+      const [recordsRes, projectOptionsRes, expenseCategoryRes] = await Promise.all([
         fetch("/api/finance/admin/all"),
         fetch("/api/finance/admin/project-options"),
+        fetch("/api/finance/expense-categories"),
       ]);
 
       const recordsResult = await recordsRes.json();
       const projectOptionsResult = await projectOptionsRes.json();
+      const expenseCategoryResult = await expenseCategoryRes.json();
 
       if (recordsResult.success && Array.isArray(recordsResult.data)) {
         const nextRecords = recordsResult.data as FinanceRecord[];
@@ -142,12 +189,88 @@ export default function AdminPage() {
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setProjectOptions(normalized);
       }
+
+      if (expenseCategoryResult.success && Array.isArray(expenseCategoryResult.data)) {
+        const nextLabelMap = (expenseCategoryResult.data as Array<{ value?: unknown; label?: unknown }>).reduce<
+          Record<string, string>
+        >((acc, item) => {
+          if (typeof item.value !== "string" || typeof item.label !== "string") {
+            return acc;
+          }
+
+          const value = item.value.trim();
+          const label = item.label.trim();
+          if (!value || !label) {
+            return acc;
+          }
+
+          acc[value] = label;
+          return acc;
+        }, {});
+        setExpenseCategoryLabelMap(nextLabelMap);
+      }
     } catch (error) {
       console.error(error);
+      alert("加载审核数据失败");
     } finally {
       setLoading(false);
     }
   };
+
+  const filteredRecords = useMemo(() => {
+    const normalizedQuery = applicantQuery.trim().toLowerCase();
+
+    return records.filter((record) => {
+      if (typeFilter && record.type !== typeFilter) return false;
+      if (statusFilter && record.status !== statusFilter) return false;
+      if (paymentStatusFilter && !(record.type === "expense" && record.paymentStatus === paymentStatusFilter)) {
+        return false;
+      }
+      if (projectFilter && (record.relatedProject || "").trim() !== projectFilter.trim()) return false;
+      if (normalizedQuery) {
+        const name = record.user.name.toLowerCase();
+        const phone = (record.user.phoneNumber || "").toLowerCase();
+        if (!name.includes(normalizedQuery) && !phone.includes(normalizedQuery)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [records, typeFilter, statusFilter, paymentStatusFilter, projectFilter, applicantQuery]);
+
+  const summaryCounts = useMemo(
+    () =>
+      filteredRecords.reduce(
+        (acc, record) => {
+          if (record.status === "pending") acc.pending += 1;
+          if (record.status === "approved") acc.approved += 1;
+          if (record.status === "rejected") acc.rejected += 1;
+          if (record.type === "expense") {
+            if (record.paymentStatus === "paid") {
+              acc.paid += 1;
+            } else {
+              acc.unpaid += 1;
+            }
+          }
+          return acc;
+        },
+        { pending: 0, approved: 0, rejected: 0, paid: 0, unpaid: 0 },
+      ),
+    [filteredRecords],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+
+  const pagedRecords = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredRecords.slice(start, start + PAGE_SIZE);
+  }, [filteredRecords, currentPage]);
+
+  const selectedRecord = useMemo(
+    () => records.find((record) => record.id === activeRecordId) || null,
+    [records, activeRecordId],
+  );
 
   const getCommunityChoice = (record: FinanceRecord): CommunityChoice => {
     const current = communityChoices[record.id];
@@ -218,12 +341,8 @@ export default function AdminPage() {
     }
   };
 
-  const handleExport = async () => {
+  const handleExport = () => {
     try {
-      const typeFilter = table.getColumn("type")?.getFilterValue() as string;
-      const statusFilter = table.getColumn("status")?.getFilterValue() as string;
-      const projectFilter = table.getColumn("details")?.getFilterValue() as string;
-
       const params = new URLSearchParams();
       if (typeFilter) params.append("type", typeFilter);
       if (statusFilter) params.append("status", statusFilter);
@@ -238,7 +357,7 @@ export default function AdminPage() {
     }
   };
 
-  const handleReview = async (record: FinanceRecord, status: "approved" | "rejected") => {
+  const handleReview = async (record: FinanceRecord, status: "approved" | "rejected", reviewNote?: string) => {
     const choice = getCommunityChoice(record);
     if (!choice) {
       alert("请先选择“是否社区账目”");
@@ -251,13 +370,14 @@ export default function AdminPage() {
       if (!synced) return;
     }
 
-    const reviewNote = prompt("请输入审核备注（可选）：");
+    const loadingKey = `${record.id}:review:${status}`;
+    setActionLoading(loadingKey);
 
     try {
       const res = await fetch(`/api/finance/${record.id}/review`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, reviewNote: reviewNote || undefined }),
+        body: JSON.stringify({ status, reviewNote: reviewNote?.trim() || undefined }),
       });
 
       const result = await res.json();
@@ -271,39 +391,20 @@ export default function AdminPage() {
     } catch (error) {
       console.error(error);
       alert("审核失败");
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("确定要删除这条记录吗？")) return;
-
-    try {
-      const res = await fetch(`/api/finance/${id}`, {
-        method: "DELETE",
-      });
-
-      const result = await res.json();
-
-      if (result.success) {
-        alert("删除成功");
-        await fetchData();
-      } else {
-        alert(result.error || "删除失败");
-      }
-    } catch (error) {
-      console.error(error);
-      alert("删除失败");
-    }
-  };
-
-  const handleMarkPaid = async (id: string) => {
-    const paymentDate = prompt("请输入支付日期（格式：YYYY-MM-DD），留空则使用当前日期：");
+  const handleMarkPaid = async (id: string, paymentDate?: string) => {
+    const loadingKey = `${id}:mark-paid`;
+    setActionLoading(loadingKey);
 
     try {
       const res = await fetch(`/api/finance/${id}/mark-paid`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentDate: paymentDate || undefined }),
+        body: JSON.stringify({ paymentDate: paymentDate?.trim() || undefined }),
       });
 
       const result = await res.json();
@@ -317,274 +418,76 @@ export default function AdminPage() {
     } catch (error) {
       console.error(error);
       alert("操作失败");
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const ActionButtons = ({ record, compact = false }: { record: FinanceRecord; compact?: boolean }) => {
-    const buttonSize = compact ? "h-8 px-2 text-xs" : "h-8 px-2.5 text-xs";
-    const missingCommunityChoice = record.status === "pending" && !getCommunityChoice(record);
+  const handleDelete = async (record: FinanceRecord) => {
+    if (!confirm("确定要删除这条申请记录吗？")) return;
 
-    return (
-      <div className="space-y-1.5">
-        <div className="flex flex-wrap gap-1.5">
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className={cn(
-              "rounded-lg border-border/60 bg-background shadow-none transition-all duration-200 active:scale-[0.98]",
-              buttonSize,
-            )}
-          >
-            <Link href={`/finance/edit/${record.id}`}>
-              <Eye className="h-3.5 w-3.5" />
-              查看
-            </Link>
-          </Button>
+    const loadingKey = `${record.id}:delete`;
+    setActionLoading(loadingKey);
 
-          {record.status === "pending" && (
-            <>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => void handleReview(record, "approved")}
-                disabled={missingCommunityChoice || communitySavingId === record.id}
-                className={cn(
-                  "rounded-lg bg-emerald-600 text-white shadow-none transition-all duration-200 hover:bg-emerald-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
-                  buttonSize,
-                )}
-              >
-                <Check className="h-3.5 w-3.5" />
-                通过
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => void handleReview(record, "rejected")}
-                disabled={missingCommunityChoice || communitySavingId === record.id}
-                className={cn(
-                  "rounded-lg border-rose-200 bg-rose-50 text-rose-700 shadow-none transition-all duration-200 hover:bg-rose-100 hover:text-rose-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
-                  buttonSize,
-                )}
-              >
-                <X className="h-3.5 w-3.5" />
-                拒绝
-              </Button>
-            </>
-          )}
+    try {
+      const res = await fetch(`/api/finance/${record.id}`, {
+        method: "DELETE",
+      });
 
-          {record.status === "approved" && record.type === "expense" && record.paymentStatus === "unpaid" && (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => void handleMarkPaid(record.id)}
-              className={cn(
-                "rounded-lg bg-blue-600 text-white shadow-none transition-all duration-200 hover:bg-blue-700 active:scale-[0.98]",
-                buttonSize,
-              )}
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              标记已支付
-            </Button>
-          )}
-        </div>
+      const result = await res.json();
 
-        {missingCommunityChoice && (
-          <p className="text-[11px] leading-4 text-amber-700">请先选择“是否社区账目”为是或否，再进行审核</p>
-        )}
-      </div>
-    );
+      if (result.success) {
+        alert("删除成功");
+        closeRecordDialog();
+        await fetchData();
+      } else {
+        alert(result.error || "删除失败");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("删除失败");
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const DeleteButton = ({ record, compact = false }: { record: FinanceRecord; compact?: boolean }) => (
-    <Button
-      type="button"
-      variant="outline"
-      size={compact ? "sm" : "icon"}
-      onClick={() => void handleDelete(record.id)}
-      className={cn(
-        "border-rose-200 bg-rose-50 text-rose-700 shadow-none transition-all duration-200 hover:bg-rose-100 hover:text-rose-700 active:scale-[0.98]",
-        compact ? "h-8 px-2" : "h-9 w-9",
-      )}
-      title="删除"
-    >
-      <Trash2 className="h-4 w-4" />
-      <span className="sr-only">删除</span>
-    </Button>
-  );
+  const canDeleteRecord = (record: FinanceRecord) => {
+    if (!viewerUserId) return false;
+    if (viewerRole === "admin") return true;
+    return record.status === "pending" && record.user.id === viewerUserId;
+  };
 
-  const columns: ColumnDef<FinanceRecord>[] = [
-    {
-      id: "request",
-      accessorFn: (row) => row.user.name,
-      filterFn: (row, _columnId, filterValue) => {
-        const search = String(filterValue || "")
-          .trim()
-          .toLowerCase();
-        if (!search) return true;
-        return (
-          row.original.user.name.toLowerCase().includes(search) ||
-          (row.original.user.phoneNumber || "").toLowerCase().includes(search)
-        );
-      },
-      header: "申请信息",
-      cell: ({ row }) => (
-        <div className="min-w-[220px] space-y-1">
-          <div className="text-sm font-semibold leading-tight">{row.original.user.name}</div>
-          <div className="text-xs text-muted-foreground">{row.original.user.phoneNumber || "-"}</div>
-          <div className="text-xs text-muted-foreground">{formatDate(row.original.createdAt)}</div>
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <span
-              className={cn(
-                "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                typeClassMap[row.original.type] || "border-border/60 bg-muted/60 text-foreground",
-              )}
-            >
-              {TYPE_LABELS[row.original.type]}
-            </span>
-            <span className="text-xs text-muted-foreground">{getCategoryLabel(row.original.category)}</span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "type",
-      filterFn: (row, columnId, filterValue) => {
-        if (!filterValue) return true;
-        return row.getValue(columnId) === filterValue;
-      },
-      header: "类型",
-      cell: () => null,
-    },
-    {
-      accessorKey: "amount",
-      header: "金额",
-      cell: ({ row }) => (
-        <div className="text-base font-semibold whitespace-nowrap">{formatCurrency(row.original.amount)}</div>
-      ),
-    },
-    {
-      id: "details",
-      accessorFn: (row) => row.relatedProject || "",
-      filterFn: (row, _columnId, filterValue) => {
-        if (!filterValue) return true;
-        const relatedProject = (row.original.relatedProject || "").trim();
-        return relatedProject === String(filterValue).trim();
-      },
-      header: "项目 / 说明",
-      enableSorting: false,
-      cell: ({ row }) => (
-        <div className="max-w-[260px] space-y-1 text-sm">
-          <p className="truncate text-foreground">项目：{row.original.relatedProject || "-"}</p>
-          <p className="line-clamp-2 text-muted-foreground">说明：{row.original.description || "-"}</p>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "recipientName",
-      header: "收款人",
-      cell: ({ row }) => <div className="text-sm">{row.original.recipientName || "-"}</div>,
-    },
-    {
-      accessorKey: "status",
-      filterFn: (row, columnId, filterValue) => {
-        if (!filterValue) return true;
-        return row.getValue(columnId) === filterValue;
-      },
-      header: "审核状态",
-      cell: ({ row }) => (
-        <div className="space-y-1">
-          <span
-            className={cn(
-              "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium",
-              statusClassMap[row.original.status] ||
-                STATUS_LABELS[row.original.status]?.color ||
-                "bg-muted text-foreground",
-            )}
-          >
-            {STATUS_LABELS[row.original.status].label}
-          </span>
-          <div>
-            {row.original.type === "income" ? (
-              <span className="text-xs text-muted-foreground">支付状态：-</span>
-            ) : (
-              <span
-                className={cn(
-                  "inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                  row.original.paymentStatus === "paid"
-                    ? "border-green-200 bg-green-50 text-green-700"
-                    : "border-gray-200 bg-gray-50 text-gray-700",
-                )}
-              >
-                {row.original.paymentStatus === "paid" ? "已支付" : "未支付"}
-              </span>
-            )}
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: "communityChoice",
-      header: "是否社区账目",
-      enableSorting: false,
-      cell: ({ row }) => {
-        const record = row.original;
-        const value = getCommunityChoice(record);
-        return (
-          <select
-            value={value}
-            onChange={(e) => void handleCommunityChoiceChange(record, e.target.value as CommunityChoice)}
-            disabled={communitySavingId === record.id || record.status !== "pending"}
-            className="h-9 min-w-[130px] rounded-md border border-border/60 bg-background px-2.5 text-xs outline-none transition-colors focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <option value="">请选择</option>
-            <option value="yes">是</option>
-            <option value="no">否</option>
-          </select>
-        );
-      },
-    },
-    {
-      id: "actions",
-      header: "操作",
-      enableSorting: false,
-      cell: ({ row }) => <ActionButtons record={row.original} />,
-    },
-    {
-      id: "delete",
-      header: "",
-      enableSorting: false,
-      cell: ({ row }) => (
-        <div className="flex justify-end">
-          <DeleteButton record={row.original} />
-        </div>
-      ),
-    },
-  ];
+  const openRecordDialog = (record: FinanceRecord) => {
+    setActiveRecordId(record.id);
+    setReviewNoteInput(record.reviewNote || "");
+    setPaymentDateInput("");
+  };
 
-  const table = useReactTable({
-    data: paymentFilteredRecords,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    state: {
-      sorting,
-      columnFilters,
-    },
-    initialState: {
-      columnVisibility: {
-        type: false,
-      },
-      pagination: {
-        pageSize: 20,
-      },
-    },
-  });
+  const closeRecordDialog = () => {
+    setActiveRecordId(null);
+    setReviewNoteInput("");
+    setPaymentDateInput("");
+  };
+
+  const isModalBusy =
+    Boolean(selectedRecord && actionLoading?.startsWith(`${selectedRecord.id}:`)) ||
+    Boolean(selectedRecord && communitySavingId === selectedRecord.id);
+
+  const getPaymentNatureLabel = (record: FinanceRecord): string => {
+    const payloadSubcategory = isRecordObject(record.formPayload) ? record.formPayload.subcategory : undefined;
+    const rawSubcategory =
+      typeof record.subcategory === "string"
+        ? record.subcategory.trim()
+        : typeof payloadSubcategory === "string"
+          ? payloadSubcategory.trim()
+          : "";
+
+    if (rawSubcategory) {
+      return expenseCategoryLabelMap[rawSubcategory] || PAYMENT_NATURE_LABEL_MAP[rawSubcategory] || rawSubcategory;
+    }
+
+    return PAYMENT_NATURE_LABEL_MAP[record.category] || "-";
+  };
 
   if (loading) {
     return (
@@ -598,28 +501,6 @@ export default function AdminPage() {
     );
   }
 
-  const pagedRows = table.getRowModel().rows;
-  const filteredCount = table.getFilteredRowModel().rows.length;
-  const filteredRecords = table.getFilteredRowModel().rows.map((row) => row.original);
-  const pageCount = table.getPageCount();
-  const currentPage = pageCount === 0 ? 0 : table.getState().pagination.pageIndex + 1;
-  const summaryCounts = filteredRecords.reduce(
-    (acc, record) => {
-      if (record.status === "pending") acc.pending += 1;
-      if (record.status === "approved") acc.approved += 1;
-      if (record.status === "rejected") acc.rejected += 1;
-      if (record.type === "expense") {
-        if (record.paymentStatus === "paid") {
-          acc.paid += 1;
-        } else {
-          acc.unpaid += 1;
-        }
-      }
-      return acc;
-    },
-    { pending: 0, approved: 0, rejected: 0, paid: 0, unpaid: 0 },
-  );
-
   return (
     <div className="space-y-4 md:space-y-5">
       <section className="space-y-3 px-1">
@@ -629,7 +510,7 @@ export default function AdminPage() {
             <ShieldCheck className="h-5 w-5 text-primary" />
             <h1 className="text-3xl font-semibold tracking-tight">审核后台</h1>
           </div>
-          <p className="text-sm text-muted-foreground">集中处理财务申请审核，支持筛选、导出与状态流转。</p>
+          <p className="text-sm text-muted-foreground">列表仅展示关键信息，点击“查看”进入详情弹窗执行审核操作。</p>
         </div>
       </section>
 
@@ -653,8 +534,8 @@ export default function AdminPage() {
             <label className="space-y-1">
               <span className="text-[11px] font-medium text-muted-foreground">类型</span>
               <select
-                value={(table.getColumn("type")?.getFilterValue() as string) ?? ""}
-                onChange={(e) => table.getColumn("type")?.setFilterValue(e.target.value || undefined)}
+                value={typeFilter}
+                onChange={(e) => setTypeFilter((e.target.value || "") as TypeFilter)}
                 className="h-9 w-full rounded-md border border-border/60 bg-background px-2.5 text-xs outline-none transition-colors focus:ring-1 focus:ring-ring"
               >
                 <option value="">全部类型</option>
@@ -666,8 +547,8 @@ export default function AdminPage() {
             <label className="space-y-1">
               <span className="text-[11px] font-medium text-muted-foreground">状态</span>
               <select
-                value={(table.getColumn("status")?.getFilterValue() as string) ?? ""}
-                onChange={(e) => table.getColumn("status")?.setFilterValue(e.target.value || undefined)}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter((e.target.value || "") as StatusFilter)}
                 className="h-9 w-full rounded-md border border-border/60 bg-background px-2.5 text-xs outline-none transition-colors focus:ring-1 focus:ring-ring"
               >
                 <option value="">全部状态</option>
@@ -693,8 +574,8 @@ export default function AdminPage() {
             <label className="space-y-1">
               <span className="text-[11px] font-medium text-muted-foreground">项目/活动</span>
               <select
-                value={(table.getColumn("details")?.getFilterValue() as string) ?? ""}
-                onChange={(e) => table.getColumn("details")?.setFilterValue(e.target.value || undefined)}
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value || "")}
                 className="h-9 w-full rounded-md border border-border/60 bg-background px-2.5 text-xs outline-none transition-colors focus:ring-1 focus:ring-ring"
               >
                 <option value="">全部项目/活动</option>
@@ -712,8 +593,8 @@ export default function AdminPage() {
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="text"
-                  value={(table.getColumn("request")?.getFilterValue() as string) ?? ""}
-                  onChange={(e) => table.getColumn("request")?.setFilterValue(e.target.value)}
+                  value={applicantQuery}
+                  onChange={(e) => setApplicantQuery(e.target.value)}
                   placeholder="姓名或手机号"
                   className="h-9 border-border/60 pl-8 text-xs"
                 />
@@ -728,7 +609,7 @@ export default function AdminPage() {
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-base">申请记录</CardTitle>
             <Badge variant="outline" className="rounded-full border-border/60 bg-muted/40 text-[11px]">
-              共 {filteredCount} 条
+              共 {filteredRecords.length} 条
             </Badge>
           </div>
         </CardHeader>
@@ -756,172 +637,114 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="md:hidden">
-            {pagedRows.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-                暂无符合条件的记录
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {pagedRows.map((row) => {
-                  const record = row.original;
-                  const communityChoice = getCommunityChoice(record);
-
-                  return (
-                    <div key={record.id} className="rounded-xl border border-border/60 bg-card p-3 shadow-sm">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm leading-tight font-semibold">{record.user.name}</p>
-                          <p className="mt-0.5 text-[11px] text-muted-foreground">
-                            {record.user.phoneNumber || "-"} · {formatDate(record.createdAt)}
-                          </p>
-                        </div>
+          {pagedRecords.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+              暂无符合条件的记录
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-border/60">
+              <table className="w-full min-w-[920px] border-separate border-spacing-0">
+                <thead>
+                  <tr>
+                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                      申请类别
+                    </th>
+                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                      款项性质
+                    </th>
+                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                      申请人
+                    </th>
+                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                      项目/活动
+                    </th>
+                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                      金额
+                    </th>
+                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                      状态
+                    </th>
+                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-right text-xs font-medium text-muted-foreground">
+                      操作
+                    </th>
+                    <th className="w-14 border-b border-border/60 bg-muted/40 px-4 py-2 text-right" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedRecords.map((record) => (
+                    <tr key={record.id} className="align-middle hover:bg-muted/20">
+                      <td className="border-b border-border/40 px-4 py-3">
+                        <span className="text-sm text-foreground">{getCategoryLabel(record.category)}</span>
+                      </td>
+                      <td className="border-b border-border/40 px-4 py-3">
+                        <span className="text-sm text-foreground">{getPaymentNatureLabel(record)}</span>
+                      </td>
+                      <td className="border-b border-border/40 px-4 py-3">
+                        <p className="text-sm text-foreground">{record.user.name}</p>
+                      </td>
+                      <td className="border-b border-border/40 px-4 py-3">
+                        <p className="text-sm text-foreground">{record.relatedProject || "-"}</p>
+                      </td>
+                      <td className="border-b border-border/40 px-4 py-3">
+                        <p className="text-sm text-foreground">{formatCurrency(record.amount)}</p>
+                      </td>
+                      <td className="border-b border-border/40 px-4 py-3">
                         <span
                           className={cn(
-                            "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                            "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium",
                             statusClassMap[record.status] ||
                               STATUS_LABELS[record.status]?.color ||
                               "bg-muted text-foreground",
                           )}
                         >
-                          {STATUS_LABELS[record.status].label}
+                          {STATUS_LABELS[record.status]?.label || record.status}
                         </span>
-                      </div>
-
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={cn(
-                              "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium",
-                              typeClassMap[record.type] || "border-border/60 bg-muted/60 text-foreground",
-                            )}
-                          >
-                            {TYPE_LABELS[record.type]}
-                          </span>
-                          <span className="text-xs text-muted-foreground">{getCategoryLabel(record.category)}</span>
-                        </div>
-                        <p className="text-base font-semibold">{formatCurrency(record.amount)}</p>
-                      </div>
-
-                      <div className="mt-2 rounded-lg bg-muted/30 px-2.5 py-2 text-xs text-muted-foreground">
-                        <p className="truncate">项目：{record.relatedProject || "-"}</p>
-                        <p className="mt-1 line-clamp-2">说明：{record.description || "-"}</p>
-                      </div>
-
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        <label className="space-y-1">
-                          <span className="text-[11px] font-medium text-muted-foreground">是否社区账目</span>
-                          <select
-                            value={communityChoice}
-                            onChange={(e) =>
-                              void handleCommunityChoiceChange(record, e.target.value as CommunityChoice)
-                            }
-                            disabled={communitySavingId === record.id || record.status !== "pending"}
-                            className="h-8 w-full rounded-md border border-border/60 bg-background px-2 text-xs outline-none transition-colors focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <option value="">请选择</option>
-                            <option value="yes">是</option>
-                            <option value="no">否</option>
-                          </select>
-                        </label>
-                        <div className="space-y-1">
-                          <span className="text-[11px] font-medium text-muted-foreground">支付状态</span>
-                          <div>
-                            {record.type === "income" ? (
-                              <span className="text-xs text-muted-foreground">-</span>
-                            ) : (
-                              <span
-                                className={cn(
-                                  "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                                  record.paymentStatus === "paid"
-                                    ? "border-green-200 bg-green-50 text-green-700"
-                                    : "border-gray-200 bg-gray-50 text-gray-700",
-                                )}
-                              >
-                                {record.paymentStatus === "paid" ? "已支付" : "未支付"}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-2 flex items-start justify-between gap-2 border-t border-border/50 pt-2">
-                        <ActionButtons record={record} compact />
-                        <DeleteButton record={record} compact />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[1120px] border-separate border-spacing-0">
-              <thead>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground"
-                      >
-                        {header.isPlaceholder ? null : (
-                          <button
+                      </td>
+                      <td className="border-b border-border/40 px-4 py-3 text-right">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openRecordDialog(record)}
+                          className="h-8 gap-1.5 rounded-lg border-border/60 bg-background px-2.5 text-xs shadow-none"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          查看
+                        </Button>
+                      </td>
+                      <td className="border-b border-border/40 px-4 py-3 text-right">
+                        {canDeleteRecord(record) ? (
+                          <Button
                             type="button"
-                            className={cn(
-                              "inline-flex select-none items-center gap-1",
-                              header.column.getCanSort() ? "transition-colors hover:text-foreground" : "cursor-default",
-                            )}
-                            onClick={header.column.getToggleSortingHandler()}
-                            disabled={!header.column.getCanSort()}
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => void handleDelete(record)}
+                            className="h-8 w-8 text-muted-foreground/70 hover:bg-muted hover:text-rose-600"
+                            title="删除"
                           >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: "↑",
-                              desc: "↓",
-                            }[header.column.getIsSorted() as string] ?? null}
-                          </button>
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-
-              <tbody>
-                {pagedRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={columns.length} className="px-3 py-8 text-center text-sm text-muted-foreground">
-                      暂无符合条件的记录
-                    </td>
-                  </tr>
-                ) : (
-                  pagedRows.map((row) => (
-                    <tr key={row.id} className="align-top hover:bg-muted/20">
-                      {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id} className="border-b border-border/40 px-3 py-3">
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">删除</span>
+                          </Button>
+                        ) : null}
+                      </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <div className="flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">
-              第 {currentPage} / {pageCount} 页
+              第 {currentPage} / {totalPages} 页
             </p>
             <div className="flex items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage <= 1}
                 className="h-8 rounded-lg border-border/60 px-2.5 text-xs"
               >
                 上一页
@@ -930,8 +753,8 @@ export default function AdminPage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage >= totalPages}
                 className="h-8 rounded-lg border-border/60 px-2.5 text-xs"
               >
                 下一页
@@ -940,6 +763,237 @@ export default function AdminPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(activeRecordId)} onOpenChange={(open) => (!open ? closeRecordDialog() : undefined)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[760px]">
+          <DialogHeader>
+            <DialogTitle>申请详情</DialogTitle>
+            <DialogDescription>在弹窗内查看完整信息并执行审核、拒绝、标记支付等操作。</DialogDescription>
+          </DialogHeader>
+
+          {!selectedRecord ? (
+            <div className="py-6 text-sm text-muted-foreground">记录不存在或已被更新，请关闭后重试。</div>
+          ) : (
+            <div className="space-y-4">
+              <section className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">申请人</p>
+                    <p className="font-medium">{selectedRecord.user.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">手机号</p>
+                    <p className="font-medium">{selectedRecord.user.phoneNumber || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">提交时间</p>
+                    <p className="font-medium">{formatDateTime(selectedRecord.createdAt)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">金额</p>
+                    <p className="font-medium">{formatCurrency(selectedRecord.amount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">申请类别</p>
+                    <p className="font-medium">{getCategoryLabel(selectedRecord.category)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">款项性质</p>
+                    <p className="font-medium">{getPaymentNatureLabel(selectedRecord)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">项目/活动</p>
+                    <p className="font-medium">{selectedRecord.relatedProject || "-"}</p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-2 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">说明</p>
+                  <p className="rounded-md border border-border/60 bg-background px-3 py-2">
+                    {selectedRecord.description || "-"}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">收款人</p>
+                    <p className="rounded-md border border-border/60 bg-background px-3 py-2">
+                      {selectedRecord.recipientName || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">收款账号</p>
+                    <p className="rounded-md border border-border/60 bg-background px-3 py-2">
+                      {selectedRecord.recipientAccount || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">开户行</p>
+                    <p className="rounded-md border border-border/60 bg-background px-3 py-2">
+                      {selectedRecord.recipientBank || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">交易流水号</p>
+                    <p className="rounded-md border border-border/60 bg-background px-3 py-2">
+                      {selectedRecord.transactionNo || "-"}
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">审核状态</p>
+                  <span
+                    className={cn(
+                      "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                      statusClassMap[selectedRecord.status] ||
+                        STATUS_LABELS[selectedRecord.status]?.color ||
+                        "bg-muted text-foreground",
+                    )}
+                  >
+                    {STATUS_LABELS[selectedRecord.status]?.label || selectedRecord.status}
+                  </span>
+                </div>
+
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">支付状态</p>
+                  {selectedRecord.type === "income" ? (
+                    <p className="text-sm text-muted-foreground">-</p>
+                  ) : (
+                    <span
+                      className={cn(
+                        "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                        selectedRecord.paymentStatus === "paid"
+                          ? "border-green-200 bg-green-50 text-green-700"
+                          : "border-gray-200 bg-gray-50 text-gray-700",
+                      )}
+                    >
+                      {selectedRecord.paymentStatus === "paid" ? "已支付" : "未支付"}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <Label className="mb-1 block text-xs text-muted-foreground">是否社区账目</Label>
+                  <select
+                    value={getCommunityChoice(selectedRecord)}
+                    onChange={(e) =>
+                      void handleCommunityChoiceChange(selectedRecord, e.target.value as CommunityChoice)
+                    }
+                    disabled={selectedRecord.status !== "pending" || communitySavingId === selectedRecord.id}
+                    className="h-9 w-full rounded-md border border-border/60 bg-background px-2.5 text-sm outline-none transition-colors focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="">请选择</option>
+                    <option value="yes">是</option>
+                    <option value="no">否</option>
+                  </select>
+                  {selectedRecord.status !== "pending" && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">已审核记录不可修改账目归属。</p>
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="payment-date" className="mb-1 block text-xs text-muted-foreground">
+                    标记支付日期（可选）
+                  </Label>
+                  <Input
+                    id="payment-date"
+                    type="date"
+                    value={paymentDateInput}
+                    onChange={(e) => setPaymentDateInput(e.target.value)}
+                    disabled={
+                      !(
+                        selectedRecord.status === "approved" &&
+                        selectedRecord.type === "expense" &&
+                        selectedRecord.paymentStatus === "unpaid"
+                      )
+                    }
+                    className="h-9 border-border/60 text-sm"
+                  />
+                </div>
+              </section>
+
+              <section>
+                <Label htmlFor="review-note" className="mb-1 block text-xs text-muted-foreground">
+                  审核备注（可选）
+                </Label>
+                <Textarea
+                  id="review-note"
+                  value={reviewNoteInput}
+                  onChange={(e) => setReviewNoteInput(e.target.value)}
+                  placeholder="填写通过/拒绝原因，便于追踪"
+                  className="min-h-[90px] border-border/60 text-sm"
+                  disabled={selectedRecord.status !== "pending"}
+                />
+              </section>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="outline" onClick={closeRecordDialog} disabled={isModalBusy}>
+              关闭
+            </Button>
+
+            {selectedRecord && (
+              <div className="flex flex-wrap justify-end gap-2">
+                {selectedRecord.status === "pending" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void handleDelete(selectedRecord)}
+                    disabled={isModalBusy}
+                    className="border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-700"
+                  >
+                    <Trash2 className="mr-1.5 h-4 w-4" />
+                    删除
+                  </Button>
+                )}
+
+                {selectedRecord.status === "pending" && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void handleReview(selectedRecord, "rejected", reviewNoteInput)}
+                      disabled={isModalBusy}
+                      className="border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-700"
+                    >
+                      <X className="mr-1.5 h-4 w-4" />
+                      拒绝
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => void handleReview(selectedRecord, "approved", reviewNoteInput)}
+                      disabled={isModalBusy}
+                      className="bg-emerald-600 text-white hover:bg-emerald-700"
+                    >
+                      <Check className="mr-1.5 h-4 w-4" />
+                      审核通过
+                    </Button>
+                  </>
+                )}
+
+                {selectedRecord.status === "approved" &&
+                  selectedRecord.type === "expense" &&
+                  selectedRecord.paymentStatus === "unpaid" && (
+                    <Button
+                      type="button"
+                      onClick={() => void handleMarkPaid(selectedRecord.id, paymentDateInput)}
+                      disabled={isModalBusy}
+                      className="bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                      标记已支付
+                    </Button>
+                  )}
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
