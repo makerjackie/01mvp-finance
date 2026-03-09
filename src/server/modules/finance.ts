@@ -1284,10 +1284,6 @@ app.post("/:id/review", async (c) => {
     return c.json({ error: "记录不存在" }, 404);
   }
 
-  if (record.userId === user.id) {
-    return c.json({ error: "不能审核自己提交的申请" }, 403);
-  }
-
   const updated = await prisma.financeRecord.update({
     where: { id },
     data: {
