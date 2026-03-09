@@ -1851,15 +1851,22 @@ app.get("/admin/export", async (c) => {
     return c.json({ error: "无权访问" }, 403);
   }
 
-  const { type, status, isCommunity, relatedProject } = c.req.query();
+  const { type, status, isCommunity, relatedProject, paymentStatus } = c.req.query();
+  const normalizedPaymentStatus = paymentStatus === "paid" || paymentStatus === "unpaid" ? paymentStatus : null;
+
+  const filters: Prisma.FinanceRecordWhereInput[] = [];
+  if (type) filters.push({ type });
+  if (status) filters.push({ status });
+  if (isCommunity !== undefined) filters.push({ isCommunity: isCommunity === "true" });
+  if (relatedProject) filters.push({ relatedProject });
+  if (normalizedPaymentStatus) {
+    // 支付状态仅对支出记录生效；若同时选择“类型=收入”，AND 条件会自然返回空结果。
+    filters.push({ type: "expense" });
+    filters.push({ paymentStatus: normalizedPaymentStatus });
+  }
 
   const records = await prisma.financeRecord.findMany({
-    where: {
-      ...(type && { type }),
-      ...(status && { status }),
-      ...(isCommunity !== undefined && { isCommunity: isCommunity === "true" }),
-      ...(relatedProject && { relatedProject }),
-    },
+    where: filters.length > 0 ? { AND: filters } : undefined,
     orderBy: {
       createdAt: "desc",
     },

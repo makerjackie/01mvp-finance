@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   useReactTable,
@@ -53,6 +53,7 @@ interface ProjectOption {
 }
 
 type CommunityChoice = "" | "yes" | "no";
+type PaymentStatusFilter = "" | "paid" | "unpaid";
 
 const formatCurrency = (value: number) =>
   `¥${new Intl.NumberFormat("zh-CN", {
@@ -78,9 +79,17 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatusFilter>("");
   const [communityChoices, setCommunityChoices] = useState<Record<string, CommunityChoice>>({});
   const [communitySavingId, setCommunitySavingId] = useState<string | null>(null);
   const [projectOptions, setProjectOptions] = useState<ProjectOption[]>([]);
+
+  const paymentFilteredRecords = useMemo(() => {
+    if (!paymentStatusFilter) {
+      return records;
+    }
+    return records.filter((record) => record.type === "expense" && record.paymentStatus === paymentStatusFilter);
+  }, [records, paymentStatusFilter]);
 
   useEffect(() => {
     void fetchData();
@@ -219,6 +228,7 @@ export default function AdminPage() {
       if (typeFilter) params.append("type", typeFilter);
       if (statusFilter) params.append("status", statusFilter);
       if (projectFilter) params.append("relatedProject", projectFilter);
+      if (paymentStatusFilter) params.append("paymentStatus", paymentStatusFilter);
 
       const url = `/api/finance/admin/export${params.toString() ? `?${params.toString()}` : ""}`;
       window.open(url, "_blank");
@@ -439,6 +449,15 @@ export default function AdminPage() {
       ),
     },
     {
+      accessorKey: "type",
+      filterFn: (row, columnId, filterValue) => {
+        if (!filterValue) return true;
+        return row.getValue(columnId) === filterValue;
+      },
+      header: "类型",
+      cell: () => null,
+    },
+    {
       accessorKey: "amount",
       header: "金额",
       cell: ({ row }) => (
@@ -545,7 +564,7 @@ export default function AdminPage() {
   ];
 
   const table = useReactTable({
-    data: records,
+    data: paymentFilteredRecords,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -558,6 +577,9 @@ export default function AdminPage() {
       columnFilters,
     },
     initialState: {
+      columnVisibility: {
+        type: false,
+      },
       pagination: {
         pageSize: 20,
       },
@@ -617,7 +639,7 @@ export default function AdminPage() {
             <div>
               <CardTitle className="text-base">筛选条件</CardTitle>
               <CardDescription className="text-xs sm:text-sm">
-                按类型、状态、项目/活动和申请人快速过滤记录
+                按类型、审核状态、支付状态、项目/活动和申请人快速过滤记录
               </CardDescription>
             </div>
             <Button onClick={handleExport} variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg text-xs">
@@ -627,7 +649,7 @@ export default function AdminPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-2 px-4 pb-4 pt-0 sm:px-5">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
             <label className="space-y-1">
               <span className="text-[11px] font-medium text-muted-foreground">类型</span>
               <select
@@ -652,6 +674,19 @@ export default function AdminPage() {
                 <option value="pending">待审核</option>
                 <option value="approved">已通过</option>
                 <option value="rejected">已拒绝</option>
+              </select>
+            </label>
+
+            <label className="space-y-1">
+              <span className="text-[11px] font-medium text-muted-foreground">支付状态</span>
+              <select
+                value={paymentStatusFilter}
+                onChange={(e) => setPaymentStatusFilter((e.target.value || "") as PaymentStatusFilter)}
+                className="h-9 w-full rounded-md border border-border/60 bg-background px-2.5 text-xs outline-none transition-colors focus:ring-1 focus:ring-ring"
+              >
+                <option value="">全部支付状态</option>
+                <option value="paid">已支付（支出）</option>
+                <option value="unpaid">未支付（支出）</option>
               </select>
             </label>
 
