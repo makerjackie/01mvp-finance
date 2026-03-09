@@ -50,14 +50,15 @@ const baseNavItems: AppNavItem[] = [
     activePath: "/finance/my-records",
     icon: ClipboardList,
   },
-  {
-    key: "me",
-    title: "账号资料",
-    href: "/me",
-    activePath: "/me",
-    icon: Settings2,
-  },
 ];
+
+const profileNavItem: AppNavItem = {
+  key: "me",
+  title: "账号资料",
+  href: "/me",
+  activePath: "/me",
+  icon: Settings2,
+};
 
 const aiNavItems: AppNavItem[] = [
   {
@@ -106,18 +107,18 @@ const adminNavItems: AppNavItem[] = [
         icon: BarChart3,
       },
       {
-        key: "admin-audit-logs",
-        title: "审计日志",
-        href: "/admin/audit-logs",
-        activePath: "/admin/audit-logs",
-        icon: ScrollText,
-      },
-      {
         key: "admin-form-config",
         title: "表单配置",
         href: "/finance/admin/form-config",
         activePath: "/finance/admin/form-config",
         icon: SlidersHorizontal,
+      },
+      {
+        key: "admin-audit-logs",
+        title: "审计日志",
+        href: "/admin/audit-logs",
+        activePath: "/admin/audit-logs",
+        icon: ScrollText,
       },
     ],
   },
@@ -133,6 +134,8 @@ export function getAppNavItems(user?: AppNavUser): AppNavItem[] {
   if (canAccessAdmin(user)) {
     items.push(...adminNavItems);
   }
+
+  items.push(profileNavItem);
 
   return items;
 }

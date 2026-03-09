@@ -1,19 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, FolderKanban, Layers, RefreshCcw, Save, Wallet } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { ArrowUpRight, ChevronDown, RefreshCcw, Wallet } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT,
-  PROJECT_SETTLEMENT_MODE_LABELS,
-  type ProjectSettlementMode,
-} from "@/lib/project-categories";
 import { cn } from "@/lib/utils";
 
-type Scope = "all" | "company" | "community";
+type Scope = "all" | "community";
 
 type CategoryStat = {
   category: string;
@@ -28,31 +20,21 @@ type CategoryStat = {
 type ProjectStat = {
   projectId: string | null;
   name: string;
-  category: string;
-  categoryLabel: string;
-  settlementMode: ProjectSettlementMode;
-  settlementModeLabel: string;
-  communitySharePercent: number;
-  settlementDescription: string;
   recordCount: number;
   totalIncome: number;
   totalExpense: number;
   balance: number;
-  communityShareIncome: number;
-  teamShareIncome: number;
 };
 
-type ProjectCatalogItem = {
+type RecordDetail = {
   id: string;
-  name: string;
+  type: "income" | "expense";
+  amount: number;
+  relatedProject: string;
+  description: string;
   category: string;
-  categoryLabel: string;
-  settlementMode: ProjectSettlementMode;
-  settlementModeLabel: string;
-  communitySharePercent: number;
-  settlementDescription: string;
-  recordCount: number;
-  totalIncome: number;
+  applicantName: string;
+  createdAt: string;
 };
 
 type ProjectStatsData = {
@@ -70,7 +52,8 @@ type ProjectStatsData = {
   };
   categories: CategoryStat[];
   projects: ProjectStat[];
-  catalog: ProjectCatalogItem[];
+  incomeRecords: RecordDetail[];
+  expenseRecords: RecordDetail[];
 };
 
 type StatsResponse = {
@@ -79,40 +62,78 @@ type StatsResponse = {
   data?: ProjectStatsData;
 };
 
-type UpdateProjectConfigResponse = {
-  success?: boolean;
-  error?: string;
-};
-
 const formatCurrency = (value: number) =>
   `¥${new Intl.NumberFormat("zh-CN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)}`;
 
-const scopeLabelMap: Record<Scope, string> = {
-  all: "全部账目",
-  company: "公司账目",
-  community: "社区账目",
+const formatDateTime = (value: string) =>
+  new Date(value).toLocaleString("zh-CN", {
+    hour12: false,
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+const formatDateInputValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
 
+const getDefaultHalfYearDateRange = () => {
+  const end = new Date();
+  const start = new Date();
+  start.setMonth(start.getMonth() - 6);
+  return {
+    startDate: formatDateInputValue(start),
+    endDate: formatDateInputValue(end),
+  };
+};
+
+const scopeTabs: Array<{
+  value: Scope;
+  label: string;
+  icon: typeof ArrowUpRight;
+}> = [
+  { value: "all", label: "全部帐目", icon: ArrowUpRight },
+  { value: "community", label: "社区帐目", icon: ArrowUpRight },
+];
+
 export default function ProjectStatsPage() {
+  const defaultRange = getDefaultHalfYearDateRange();
   const [scope, setScope] = useState<Scope>("all");
+  const [dateRanges, setDateRanges] = useState<Record<Scope, { startDate: string; endDate: string }>>({
+    all: { ...defaultRange },
+    community: { ...defaultRange },
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ProjectStatsData | null>(null);
-  const [savingProjectId, setSavingProjectId] = useState<string | null>(null);
-  const [configDrafts, setConfigDrafts] = useState<
-    Record<
-      string,
-      {
-        settlementMode: ProjectSettlementMode;
-        communitySharePercent: number;
-      }
-    >
-  >({});
+  const [showAllIncomeRecords, setShowAllIncomeRecords] = useState(false);
+  const [showAllExpenseRecords, setShowAllExpenseRecords] = useState(false);
+  const startDate = dateRanges[scope].startDate;
+  const endDate = dateRanges[scope].endDate;
+  const isDateRangeIncomplete = (startDate && !endDate) || (!startDate && endDate);
+
+  const updateCurrentScopeDateRange = (next: Partial<{ startDate: string; endDate: string }>) => {
+    setDateRanges((prev) => ({
+      ...prev,
+      [scope]: {
+        ...prev[scope],
+        ...next,
+      },
+    }));
+  };
 
   useEffect(() => {
+    if (isDateRangeIncomplete) {
+      return;
+    }
+
     const controller = new AbortController();
     const fetchStats = async () => {
       setLoading(true);
@@ -122,6 +143,12 @@ export default function ProjectStatsPage() {
         const params = new URLSearchParams();
         if (scope !== "all") {
           params.set("scope", scope);
+        }
+        if (startDate) {
+          params.set("startDate", startDate);
+        }
+        if (endDate) {
+          params.set("endDate", endDate);
         }
 
         const res = await fetch(`/api/finance/admin/project-stats${params.toString() ? `?${params.toString()}` : ""}`, {
@@ -135,18 +162,7 @@ export default function ProjectStatsPage() {
           return;
         }
 
-        const statsData = result.data;
-        setData(statsData);
-        setConfigDrafts((prev) => {
-          const next = { ...prev };
-          for (const item of statsData.catalog) {
-            next[item.id] = {
-              settlementMode: next[item.id]?.settlementMode || item.settlementMode,
-              communitySharePercent: next[item.id]?.communitySharePercent ?? item.communitySharePercent,
-            };
-          }
-          return next;
-        });
+        setData(result.data);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           return;
@@ -164,7 +180,7 @@ export default function ProjectStatsPage() {
     return () => {
       controller.abort();
     };
-  }, [scope]);
+  }, [scope, startDate, endDate, isDateRangeIncomplete]);
 
   const nonEmptyCategories = useMemo(() => {
     if (!data) return [];
@@ -173,95 +189,113 @@ export default function ProjectStatsPage() {
     );
   }, [data]);
 
-  const handleSaveProjectConfig = async (projectId: string) => {
-    const draft = configDrafts[projectId];
-    if (!draft) return;
+  const sortedCategories = useMemo(
+    () =>
+      [...nonEmptyCategories].sort(
+        (a, b) => Math.max(b.totalIncome, b.totalExpense) - Math.max(a.totalIncome, a.totalExpense),
+      ),
+    [nonEmptyCategories],
+  );
 
-    setSavingProjectId(projectId);
-    setError(null);
+  const maxCategoryAmount = useMemo(
+    () =>
+      sortedCategories.reduce((max, item) => {
+        return Math.max(max, item.totalIncome, item.totalExpense);
+      }, 1),
+    [sortedCategories],
+  );
 
-    try {
-      const res = await fetch(`/api/finance/admin/projects/${projectId}/config`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          settlementMode: draft.settlementMode,
-          communitySharePercent: draft.communitySharePercent,
-        }),
-      });
+  const rankedProjects = useMemo(() => {
+    if (!data) return [];
+    return [...data.projects].sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance)).slice(0, 8);
+  }, [data]);
 
-      const result = (await res.json()) as UpdateProjectConfigResponse;
-      if (!res.ok || !result.success) {
-        setError(result.error || "项目配置保存失败");
-        return;
-      }
+  const topExpenseProjects = useMemo(() => {
+    if (!data) return [];
+    return [...data.projects].sort((a, b) => b.totalExpense - a.totalExpense).slice(0, 5);
+  }, [data]);
 
-      const params = new URLSearchParams();
-      if (scope !== "all") {
-        params.set("scope", scope);
-      }
-      const refreshed = await fetch(
-        `/api/finance/admin/project-stats${params.toString() ? `?${params.toString()}` : ""}`,
-      );
-      const refreshedResult = (await refreshed.json()) as StatsResponse;
-      if (refreshed.ok && refreshedResult.success && refreshedResult.data) {
-        const refreshedData = refreshedResult.data;
-        setData(refreshedData);
-        setConfigDrafts((prev) => {
-          const next = { ...prev };
-          for (const item of refreshedData.catalog) {
-            next[item.id] = {
-              settlementMode: item.settlementMode,
-              communitySharePercent: item.communitySharePercent,
-            };
-          }
-          return next;
-        });
-      }
-    } catch {
-      setError("项目配置保存失败");
-    } finally {
-      setSavingProjectId(null);
-    }
-  };
+  const maxAbsBalance = useMemo(
+    () =>
+      rankedProjects.reduce((max, item) => {
+        return Math.max(max, Math.abs(item.balance));
+      }, 1),
+    [rankedProjects],
+  );
+
+  const incomeRecordsToShow = useMemo(
+    () => (data ? (showAllIncomeRecords ? data.incomeRecords : data.incomeRecords.slice(0, 8)) : []),
+    [data, showAllIncomeRecords],
+  );
+
+  const expenseRecordsToShow = useMemo(
+    () => (data ? (showAllExpenseRecords ? data.expenseRecords : data.expenseRecords.slice(0, 8)) : []),
+    [data, showAllExpenseRecords],
+  );
 
   return (
     <div className="space-y-3 md:space-y-5">
       <div className="space-y-2 px-1">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">项目类别统计</h1>
         <p className="text-sm text-muted-foreground">
-          统计口径：已审核通过记录。支持按账目范围查看每个项目类别的收入、支出和净结余。
+          统计口径：已审核通过记录。社区账目口径为审核员将“是否社区账目”选择为“是”的记录。
         </p>
       </div>
 
-      <Card className="rounded-2xl border border-border/60 shadow-sm">
-        <CardContent className="px-3 py-3 sm:px-4 sm:py-4">
-          <div className="inline-flex w-full rounded-xl border border-border/60 bg-muted/40 p-1 sm:w-auto">
-            {(Object.keys(scopeLabelMap) as Scope[]).map((value) => (
+      <div className="space-y-2 px-1">
+        <div className="inline-flex w-full rounded-xl border border-border/60 bg-muted/40 p-1 sm:w-auto">
+          {scopeTabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
               <button
-                key={value}
+                key={tab.value}
                 type="button"
-                onClick={() => setScope(value)}
+                onClick={() => setScope(tab.value)}
                 className={cn(
                   "inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200 active:scale-[0.98] sm:min-w-[108px]",
-                  scope === value
+                  scope === tab.value
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
                 )}
               >
-                {value === "company" ? (
-                  <ArrowDownRight className="h-3.5 w-3.5" />
-                ) : (
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                )}
-                {scopeLabelMap[value]}
+                <Icon className="h-3.5 w-3.5" />
+                {tab.label}
               </button>
-            ))}
+            );
+          })}
+        </div>
+
+        <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">时间区间</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(event) => updateCurrentScopeDateRange({ startDate: event.target.value })}
+              className="h-8 rounded-lg border border-border/60 bg-background px-2 text-xs"
+            />
+            <span className="text-xs text-muted-foreground">至</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(event) => updateCurrentScopeDateRange({ endDate: event.target.value })}
+              className="h-8 rounded-lg border border-border/60 bg-background px-2 text-xs"
+            />
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  updateCurrentScopeDateRange({ startDate: "", endDate: "" });
+                }}
+                className="h-8 rounded-lg border border-border/60 px-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                清空区间
+              </button>
+            )}
           </div>
-        </CardContent>
-      </Card>
+          <p className="mt-1 text-[11px] text-muted-foreground">默认展示近半年数据，可按需修改时间周期</p>
+        </div>
+      </div>
 
       {loading ? (
         <Card className="rounded-2xl border border-border/60 shadow-sm">
@@ -276,29 +310,11 @@ export default function ProjectStatsPage() {
         </Card>
       ) : data ? (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-            <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-              <CardContent className="px-3 py-3">
-                <p className="text-[11px] text-muted-foreground">项目总数</p>
-                <p className="mt-1 text-sm font-semibold sm:text-base">{data.summary.totalProjects}</p>
-              </CardContent>
-            </Card>
-            <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-              <CardContent className="px-3 py-3">
-                <p className="text-[11px] text-muted-foreground">参与统计项目</p>
-                <p className="mt-1 text-sm font-semibold sm:text-base">{data.summary.involvedProjects}</p>
-              </CardContent>
-            </Card>
-            <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-              <CardContent className="px-3 py-3">
-                <p className="text-[11px] text-muted-foreground">已关联记录</p>
-                <p className="mt-1 text-sm font-semibold sm:text-base">{data.summary.trackedRecords}</p>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
             <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
               <CardContent className="px-3 py-3">
                 <p className="text-[11px] text-muted-foreground">总收入</p>
-                <p className="mt-1 text-sm font-semibold text-emerald-600 sm:text-base">
+                <p className="mt-1 text-base font-semibold text-emerald-600">
                   {formatCurrency(data.summary.totalIncome)}
                 </p>
               </CardContent>
@@ -306,7 +322,7 @@ export default function ProjectStatsPage() {
             <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
               <CardContent className="px-3 py-3">
                 <p className="text-[11px] text-muted-foreground">总支出</p>
-                <p className="mt-1 text-sm font-semibold text-rose-600 sm:text-base">
+                <p className="mt-1 text-base font-semibold text-rose-600">
                   {formatCurrency(data.summary.totalExpense)}
                 </p>
               </CardContent>
@@ -314,204 +330,198 @@ export default function ProjectStatsPage() {
             <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
               <CardContent className="px-3 py-3">
                 <p className="text-[11px] text-muted-foreground">净结余</p>
-                <p className="mt-1 text-sm font-semibold text-primary sm:text-base">
+                <p
+                  className={cn(
+                    "mt-1 text-base font-semibold",
+                    data.summary.balance >= 0 ? "text-emerald-600" : "text-rose-600",
+                  )}
+                >
                   {formatCurrency(data.summary.balance)}
                 </p>
               </CardContent>
             </Card>
             <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
               <CardContent className="px-3 py-3">
-                <p className="text-[11px] text-muted-foreground">社区应得收入</p>
-                <p className="mt-1 text-sm font-semibold text-emerald-600 sm:text-base">
-                  {formatCurrency(data.summary.estimatedCommunityShareIncome)}
+                <p className="text-[11px] text-muted-foreground">收支比（支出/收入）</p>
+                <p
+                  className={cn(
+                    "mt-1 text-base font-semibold",
+                    data.summary.totalIncome > 0 && data.summary.totalExpense / data.summary.totalIncome > 1
+                      ? "text-rose-600"
+                      : "text-foreground",
+                  )}
+                >
+                  {data.summary.totalIncome > 0
+                    ? `${((data.summary.totalExpense / data.summary.totalIncome) * 100).toFixed(1)}%`
+                    : "—"}
                 </p>
               </CardContent>
             </Card>
             <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
               <CardContent className="px-3 py-3">
-                <p className="text-[11px] text-muted-foreground">团队分成收入</p>
-                <p className="mt-1 text-sm font-semibold text-blue-600 sm:text-base">
-                  {formatCurrency(data.summary.estimatedTeamShareIncome)}
-                </p>
+                <p className="text-[11px] text-muted-foreground">已关联记录</p>
+                <p className="mt-1 text-base font-semibold">{data.summary.trackedRecords}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            <Card className="rounded-2xl border border-border/60 shadow-sm">
+              <CardHeader className="px-4 py-3 sm:px-5">
+                <CardTitle className="text-base">收支结构图（按项目类别）</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  绿色为收入，红色为支出，便于快速识别结构失衡。
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 px-4 pb-4 pt-0 sm:px-5">
+                {sortedCategories.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+                    暂无类别统计数据
+                  </div>
+                ) : (
+                  sortedCategories.map((item) => (
+                    <div key={item.category} className="rounded-lg border border-border/50 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium">{item.label}</p>
+                        <p
+                          className={cn(
+                            "text-xs font-medium",
+                            item.balance >= 0 ? "text-emerald-600" : "text-rose-600",
+                          )}
+                        >
+                          净额 {formatCurrency(item.balance)}
+                        </p>
+                      </div>
+                      <div className="mt-2 space-y-1.5">
+                        <div className="grid grid-cols-[40px_1fr_auto] items-center gap-2">
+                          <span className="text-[11px] text-muted-foreground">收入</span>
+                          <div className="h-1.5 rounded-full bg-emerald-100">
+                            <div
+                              className="h-1.5 rounded-full bg-emerald-500"
+                              style={{
+                                width: `${item.totalIncome > 0 ? Math.max((item.totalIncome / maxCategoryAmount) * 100, 3) : 0}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="text-[11px] text-emerald-600">{formatCurrency(item.totalIncome)}</span>
+                        </div>
+                        <div className="grid grid-cols-[40px_1fr_auto] items-center gap-2">
+                          <span className="text-[11px] text-muted-foreground">支出</span>
+                          <div className="h-1.5 rounded-full bg-rose-100">
+                            <div
+                              className="h-1.5 rounded-full bg-rose-500"
+                              style={{
+                                width: `${item.totalExpense > 0 ? Math.max((item.totalExpense / maxCategoryAmount) * 100, 3) : 0}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="text-[11px] text-rose-600">{formatCurrency(item.totalExpense)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border border-border/60 shadow-sm">
+              <CardHeader className="px-4 py-3 sm:px-5">
+                <CardTitle className="text-base">项目净额排行（Top 8）</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  按净额绝对值排序，优先看波动最大的项目。
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 px-4 pb-4 pt-0 sm:px-5">
+                {rankedProjects.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+                    暂无项目数据
+                  </div>
+                ) : (
+                  rankedProjects.map((item) => (
+                    <div
+                      key={`${item.name}-${item.projectId || "legacy"}`}
+                      className="space-y-1.5 rounded-lg border border-border/50 px-3 py-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-sm font-medium">{item.name}</p>
+                        <p
+                          className={cn(
+                            "text-xs font-medium",
+                            item.balance >= 0 ? "text-emerald-600" : "text-rose-600",
+                          )}
+                        >
+                          {formatCurrency(item.balance)}
+                        </p>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted">
+                        <div
+                          className={cn("h-1.5 rounded-full", item.balance >= 0 ? "bg-emerald-500" : "bg-rose-500")}
+                          style={{ width: `${Math.max((Math.abs(item.balance) / maxAbsBalance) * 100, 4)}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span>记录 {item.recordCount}</span>
+                        <span>
+                          收入 {formatCurrency(item.totalIncome)} / 支出 {formatCurrency(item.totalExpense)}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </div>
 
           <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="px-4 py-3 sm:px-5">
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-base">按项目类别统计</CardTitle>
-                <Badge variant="outline" className="rounded-full border-border/60 bg-muted/40 text-[11px]">
-                  未归类项目 {data.summary.unmatchedProjectCount}
-                </Badge>
-              </div>
+              <CardTitle className="text-base">重点项目清单（按支出 Top 5）</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">用于审核阶段优先关注大额支出项目。</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 px-3 pb-3 pt-0 sm:px-4 sm:pb-4">
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[760px] border-separate border-spacing-0">
-                  <thead>
-                    <tr>
-                      <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                        类别
-                      </th>
-                      <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                        项目数
-                      </th>
-                      <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                        记录数
-                      </th>
-                      <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                        收入
-                      </th>
-                      <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                        支出
-                      </th>
-                      <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                        净额
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {nonEmptyCategories.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-3 py-8 text-center text-sm text-muted-foreground">
-                          暂无类别统计数据
-                        </td>
-                      </tr>
-                    ) : (
-                      nonEmptyCategories.map((item) => (
-                        <tr key={item.category}>
-                          <td className="border-b border-border/40 px-3 py-2 text-sm font-medium">{item.label}</td>
-                          <td className="border-b border-border/40 px-3 py-2 text-right text-sm">
-                            {item.projectCount}
-                          </td>
-                          <td className="border-b border-border/40 px-3 py-2 text-right text-sm">{item.recordCount}</td>
-                          <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-emerald-600">
-                            {formatCurrency(item.totalIncome)}
-                          </td>
-                          <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-rose-600">
-                            {formatCurrency(item.totalExpense)}
-                          </td>
-                          <td className="border-b border-border/40 px-3 py-2 text-right text-sm font-semibold">
-                            {formatCurrency(item.balance)}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="space-y-2 md:hidden">
-                {nonEmptyCategories.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-                    暂无类别统计数据
-                  </div>
-                ) : (
-                  nonEmptyCategories.map((item) => (
-                    <div key={item.category} className="rounded-xl border border-border/60 bg-card p-3 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">{item.label}</p>
-                        <Badge variant="outline" className="rounded-full border-border/60 bg-muted/40 text-[10px]">
-                          {item.projectCount} 项目
-                        </Badge>
-                      </div>
-                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                        <p className="text-muted-foreground">
-                          记录：<span className="text-foreground">{item.recordCount}</span>
-                        </p>
-                        <p className="text-muted-foreground">
-                          收入：<span className="text-emerald-600">{formatCurrency(item.totalIncome)}</span>
-                        </p>
-                        <p className="text-muted-foreground">
-                          支出：<span className="text-rose-600">{formatCurrency(item.totalExpense)}</span>
-                        </p>
-                        <p className="text-muted-foreground">
-                          净额：<span className="font-semibold text-foreground">{formatCurrency(item.balance)}</span>
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl border border-border/60 shadow-sm">
-            <CardHeader className="px-4 py-3 sm:px-5">
-              <div className="flex items-center gap-2">
-                <FolderKanban className="h-4 w-4 text-primary" />
-                <CardTitle className="text-base">项目明细（按记录量）</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3 px-3 pb-3 pt-0 sm:px-4 sm:pb-4">
-              {data.projects.length === 0 ? (
+            <CardContent className="px-3 pb-3 pt-0 sm:px-4 sm:pb-4">
+              {topExpenseProjects.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-                  暂无项目明细
+                  暂无重点项目
                 </div>
               ) : (
-                <div className="max-h-[420px] overflow-auto">
-                  <table className="w-full min-w-[1060px] border-separate border-spacing-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[680px] border-separate border-spacing-0">
                     <thead>
                       <tr>
                         <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                          项目名称
-                        </th>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                          类别
-                        </th>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                          结算配置
+                          项目
                         </th>
                         <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
                           记录数
                         </th>
                         <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                          收入
+                          支出
                         </th>
                         <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                          支出
+                          收入
                         </th>
                         <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
                           净额
                         </th>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                          社区应得
-                        </th>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                          团队分成
-                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.projects.map((item) => (
-                        <tr key={`${item.name}-${item.projectId || "legacy"}`}>
+                      {topExpenseProjects.map((item) => (
+                        <tr key={`${item.name}-${item.projectId || "legacy"}-expense`}>
                           <td className="border-b border-border/40 px-3 py-2 text-sm">{item.name}</td>
-                          <td className="border-b border-border/40 px-3 py-2 text-xs text-muted-foreground">
-                            <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5">
-                              <Layers className="h-3 w-3" />
-                              {item.categoryLabel}
-                            </span>
-                          </td>
-                          <td className="border-b border-border/40 px-3 py-2 text-xs text-muted-foreground">
-                            <p className="font-medium text-foreground">{item.settlementModeLabel}</p>
-                            <p>{item.settlementDescription}</p>
-                          </td>
                           <td className="border-b border-border/40 px-3 py-2 text-right text-sm">{item.recordCount}</td>
-                          <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-emerald-600">
-                            {formatCurrency(item.totalIncome)}
-                          </td>
                           <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-rose-600">
                             {formatCurrency(item.totalExpense)}
                           </td>
-                          <td className="border-b border-border/40 px-3 py-2 text-right text-sm font-semibold">
-                            {formatCurrency(item.balance)}
-                          </td>
                           <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-emerald-600">
-                            {formatCurrency(item.communityShareIncome)}
+                            {formatCurrency(item.totalIncome)}
                           </td>
-                          <td className="border-b border-border/40 px-3 py-2 text-right text-sm text-blue-600">
-                            {formatCurrency(item.teamShareIncome)}
+                          <td
+                            className={cn(
+                              "border-b border-border/40 px-3 py-2 text-right text-sm font-semibold",
+                              item.balance >= 0 ? "text-emerald-600" : "text-rose-600",
+                            )}
+                          >
+                            {formatCurrency(item.balance)}
                           </td>
                         </tr>
                       ))}
@@ -524,126 +534,101 @@ export default function ProjectStatsPage() {
 
           <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="px-4 py-3 sm:px-5">
-              <CardTitle className="text-base">项目结算配置</CardTitle>
+              <CardTitle className="text-base">收入与支出明细</CardTitle>
               <CardDescription className="text-xs sm:text-sm">
-                支持配置“仅覆盖成本”与“盈利分成”。盈利分成默认规则：社区 20% / 项目团队 80%。
+                默认展示最近 8 条，点击下拉可展开更多历史记录。
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 px-3 pb-3 pt-0 sm:px-4 sm:pb-4">
-              {data.catalog.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-                  暂无可配置项目
+            <CardContent className="grid grid-cols-1 gap-3 px-3 pb-3 pt-0 lg:grid-cols-2 sm:px-4 sm:pb-4">
+              <div className="rounded-xl border border-border/60 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-medium text-emerald-600">收入明细</p>
+                  <span className="text-xs text-muted-foreground">共 {data.incomeRecords.length} 条</span>
                 </div>
-              ) : (
-                <div className="max-h-[420px] overflow-auto">
-                  <table className="w-full min-w-[980px] border-separate border-spacing-0">
-                    <thead>
-                      <tr>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                          项目
-                        </th>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                          类别
-                        </th>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                          结算模式
-                        </th>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                          社区分成%
-                        </th>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                          说明
-                        </th>
-                        <th className="border-b border-border/60 bg-muted/40 px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                          操作
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.catalog.map((item) => {
-                        const draft = configDrafts[item.id] || {
-                          settlementMode: item.settlementMode,
-                          communitySharePercent: item.communitySharePercent,
-                        };
+                {incomeRecordsToShow.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-6 text-center text-xs text-muted-foreground">
+                    暂无收入记录
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {incomeRecordsToShow.map((record) => (
+                      <div key={record.id} className="rounded-lg border border-border/50 px-3 py-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{record.relatedProject}</p>
+                            {record.description ? (
+                              <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{record.description}</p>
+                            ) : null}
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              {formatDateTime(record.createdAt)} · {record.applicantName} · {record.category}
+                            </p>
+                          </div>
+                          <p className="shrink-0 text-sm font-semibold text-emerald-600">
+                            {formatCurrency(record.amount)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {data.incomeRecords.length > 8 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllIncomeRecords((prev) => !prev)}
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <ChevronDown
+                      className={cn("h-3.5 w-3.5 transition-transform", showAllIncomeRecords && "rotate-180")}
+                    />
+                    {showAllIncomeRecords ? "收起明细" : "展开更多明细"}
+                  </button>
+                )}
+              </div>
 
-                        const previewPercent =
-                          draft.settlementMode === "profit_share"
-                            ? Math.max(0, Math.min(100, Number(draft.communitySharePercent || 0)))
-                            : DEFAULT_PROFIT_SHARE_COMMUNITY_PERCENT;
-
-                        return (
-                          <tr key={item.id}>
-                            <td className="border-b border-border/40 px-3 py-2 text-sm">
-                              <p className="font-medium">{item.name}</p>
-                              <p className="text-[11px] text-muted-foreground">
-                                记录 {item.recordCount} · 收入 {formatCurrency(item.totalIncome)}
-                              </p>
-                            </td>
-                            <td className="border-b border-border/40 px-3 py-2 text-xs text-muted-foreground">
-                              {item.categoryLabel}
-                            </td>
-                            <td className="border-b border-border/40 px-3 py-2">
-                              <select
-                                value={draft.settlementMode}
-                                onChange={(event) =>
-                                  setConfigDrafts((prev) => ({
-                                    ...prev,
-                                    [item.id]: {
-                                      ...draft,
-                                      settlementMode: event.target.value as ProjectSettlementMode,
-                                    },
-                                  }))
-                                }
-                                className="h-8 rounded-md border border-border/60 bg-background px-2 text-xs"
-                              >
-                                <option value="cost_only">{PROJECT_SETTLEMENT_MODE_LABELS.cost_only}</option>
-                                <option value="profit_share">{PROJECT_SETTLEMENT_MODE_LABELS.profit_share}</option>
-                              </select>
-                            </td>
-                            <td className="border-b border-border/40 px-3 py-2">
-                              <Input
-                                type="number"
-                                min={0}
-                                max={100}
-                                value={draft.communitySharePercent}
-                                disabled={draft.settlementMode !== "profit_share"}
-                                onChange={(event) =>
-                                  setConfigDrafts((prev) => ({
-                                    ...prev,
-                                    [item.id]: {
-                                      ...draft,
-                                      communitySharePercent: Number(event.target.value || 0),
-                                    },
-                                  }))
-                                }
-                                className="h-8 w-20 border-border/60 text-xs disabled:opacity-50"
-                              />
-                            </td>
-                            <td className="border-b border-border/40 px-3 py-2 text-xs text-muted-foreground">
-                              {draft.settlementMode === "profit_share"
-                                ? `社区 ${previewPercent}% / 团队 ${100 - previewPercent}%`
-                                : "仅覆盖成本，不分成"}
-                            </td>
-                            <td className="border-b border-border/40 px-3 py-2 text-right">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-8 gap-1 rounded-lg text-xs"
-                                disabled={savingProjectId === item.id}
-                                onClick={() => void handleSaveProjectConfig(item.id)}
-                              >
-                                <Save className="h-3.5 w-3.5" />
-                                {savingProjectId === item.id ? "保存中..." : "保存"}
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+              <div className="rounded-xl border border-border/60 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-medium text-rose-600">支出明细</p>
+                  <span className="text-xs text-muted-foreground">共 {data.expenseRecords.length} 条</span>
                 </div>
-              )}
+                {expenseRecordsToShow.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-6 text-center text-xs text-muted-foreground">
+                    暂无支出记录
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {expenseRecordsToShow.map((record) => (
+                      <div key={record.id} className="rounded-lg border border-border/50 px-3 py-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{record.relatedProject}</p>
+                            {record.description ? (
+                              <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{record.description}</p>
+                            ) : null}
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              {formatDateTime(record.createdAt)} · {record.applicantName} · {record.category}
+                            </p>
+                          </div>
+                          <p className="shrink-0 text-sm font-semibold text-rose-600">
+                            {formatCurrency(record.amount)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {data.expenseRecords.length > 8 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllExpenseRecords((prev) => !prev)}
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <ChevronDown
+                      className={cn("h-3.5 w-3.5 transition-transform", showAllExpenseRecords && "rotate-180")}
+                    />
+                    {showAllExpenseRecords ? "收起明细" : "展开更多明细"}
+                  </button>
+                )}
+              </div>
             </CardContent>
           </Card>
         </>
