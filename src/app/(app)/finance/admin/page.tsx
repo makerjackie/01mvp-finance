@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { Check, CheckCircle2, Download, ExternalLink, Eye, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { APPLICATION_TYPES, FINANCE_CATEGORIES, STATUS_LABELS, getCategoryLabel } from "@/lib/finance-config";
 import { cn } from "@/lib/utils";
@@ -535,6 +535,12 @@ export default function AdminPage() {
     setPaymentDateInput("");
   };
 
+  const handleRowCellKeyDown = (event: KeyboardEvent<HTMLTableCellElement>, record: FinanceRecord) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openRecordDialog(record);
+  };
+
   const closeRecordDialog = () => {
     setActiveRecordId(null);
     setReviewNoteInput("");
@@ -717,122 +723,163 @@ export default function AdminPage() {
               暂无符合条件的记录
             </div>
           ) : (
-            <div className="max-h-[60vh] overflow-auto rounded-xl border border-border/60 scrollbar-thin [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-muted/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
-              <table className="w-full min-w-[920px] border-separate border-spacing-0">
-                <thead>
-                  <tr>
-                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
-                      申请类别
-                    </th>
-                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
-                      款项性质
-                    </th>
-                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
-                      申请人
-                    </th>
-                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
-                      项目/活动
-                    </th>
-                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
-                      金额
-                    </th>
-                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
-                      审核/支付状态
-                    </th>
-                    <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-right text-xs font-medium text-muted-foreground">
-                      操作
-                    </th>
-                    <th className="w-14 border-b border-border/60 bg-muted/40 px-4 py-2 text-right" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagedRecords.map((record) => (
-                    <tr
-                      key={record.id}
-                      className="cursor-pointer align-middle hover:bg-muted/20"
-                      onClick={() => openRecordDialog(record)}
-                    >
-                      <td className="border-b border-border/40 px-4 py-3">
-                        <span className="text-sm text-foreground">{getCategoryLabel(record.category)}</span>
-                      </td>
-                      <td className="border-b border-border/40 px-4 py-3">
-                        <span className="text-sm text-foreground">{getPaymentNatureLabel(record)}</span>
-                      </td>
-                      <td className="border-b border-border/40 px-4 py-3">
-                        <p className="text-sm text-foreground">{record.user.name}</p>
-                      </td>
-                      <td className="border-b border-border/40 px-4 py-3">
-                        <p className="text-sm text-foreground">{record.relatedProject || "-"}</p>
-                      </td>
-                      <td className="border-b border-border/40 px-4 py-3">
-                        <p className="text-sm text-foreground">{formatCurrency(record.amount)}</p>
-                      </td>
-                      <td className="border-b border-border/40 px-4 py-3">
-                        <div className="flex flex-col gap-1">
-                          <span
-                            className={cn(
-                              "inline-flex w-fit rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                              statusClassMap[record.status] ||
-                                STATUS_LABELS[record.status]?.color ||
-                                "bg-muted text-foreground",
-                            )}
-                          >
-                            审核：{STATUS_LABELS[record.status]?.label || record.status}
-                          </span>
-                          {record.type === "expense" ? (
+            <div className="space-y-1">
+              <p className="px-1 text-[11px] text-muted-foreground">点击记录可查看详情，表格支持左右滚动。</p>
+              <div className="max-h-[60vh] overflow-auto rounded-xl border border-border/60 scrollbar-thin [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-muted/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
+                <table className="w-full min-w-[920px] border-separate border-spacing-0">
+                  <thead>
+                    <tr>
+                      <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                        申请类别
+                      </th>
+                      <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                        款项性质
+                      </th>
+                      <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                        申请人
+                      </th>
+                      <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                        项目/活动
+                      </th>
+                      <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                        金额
+                      </th>
+                      <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                        审核/支付状态
+                      </th>
+                      <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-right text-xs font-medium text-muted-foreground">
+                        操作
+                      </th>
+                      <th className="w-14 border-b border-border/60 bg-muted/40 px-4 py-2 text-right" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedRecords.map((record) => (
+                      <tr key={record.id} className="align-middle hover:bg-muted/20">
+                        <td
+                          className="cursor-pointer border-b border-border/40 px-4 py-3 whitespace-nowrap"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openRecordDialog(record)}
+                          onKeyDown={(event) => handleRowCellKeyDown(event, record)}
+                          aria-label={`查看记录 ${record.user.name}`}
+                        >
+                          <span className="text-sm text-foreground">{getCategoryLabel(record.category)}</span>
+                        </td>
+                        <td
+                          className="cursor-pointer border-b border-border/40 px-4 py-3 whitespace-nowrap"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openRecordDialog(record)}
+                          onKeyDown={(event) => handleRowCellKeyDown(event, record)}
+                          aria-label={`查看记录 ${record.user.name}`}
+                        >
+                          <span className="text-sm text-foreground">{getPaymentNatureLabel(record)}</span>
+                        </td>
+                        <td
+                          className="cursor-pointer border-b border-border/40 px-4 py-3 whitespace-nowrap"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openRecordDialog(record)}
+                          onKeyDown={(event) => handleRowCellKeyDown(event, record)}
+                          aria-label={`查看记录 ${record.user.name}`}
+                        >
+                          <p className="text-sm text-foreground">{record.user.name}</p>
+                        </td>
+                        <td
+                          className="cursor-pointer border-b border-border/40 px-4 py-3 whitespace-nowrap"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openRecordDialog(record)}
+                          onKeyDown={(event) => handleRowCellKeyDown(event, record)}
+                          aria-label={`查看记录 ${record.user.name}`}
+                        >
+                          <p className="text-sm text-foreground">{record.relatedProject || "-"}</p>
+                        </td>
+                        <td
+                          className="cursor-pointer border-b border-border/40 px-4 py-3 whitespace-nowrap"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openRecordDialog(record)}
+                          onKeyDown={(event) => handleRowCellKeyDown(event, record)}
+                          aria-label={`查看记录 ${record.user.name}`}
+                        >
+                          <p className="text-sm text-foreground">{formatCurrency(record.amount)}</p>
+                        </td>
+                        <td
+                          className="cursor-pointer border-b border-border/40 px-4 py-3"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openRecordDialog(record)}
+                          onKeyDown={(event) => handleRowCellKeyDown(event, record)}
+                          aria-label={`查看记录 ${record.user.name}`}
+                        >
+                          <div className="flex flex-col gap-1">
                             <span
                               className={cn(
                                 "inline-flex w-fit rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                                paymentStatusClassMap[record.paymentStatus] ||
-                                  "border-slate-200 bg-slate-50 text-slate-700",
+                                statusClassMap[record.status] ||
+                                  STATUS_LABELS[record.status]?.color ||
+                                  "bg-muted text-foreground",
                               )}
                             >
-                              支付：{record.paymentStatus === "paid" ? "已支付" : "未支付"}
+                              审核：{STATUS_LABELS[record.status]?.label || record.status}
                             </span>
-                          ) : (
-                            <span className="inline-flex w-fit rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                              支付：不适用
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="border-b border-border/40 px-4 py-3 text-right">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openRecordDialog(record);
-                          }}
-                          className="h-8 gap-1.5 rounded-lg border-border/60 bg-background px-2.5 text-xs shadow-none"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          查看
-                        </Button>
-                      </td>
-                      <td className="border-b border-border/40 px-4 py-3 text-right">
-                        {canDeleteRecord(record) ? (
+                            {record.type === "expense" ? (
+                              <span
+                                className={cn(
+                                  "inline-flex w-fit rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                                  paymentStatusClassMap[record.paymentStatus] ||
+                                    "border-slate-200 bg-slate-50 text-slate-700",
+                                )}
+                              >
+                                支付：{record.paymentStatus === "paid" ? "已支付" : "未支付"}
+                              </span>
+                            ) : (
+                              <span className="inline-flex w-fit rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                支付：不适用
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="border-b border-border/40 px-4 py-3 text-right">
                           <Button
                             type="button"
-                            variant="ghost"
-                            size="icon"
+                            variant="outline"
+                            size="sm"
                             onClick={(event) => {
                               event.stopPropagation();
-                              void handleDelete(record);
+                              openRecordDialog(record);
                             }}
-                            className="h-8 w-8 text-muted-foreground/70 hover:bg-muted hover:text-rose-600"
-                            title="删除"
+                            className="h-8 gap-1.5 rounded-lg border-border/60 bg-background px-2.5 text-xs shadow-none"
                           >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">删除</span>
+                            <Eye className="h-3.5 w-3.5" />
+                            查看
                           </Button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        </td>
+                        <td className="border-b border-border/40 px-4 py-3 text-right">
+                          {canDeleteRecord(record) ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleDelete(record);
+                              }}
+                              className="h-8 w-8 text-muted-foreground/70 hover:bg-muted hover:text-rose-600"
+                              title="删除"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">删除</span>
+                            </Button>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
