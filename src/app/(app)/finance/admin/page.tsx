@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Check, CheckCircle2, Download, ExternalLink, Eye, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { APPLICATION_TYPES, FINANCE_CATEGORIES, STATUS_LABELS, getCategoryLabel } from "@/lib/finance-config";
 import { cn } from "@/lib/utils";
@@ -180,6 +180,11 @@ export default function AdminPage() {
   const [reviewNoteInput, setReviewNoteInput] = useState("");
   const [paymentDateInput, setPaymentDateInput] = useState("");
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomScrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollSyncLockRef = useRef(false);
+  const [tableScrollWidth, setTableScrollWidth] = useState(920);
+  const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
 
   const viewerUserId = sessionData?.user?.id;
   const viewerRole = resolveRole((sessionData?.user as { role?: string | null } | undefined)?.role);
@@ -319,6 +324,44 @@ export default function AdminPage() {
     const start = (currentPage - 1) * PAGE_SIZE;
     return filteredRecords.slice(start, start + PAGE_SIZE);
   }, [filteredRecords, currentPage]);
+
+  const updateTableScrollMetrics = useCallback(() => {
+    const tableScroller = tableScrollRef.current;
+    if (!tableScroller) return;
+
+    const nextWidth = Math.max(920, tableScroller.scrollWidth);
+    const overflow = tableScroller.scrollWidth - tableScroller.clientWidth > 1;
+
+    setTableScrollWidth((prev) => (prev === nextWidth ? prev : nextWidth));
+    setHasHorizontalOverflow((prev) => (prev === overflow ? prev : overflow));
+
+    const bottomScroller = bottomScrollRef.current;
+    if (bottomScroller && Math.abs(bottomScroller.scrollLeft - tableScroller.scrollLeft) > 1) {
+      bottomScroller.scrollLeft = tableScroller.scrollLeft;
+    }
+  }, []);
+
+  useEffect(() => {
+    updateTableScrollMetrics();
+
+    const tableScroller = tableScrollRef.current;
+    const tableElement = tableScroller?.querySelector("table");
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => {
+            updateTableScrollMetrics();
+          })
+        : null;
+
+    if (observer && tableScroller) observer.observe(tableScroller);
+    if (observer && tableElement) observer.observe(tableElement);
+
+    window.addEventListener("resize", updateTableScrollMetrics);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateTableScrollMetrics);
+    };
+  }, [updateTableScrollMetrics, pagedRecords]);
 
   const selectedRecord = useMemo(
     () => records.find((record) => record.id === activeRecordId) || null,
@@ -541,6 +584,24 @@ export default function AdminPage() {
     openRecordDialog(record);
   };
 
+  const syncHorizontalScroll = (source: HTMLDivElement | null, target: HTMLDivElement | null) => {
+    if (!source || !target) return;
+    if (scrollSyncLockRef.current) return;
+    scrollSyncLockRef.current = true;
+    target.scrollLeft = source.scrollLeft;
+    requestAnimationFrame(() => {
+      scrollSyncLockRef.current = false;
+    });
+  };
+
+  const handleMainTableScroll = () => {
+    syncHorizontalScroll(tableScrollRef.current, bottomScrollRef.current);
+  };
+
+  const handleBottomBarScroll = () => {
+    syncHorizontalScroll(bottomScrollRef.current, tableScrollRef.current);
+  };
+
   const closeRecordDialog = () => {
     setActiveRecordId(null);
     setReviewNoteInput("");
@@ -725,17 +786,21 @@ export default function AdminPage() {
           ) : (
             <div className="space-y-1">
               <p className="px-1 text-[11px] text-muted-foreground">点击记录可查看详情，表格支持左右滚动。</p>
-              <div className="max-h-[60vh] overflow-auto rounded-xl border border-border/60 scrollbar-thin [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-muted/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
+              <div
+                ref={tableScrollRef}
+                onScroll={handleMainTableScroll}
+                className="max-h-[60vh] overflow-auto rounded-xl border border-border/60 scrollbar-thin [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-muted/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40"
+              >
                 <table className="w-full min-w-[920px] border-separate border-spacing-0">
                   <thead>
                     <tr>
-                      <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                      <th className="min-w-[150px] border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
                         申请类别
                       </th>
                       <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
                         款项性质
                       </th>
-                      <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                      <th className="min-w-[140px] border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
                         申请人
                       </th>
                       <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
@@ -757,7 +822,7 @@ export default function AdminPage() {
                     {pagedRecords.map((record) => (
                       <tr key={record.id} className="align-middle hover:bg-muted/20">
                         <td
-                          className="cursor-pointer border-b border-border/40 px-4 py-3 whitespace-nowrap"
+                          className="min-w-[150px] cursor-pointer border-b border-border/40 px-4 py-3 whitespace-nowrap"
                           role="button"
                           tabIndex={0}
                           onClick={() => openRecordDialog(record)}
@@ -767,7 +832,7 @@ export default function AdminPage() {
                           <span className="text-sm text-foreground">{getCategoryLabel(record.category)}</span>
                         </td>
                         <td
-                          className="cursor-pointer border-b border-border/40 px-4 py-3 whitespace-nowrap"
+                          className="min-w-[140px] cursor-pointer border-b border-border/40 px-4 py-3 whitespace-nowrap"
                           role="button"
                           tabIndex={0}
                           onClick={() => openRecordDialog(record)}
@@ -880,6 +945,16 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
+              {hasHorizontalOverflow ? (
+                <div
+                  ref={bottomScrollRef}
+                  onScroll={handleBottomBarScroll}
+                  className="overflow-x-auto rounded-md border border-border/60 scrollbar-thin [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-muted/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40"
+                  aria-label="申请记录底部横向滚动条"
+                >
+                  <div className="h-px" style={{ width: tableScrollWidth }} />
+                </div>
+              ) : null}
             </div>
           )}
 
