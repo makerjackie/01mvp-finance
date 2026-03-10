@@ -297,3 +297,14 @@
     -webkit-mask-image: linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent);
   }
 }
+
+/* 全局禁用动效：点击/弹层/过渡全部即时生效 */
+*,
+*::before,
+*::after {
+  animation: none !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  transition-property: none !important;
+  scroll-behavior: auto !important;
+}
