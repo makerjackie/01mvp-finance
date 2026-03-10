@@ -809,7 +809,7 @@ export default function AdminPage() {
                       <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
                         金额
                       </th>
-                      <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+                      <th className="min-w-[190px] whitespace-nowrap border-b border-border/60 bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
                         审核/支付状态
                       </th>
                       <th className="border-b border-border/60 bg-muted/40 px-4 py-2 text-right text-xs font-medium text-muted-foreground">
@@ -872,7 +872,7 @@ export default function AdminPage() {
                           <p className="text-sm text-foreground">{formatCurrency(record.amount)}</p>
                         </td>
                         <td
-                          className="cursor-pointer border-b border-border/40 px-4 py-3"
+                          className="min-w-[190px] cursor-pointer border-b border-border/40 px-4 py-3"
                           role="button"
                           tabIndex={0}
                           onClick={() => openRecordDialog(record)}
@@ -882,7 +882,7 @@ export default function AdminPage() {
                           <div className="flex flex-col gap-1">
                             <span
                               className={cn(
-                                "inline-flex w-fit rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                                "inline-flex w-fit whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium",
                                 statusClassMap[record.status] ||
                                   STATUS_LABELS[record.status]?.color ||
                                   "bg-muted text-foreground",
@@ -893,7 +893,7 @@ export default function AdminPage() {
                             {record.type === "expense" ? (
                               <span
                                 className={cn(
-                                  "inline-flex w-fit rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                                  "inline-flex w-fit whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium",
                                   paymentStatusClassMap[record.paymentStatus] ||
                                     "border-slate-200 bg-slate-50 text-slate-700",
                                 )}
@@ -901,7 +901,7 @@ export default function AdminPage() {
                                 支付：{record.paymentStatus === "paid" ? "已支付" : "未支付"}
                               </span>
                             ) : (
-                              <span className="inline-flex w-fit rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                              <span className="inline-flex w-fit whitespace-nowrap rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                                 支付：不适用
                               </span>
                             )}
