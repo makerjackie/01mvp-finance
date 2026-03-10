@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Eye, FilePlus2, Trash2 } from "lucide-react";
+import { Copy, Eye, FilePlus2, Loader2, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   APPLICATION_TYPES,
   FINANCE_CATEGORIES,
@@ -85,8 +86,10 @@ const statusTabs: Array<{ key: StatusFilter; label: string }> = [
 ];
 
 export default function MyRecordsPage() {
+  const router = useRouter();
   const [records, setRecords] = useState<FinanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [expenseCategoryLabelMap, setExpenseCategoryLabelMap] = useState<Record<string, string>>({});
   const [activeType, setActiveType] = useState<TypeFilter>("all");
   const [activeStatus, setActiveStatus] = useState<StatusFilter>("all");
@@ -152,6 +155,26 @@ export default function MyRecordsPage() {
     } catch (error) {
       console.error(error);
       alert("删除失败");
+    }
+  };
+
+  const handleDuplicate = async (id: string) => {
+    setDuplicatingId(id);
+    try {
+      const res = await fetch(`/api/finance/${id}/duplicate`, {
+        method: "POST",
+      });
+      const result = await res.json();
+      if (result.success && result.data?.id) {
+        router.push(`/finance/edit/${result.data.id}?from=duplicate`);
+      } else {
+        alert(result.error || "复制失败");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("复制失败");
+    } finally {
+      setDuplicatingId(null);
     }
   };
 
@@ -323,17 +346,34 @@ export default function MyRecordsPage() {
                             </span>
                           </td>
                           <td className="border-b border-border/40 px-4 py-3 text-right">
-                            <Button
-                              asChild
-                              variant="outline"
-                              size="sm"
-                              className="h-8 gap-1.5 rounded-lg border-border/60 bg-background px-2.5 text-xs shadow-none"
-                            >
-                              <Link href={`/finance/edit/${record.id}`}>
-                                <Eye className="h-3.5 w-3.5" />
-                                查看
-                              </Link>
-                            </Button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                asChild
+                                variant="outline"
+                                size="sm"
+                                className="h-8 gap-1.5 rounded-lg border-border/60 bg-background px-2.5 text-xs shadow-none"
+                              >
+                                <Link href={`/finance/edit/${record.id}`}>
+                                  <Eye className="h-3.5 w-3.5" />
+                                  查看
+                                </Link>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDuplicate(record.id)}
+                                disabled={duplicatingId === record.id}
+                                className="h-8 gap-1.5 rounded-lg border-border/60 bg-background px-2.5 text-xs shadow-none"
+                              >
+                                {duplicatingId === record.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5" />
+                                )}
+                                复制
+                              </Button>
+                            </div>
                           </td>
                           <td className="border-b border-border/40 px-4 py-3 text-right">
                             {record.status === "pending" ? (

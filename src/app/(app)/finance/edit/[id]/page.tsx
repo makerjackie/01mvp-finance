@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ExternalLink, Loader2, Save, ShieldAlert } from "lucide-react";
 import { FINANCE_CATEGORIES, TYPE_LABELS, getCategoryLabel, STATUS_LABELS } from "@/lib/finance-config";
@@ -135,7 +135,9 @@ const normalizeAttachment = (file: unknown, index: number): Attachment | null =>
 export default function EditRecordPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = params.id as string;
+  const fromDuplicate = searchParams.get("from") === "duplicate";
 
   const [record, setRecord] = useState<FinanceRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -219,7 +221,7 @@ export default function EditRecordPage() {
       const result = await res.json();
 
       if (result.success) {
-        alert("保存成功！");
+        alert(fromDuplicate ? "复制成功！" : "保存成功！");
         router.push("/finance/my-records");
       } else {
         alert(result.error || "保存失败");
@@ -270,6 +272,11 @@ export default function EditRecordPage() {
                 {TYPE_LABELS[record.type]} · {getCategoryLabel(record.category)}
               </CardTitle>
               <CardDescription className="text-xs">提交时间：{formatDateTime(record.createdAt)}</CardDescription>
+              {fromDuplicate && (
+                <p className="text-xs text-muted-foreground">
+                  当前为复制后的草稿，请确认信息后保存，保存后才会完成复制。
+                </p>
+              )}
             </div>
             <Badge
               className={cn(

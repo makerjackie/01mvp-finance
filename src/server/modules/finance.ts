@@ -1213,6 +1213,86 @@ app.delete("/:id", async (c) => {
   return c.json({ success: true });
 });
 
+// 复制财务记录（复制后生成待审核草稿）
+app.post("/:id/duplicate", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+
+  if (!session?.user) {
+    return c.json({ error: "未登录" }, 401);
+  }
+  const role = resolveRole(session.user.role);
+  const isAdmin = role === "admin";
+
+  const id = c.req.param("id");
+  const record = await prisma.financeRecord.findUnique({
+    where: { id },
+  });
+
+  if (!record) {
+    return c.json({ error: "记录不存在" }, 404);
+  }
+
+  if (!isAdmin && record.userId !== session.user.id) {
+    return c.json({ error: "无权复制" }, 403);
+  }
+
+  const duplicated = await prisma.financeRecord.create({
+    data: {
+      userId: record.userId,
+      type: record.type,
+      category: record.category,
+      subcategory: record.subcategory,
+      amount: record.amount,
+      relatedProject: record.relatedProject,
+      description: record.description,
+      attachments: Array.isArray(record.attachments) ? [...record.attachments] : [],
+      recipientName: record.recipientName,
+      recipientAccount: record.recipientAccount,
+      recipientBank: record.recipientBank,
+      recipientIdCard: record.recipientIdCard,
+      transactionNo: record.transactionNo,
+      transactionDate: record.transactionDate,
+      summary: record.summary,
+      purpose: record.purpose,
+      accountPeriod: record.accountPeriod,
+      taxHandling: record.taxHandling,
+      formPayload: (record.formPayload as Prisma.InputJsonValue | null) ?? undefined,
+      formVersion: record.formVersion,
+      isCommunity: record.isCommunity,
+      status: "pending",
+      paymentStatus: "unpaid",
+      paymentDate: null,
+      paidBy: null,
+      reviewNote: null,
+      reviewedAt: null,
+      reviewedBy: null,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          phoneNumber: true,
+        },
+      },
+    },
+  });
+
+  await createAuditLog({
+    userId: session.user.id,
+    userName: session.user.name || "Unknown",
+    action: "duplicate",
+    resource: "finance_record",
+    resourceId: duplicated.id,
+    metadata: {
+      sourceRecordId: record.id,
+    },
+    req: c.req.raw,
+  });
+
+  return c.json({ success: true, data: duplicated });
+});
+
 // 审核员/管理员：获取所有财务记录
 app.get("/admin/all", async (c) => {
   const { type, status, category } = c.req.query();
