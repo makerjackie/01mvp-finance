@@ -583,7 +583,9 @@ export default function AdminPage() {
             <ShieldCheck className="h-5 w-5 text-primary" />
             <h1 className="text-3xl font-semibold tracking-tight">审核后台</h1>
           </div>
-          <p className="text-sm text-muted-foreground">列表仅展示关键信息，点击“查看”进入详情弹窗执行审核操作。</p>
+          <p className="text-sm text-muted-foreground">
+            列表仅展示关键信息，点击记录行或“查看”均可进入详情弹窗执行审核操作。
+          </p>
         </div>
       </section>
 
@@ -715,7 +717,7 @@ export default function AdminPage() {
               暂无符合条件的记录
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-border/60">
+            <div className="max-h-[60vh] overflow-auto rounded-xl border border-border/60 scrollbar-thin [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-muted/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
               <table className="w-full min-w-[920px] border-separate border-spacing-0">
                 <thead>
                   <tr>
@@ -745,7 +747,11 @@ export default function AdminPage() {
                 </thead>
                 <tbody>
                   {pagedRecords.map((record) => (
-                    <tr key={record.id} className="align-middle hover:bg-muted/20">
+                    <tr
+                      key={record.id}
+                      className="cursor-pointer align-middle hover:bg-muted/20"
+                      onClick={() => openRecordDialog(record)}
+                    >
                       <td className="border-b border-border/40 px-4 py-3">
                         <span className="text-sm text-foreground">{getCategoryLabel(record.category)}</span>
                       </td>
@@ -795,7 +801,10 @@ export default function AdminPage() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => openRecordDialog(record)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openRecordDialog(record);
+                          }}
                           className="h-8 gap-1.5 rounded-lg border-border/60 bg-background px-2.5 text-xs shadow-none"
                         >
                           <Eye className="h-3.5 w-3.5" />
@@ -808,7 +817,10 @@ export default function AdminPage() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            onClick={() => void handleDelete(record)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handleDelete(record);
+                            }}
                             className="h-8 w-8 text-muted-foreground/70 hover:bg-muted hover:text-rose-600"
                             title="删除"
                           >
