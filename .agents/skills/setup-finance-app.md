@@ -1,0 +1,1 @@
+../../skills/setup-finance-app.md

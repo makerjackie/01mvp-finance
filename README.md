@@ -22,6 +22,34 @@
 
 ## 快速开始
 
+### 新手完整设置指南
+
+如果你是第一次设置这个项目，推荐使用我们的 AI 设置向导：
+
+```bash
+# 安装 skill（在任意目录）
+npx skills add Jackiexiao/01mvp-finance
+
+# 在 AI 编辑器中调用
+/setup-finance-app
+```
+
+这个 skill 会引导你完成：
+1. 环境检查（Node.js、pnpm、GitHub CLI）
+2. 克隆项目
+3. 安装依赖
+4. 配置环境变量
+5. 数据库设置
+6. 启动开发服务器
+
+**前置要求**：
+- Node.js 和 pnpm
+- GitHub 账号（有仓库访问权限）
+- AI 编辑器（推荐 Claude Code 或 Cursor）
+- `.env.local` 文件（联系 Jackie 获取）
+
+### 快速启动（已克隆项目）
+
 ```bash
 pnpm install
 pnpm run db:generate
@@ -65,10 +93,6 @@ cp .env.example .env.local
 - 短信：`TENCENT_*`
 - 存储：`S3_*`
 
-## Docker
-
-- 本地：`make up` / `make down` / `make logs`
-- 生产镜像默认：`ghcr.io/community-finance/community-finance-system:latest`
 
 ## 文档
 
