@@ -23,10 +23,7 @@ tags: [onboarding, setup, deployment, finance]
 - 对 `jackiexiao/01mvp-finance` 仓库的访问权限
 - 能够推送代码到该仓库
 
-### 3. AI 编辑器
-- 推荐使用 **Claude Code** 或 **Cursor**
-
-### 4. 环境变量文件
+### 3. 环境变量文件
 - 需要从 Jackie 获取 `.env.local` 文件
 - 该文件包含数据库密钥等部署所需的敏感信息
 
