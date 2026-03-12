@@ -20,6 +20,8 @@ import { AdminLimitsPanel } from "./admin-limits-panel";
 import { AdminFeatureFlagsPanel } from "./admin-feature-flags-panel";
 import { AdminOpsPanel } from "./admin-ops-panel";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminPage() {
   let session: Awaited<ReturnType<typeof auth.api.getSession>> | null = null;
   try {

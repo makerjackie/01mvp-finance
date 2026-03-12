@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Loader2, RefreshCcw } from "lucide-react";
 
 interface AuditLog {
   id: string;
@@ -24,20 +25,42 @@ export default function AuditLogsPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/audit/logs?page=${page}`, {
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        data?: AuditLog[];
+        total?: number;
+        message?: string;
+        error?: string;
+      } | null;
+
+      if (!res.ok || !data?.success || !Array.isArray(data.data)) {
+        throw new Error(data?.message || data?.error || "加载审计日志失败");
+      }
+
+      setLogs(data.data);
+      setTotal(typeof data.total === "number" ? data.total : 0);
+    } catch (fetchError) {
+      setLogs([]);
+      setTotal(0);
+      setError(fetchError instanceof Error ? fetchError.message : "加载审计日志失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [page]);
 
   useEffect(() => {
-    const fetchLogs = async () => {
-      setLoading(true);
-      const res = await fetch(`/api/audit/logs?page=${page}`);
-      const data = await res.json();
-      if (data.success) {
-        setLogs(data.data);
-        setTotal(data.total);
-      }
-      setLoading(false);
-    };
-    fetchLogs();
-  }, [page]);
+    void fetchLogs();
+  }, [fetchLogs]);
 
   const actionLabels: Record<string, string> = {
     create: "创建",
@@ -57,7 +80,20 @@ export default function AuditLogsPage() {
       <Card className="rounded-2xl border border-border/60 shadow-sm">
         <CardContent className="px-4 py-4 sm:px-5">
           {loading ? (
-            <div className="text-center py-8">加载中...</div>
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              加载中...
+            </div>
+          ) : error ? (
+            <div className="space-y-3 py-8 text-center">
+              <p className="text-sm text-destructive">{error}</p>
+              <Button variant="outline" size="sm" onClick={() => void fetchLogs()}>
+                <RefreshCcw className="mr-2 h-4 w-4" />
+                重试
+              </Button>
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">暂无审计日志</div>
           ) : (
             <>
               <p className="mb-2 text-xs text-muted-foreground sm:hidden">可左右滑动查看完整列信息</p>
@@ -80,7 +116,7 @@ export default function AuditLogsPage() {
                       <TableCell className="whitespace-nowrap">{log.userName}</TableCell>
                       <TableCell className="whitespace-nowrap">{actionLabels[log.action] || log.action}</TableCell>
                       <TableCell className="max-w-[180px] truncate font-mono text-xs whitespace-nowrap">
-                        {log.resourceId.slice(0, 8)}...
+                        {log.resourceId ? `${log.resourceId.slice(0, 8)}...` : "-"}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">{log.ipAddress || "-"}</TableCell>
                     </TableRow>

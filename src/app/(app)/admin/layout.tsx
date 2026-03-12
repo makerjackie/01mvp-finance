@@ -6,6 +6,8 @@ import { MobileAdminSubtabs } from "@/components/mobile-admin-subtabs";
 
 type AppUser = User & { role?: string | null };
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   let session: Awaited<ReturnType<typeof auth.api.getSession>> | null = null;
   try {

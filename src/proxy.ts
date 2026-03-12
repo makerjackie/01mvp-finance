@@ -11,8 +11,14 @@ type SessionResponse = {
 // 缓存一次成功的内部 base URL，避免每次请求都重试
 let cachedInternalBaseUrl: string | null = null;
 
+const protectedRoutes = ["/admin", "/chat", "/dashboard", "/examples", "/finance", "/me", "/upload"];
+const authRoutes = ["/sign-in", "/sign-up"];
+
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
+  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
+  const needsSessionCheck = isProtectedRoute || isAuthRoute;
 
   const port = process.env.PORT || "3000";
   const candidateBaseUrls = Array.from(
@@ -52,6 +58,10 @@ export default async function proxy(request: NextRequest) {
   }
 
   const cookieHeader = request.headers.get("cookie") || "";
+  if (!needsSessionCheck) {
+    return NextResponse.next();
+  }
+
   if (!cookieHeader) {
     // 没有 cookie 直接认为未登录，避免无意义的内部请求
     return handleRouting({ pathname, session: null, request });
@@ -97,7 +107,9 @@ export default async function proxy(request: NextRequest) {
     }
   };
 
-  const basesToTry = cachedInternalBaseUrl ? [cachedInternalBaseUrl] : candidateBaseUrls;
+  const basesToTry = cachedInternalBaseUrl
+    ? [cachedInternalBaseUrl, ...candidateBaseUrls.filter((baseUrl) => baseUrl !== cachedInternalBaseUrl)]
+    : candidateBaseUrls;
   const errors: unknown[] = [];
 
   for (const baseUrl of basesToTry) {
@@ -112,7 +124,7 @@ export default async function proxy(request: NextRequest) {
     }
   }
 
-  if (!session) {
+  if (!session && isProtectedRoute) {
     console.error("[proxy] session fetch failed for all candidates", {
       pathname,
       hasCookie: Boolean(cookieHeader),
@@ -133,12 +145,7 @@ function handleRouting({
   session: SessionResponse | null;
   request: NextRequest;
 }) {
-  // 需要保护的路由列表
-  const protectedRoutes = ["/finance"];
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
-
-  // 公开路由（已登录用户不应访问）
-  const authRoutes = ["/sign-in", "/sign-up"];
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
 
   // 如果访问受保护路由但未登录，重定向到登录页
